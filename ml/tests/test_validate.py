@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tensora_ml.validate import validate_model_dir
+from tensorafi_ml.validate import validate_model_dir
 
 
 def write_safetensors(path: Path, *, data_len: int = 8, offsets: tuple[int, int] = (0, 8)) -> None:

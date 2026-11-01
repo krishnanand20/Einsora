@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from tensora_ml.bench import Sample, parse_sse, percentile, summarize
-from tensora_ml.ingest import HFSource, S3Dest, parse_dest, parse_source
+from tensorafi_ml.bench import Sample, parse_sse, percentile, summarize
+from tensorafi_ml.ingest import HFSource, S3Dest, parse_dest, parse_source
 
 
 def test_parse_source() -> None:

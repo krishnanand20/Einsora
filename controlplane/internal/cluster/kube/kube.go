@@ -17,10 +17,10 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/tensora/tensora/controlplane/internal/catalog"
-	"github.com/tensora/tensora/controlplane/internal/cluster"
-	"github.com/tensora/tensora/controlplane/internal/cluster/manifests"
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/catalog"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster/manifests"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 type kindInfo struct {
@@ -29,7 +29,7 @@ type kindInfo struct {
 }
 
 // allowed is every kind the controller may create. Apply refuses anything else, so a bug in
-// a builder can't create, say, a ClusterRoleBinding. Keep in sync with deploy/charts/tensora RBAC.
+// a builder can't create, say, a ClusterRoleBinding. Keep in sync with deploy/charts/tensorafi RBAC.
 var allowed = map[schema.GroupVersionKind]kindInfo{
 	{Version: "v1", Kind: "Namespace"}:                                         {"namespaces", false},
 	{Version: "v1", Kind: "Service"}:                                           {"services", true},
@@ -53,8 +53,8 @@ var (
 	cleanup = []schema.GroupVersionResource{vmGVR, isvcGVR, stsGVR, svcGVR, pvcGVR}
 )
 
-// Options are cluster settings the manifests need (TENSORA_STORAGE_CLASS, TENSORA_IMAGES_NAMESPACE,
-// TENSORA_UNTRUSTED_RUNTIME_CLASS).
+// Options are cluster settings the manifests need (TENSORAFI_STORAGE_CLASS, TENSORAFI_IMAGES_NAMESPACE,
+// TENSORAFI_UNTRUSTED_RUNTIME_CLASS).
 type Options struct {
 	StorageClass          string
 	ImagesNamespace       string

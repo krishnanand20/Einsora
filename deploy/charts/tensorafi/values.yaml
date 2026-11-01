@@ -1,36 +1,36 @@
-domain: tensora.example.com
+domain: tensorafi.example.com
 env: production
 
 image:
-  repository: ghcr.io/your-org/tensora-controlplane
+  repository: ghcr.io/your-org/tensorafi-controlplane
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
 webImage:
-  repository: ghcr.io/your-org/tensora-web
+  repository: ghcr.io/your-org/tensorafi-web
   tag: "0.1.0"
 
 database:
   # Secret with key DATABASE_URL, created out of band. Never put credentials in values.
-  existingSecret: tensora-db
+  existingSecret: tensorafi-db
 
 auth:
-  oidcIssuer: https://auth.tensora.example.com/realms/tensora
-  oidcAudience: tensora-api
-  tenantClaim: tensora_tenant
+  oidcIssuer: https://auth.tensorafi.example.com/realms/tensorafi
+  oidcAudience: tensorafi-api
+  tenantClaim: tensorafi_tenant
 
 cluster:
   untrustedRuntimeClass: kata-qemu-nvidia-gpu
-  storageClass: tensora-block
-  imagesNamespace: tensora-images
-  # The region this cluster serves (ADR-0009), passed to its controller (only) as TENSORA_REGION.
+  storageClass: tensorafi-block
+  imagesNamespace: tensorafi-images
+  # The region this cluster serves (ADR-0009), passed to its controller (only) as TENSORAFI_REGION.
   # The controller reconciles only this region's workloads. It must be listed in the catalog's
   # regions, or rendering fails. helmfile sets it from the environment file's `region`.
   region: dc-1
 
 gateway:
-  name: tensora
-  namespace: tensora-gateway
+  name: tensorafi
+  namespace: tensorafi-gateway
 
 api:
   replicas: 2

@@ -19,9 +19,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/redact"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/redact"
 )
 
 // Driver runs workloads one way (ADR-0013): natively on macOS, in containers, or in VMs. Run, Stop,

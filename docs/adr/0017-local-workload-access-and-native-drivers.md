@@ -1,6 +1,6 @@
 # 0017. Open workloads through an access proxy with one-time tickets, and run native drivers as supervised processes
 
-- **Status:** Proposed (roadmap step 7a: the process supervisor, the `macos-native` notebook driver, and the access proxy)
+- **Status:** Proposed (built in roadmap steps 7a and 7b: the process supervisor, the access proxy, and `macos-native` notebooks and MLX endpoints)
 - **Date:** 2026-11-01
 - **Deciders:** Krishnanand
 - **Amends:** ADR-0013 (drivers), ADR-0016 (the agent)

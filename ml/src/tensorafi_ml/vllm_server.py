@@ -8,8 +8,8 @@ import os
 import sys
 from pathlib import Path
 
-from tensora_ml.ingest import ModelRejectedError
-from tensora_ml.local import fetch_model
+from tensorafi_ml.ingest import ModelRejectedError
+from tensorafi_ml.local import fetch_model
 
 
 def server_command(
@@ -87,7 +87,7 @@ def main() -> int:
         environ.update(
             HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1", VLLM_ALLOW_RUNTIME_LORA_UPDATING="0"
         )
-        environ["VLLM_API_KEY"] = environ.pop("TENSORA_NATIVE_TOKEN")
+        environ["VLLM_API_KEY"] = environ.pop("TENSORAFI_NATIVE_TOKEN")
         # A fresh process image establishes offline mode before Hub/Transformers are imported.
         os.execvpe(sys.executable, command, environ)  # noqa: S606 - pinned interpreter and fixed module
     except Exception as exc:

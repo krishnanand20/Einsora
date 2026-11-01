@@ -23,8 +23,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 const runtimeRef = "jupyterlab-pytorch-mps"
@@ -171,7 +171,7 @@ func newDriver(t *testing.T, private ...string) (*Driver, string) {
 	if err := os.WriteFile(filepath.Join(env, "bin", "jupyter-lab"), []byte(script), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(env, ".tensora-ready"), nil, 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(env, ".tensorafi-ready"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return d, state
@@ -446,13 +446,13 @@ func TestSandbox(t *testing.T) {
 	if err := os.Symlink(filepath.Join(elsewhere, "real"), filepath.Join(elsewhere, "link")); err != nil {
 		t.Fatal(err)
 	}
-	private := filepath.Join(elsewhere, "real", "tensora.log")
+	private := filepath.Join(elsewhere, "real", "tensorafi.log")
 	if err := os.WriteFile(private, []byte("log"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	d, state := newDriver(t, filepath.Join(elsewhere, "link", "tensora.log"))
+	d, state := newDriver(t, filepath.Join(elsewhere, "link", "tensorafi.log"))
 	ctx := context.Background()
-	db := filepath.Join(state, "tensora.db")
+	db := filepath.Join(state, "tensorafi.db")
 	if err := os.WriteFile(db, []byte("secret"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -492,7 +492,7 @@ func TestSandbox(t *testing.T) {
 		{"read", filepath.Join(other, "state.json"), "false", "read another workload's state"},
 		{"write", filepath.Join(other, "state.json"), "false", "wrote another workload's state"},
 		{"write", filepath.Join(env, "bin", "planted"), "false", "wrote to the environment other workloads share"},
-		{"read", filepath.Join(env, ".tensora-ready"), "true", "couldn't read its environment"},
+		{"read", filepath.Join(env, ".tensorafi-ready"), "true", "couldn't read its environment"},
 		{"read", private, "false", "read a private file outside the state directory, named through a symlink"},
 		// Its state file and logs are written by the agent, outside the sandbox: nothing may be
 		// planted there, such as a symlink to the database.
@@ -534,7 +534,7 @@ func TestEnvironmentFailures(t *testing.T) {
 	other := notebook(1)
 	lock, _ := envs.ReadFile("envs/" + runtimeRef + ".txt")
 	_, env := d.envDir(runtimeRef, lock)
-	_ = os.Remove(filepath.Join(env, ".tensora-ready"))
+	_ = os.Remove(filepath.Join(env, ".tensorafi-ready"))
 	if err := d.Run(ctx, other); err != nil {
 		t.Fatal(err)
 	}
@@ -599,15 +599,15 @@ func gone(pid int) bool {
 }
 
 func TestSandboxProfileQuotesPaths(t *testing.T) {
-	profile, err := sandbox("/Users/o", []string{`/data/a "quoted" \ path/tensora.db`})
+	profile, err := sandbox("/Users/o", []string{`/data/a "quoted" \ path/tensorafi.db`})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(profile, `(subpath "/data/a \"quoted\" \\ path/tensora.db")`) ||
+	if !strings.Contains(profile, `(subpath "/data/a \"quoted\" \\ path/tensorafi.db")`) ||
 		!strings.Contains(profile, `(subpath "/Users/o/.ssh")`) {
 		t.Errorf("profile:\n%s", profile)
 	}
-	for _, bad := range []string{"relative/tensora.db", "/data/new\nline"} {
+	for _, bad := range []string{"relative/tensorafi.db", "/data/new\nline"} {
 		if _, err := sandbox("/Users/o", []string{bad}); err == nil {
 			t.Errorf("%q was written into the profile", bad)
 		}

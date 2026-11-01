@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 type accessView struct {
@@ -29,7 +29,7 @@ func (s *Server) openWorkload(w http.ResponseWriter, r *http.Request, p domain.P
 	if err != nil {
 		return err
 	}
-	u := url.URL{Scheme: "http", Host: fmt.Sprintf("w-%s.localhost:%d", id, s.accessPort), Path: "/_tensora/open",
+	u := url.URL{Scheme: "http", Host: fmt.Sprintf("w-%s.localhost:%d", id, s.accessPort), Path: "/_tensorafi/open",
 		RawQuery: url.Values{"ticket": {ticket}}.Encode()}
 	grant := accessView{}
 	if ticket == "" {

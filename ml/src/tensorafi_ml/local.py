@@ -8,14 +8,14 @@ from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from tensora_ml.ingest import (
+from tensorafi_ml.ingest import (
     MANIFEST_NAME,
     ModelRejectedError,
     parse_dest,
     parse_source,
     sha256_file,
 )
-from tensora_ml.validate import ALLOWED_NAMES, ALLOWED_SUFFIXES, validate_model_dir
+from tensorafi_ml.validate import ALLOWED_NAMES, ALLOWED_SUFFIXES, validate_model_dir
 
 MAX_FILES = 10_000
 

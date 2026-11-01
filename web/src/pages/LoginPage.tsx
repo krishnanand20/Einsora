@@ -41,7 +41,7 @@ export function LoginPage() {
         </button>
       </form>
       <p className="muted">
-        No account yet? The machine's owner creates the first one with <code>tensora setup</code>.
+        No account yet? The machine's owner creates the first one with <code>tensorafi setup</code>.
       </p>
     </section>
   );

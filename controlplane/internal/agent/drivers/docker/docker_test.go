@@ -19,9 +19,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/agent"
-	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 type fakeContainer struct {
@@ -205,7 +205,7 @@ func (f *fakeEngine) serve(w http.ResponseWriter, r *http.Request) {
 			if !c.info.State.Running {
 				var run string
 				for _, m := range c.config.HostConfig.Mounts {
-					if m.Target == "/run/tensora" {
+					if m.Target == "/run/tensorafi" {
 						run = m.Source
 					}
 				}

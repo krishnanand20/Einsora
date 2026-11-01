@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
 )
 
 const (

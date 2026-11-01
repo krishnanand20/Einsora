@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from tensora_ml.validate import (
+from tensorafi_ml.validate import (
     ALLOWED_NAMES,
     ALLOWED_SUFFIXES,
     DEFAULT_MAX_TOTAL_BYTES,
@@ -24,7 +24,7 @@ from tensora_ml.validate import (
     validate_model_dir,
 )
 
-MANIFEST_NAME = "tensora-manifest.json"
+MANIFEST_NAME = "tensorafi-manifest.json"
 
 _HF_URI = re.compile(r"^hf://(?P<repo>[A-Za-z0-9][\w.-]*/[\w.-]+)(?:@(?P<rev>[\w.-]+))?$")
 _S3_URI = re.compile(r"^s3://(?P<bucket>[a-z0-9][a-z0-9.-]{1,61}[a-z0-9])(?:/(?P<prefix>.*))?$")

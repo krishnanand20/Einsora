@@ -1,5 +1,5 @@
-# Tensora launch catalog for Solo and Lab installs (and `make dev`): the regions, classes, and images
-# users can choose from. Loaded by the control plane (TENSORA_CATALOG_PATH). The Datacenter profile
+# TensoraFi launch catalog for Solo and Lab installs (and `make dev`): the regions, classes, and images
+# users can choose from. Loaded by the control plane (TENSORAFI_CATALOG_PATH). The Datacenter profile
 # uses deploy/catalog.yaml instead. Field reference: controlplane/internal/catalog/catalog.go.
 # Control plane tests load this file, so `make test-cp` catches mistakes here.
 
@@ -141,9 +141,9 @@ images:
     description: JupyterLab with PyTorch, on CUDA, Metal, or CPU. Your work directory persists across restarts.
     runtimes:
       - accelerators: [nvidia, cpu]
-        ref: ghcr.io/your-org/tensora-pytorch-notebook:0.1.0 # container image (images/containers/)
+        ref: ghcr.io/your-org/tensorafi-pytorch-notebook:0.1.0 # container image (images/containers/)
         driver_refs:
-          docker: ghcr.io/your-org/tensora-pytorch-notebook:0.1.0
+          docker: ghcr.io/your-org/tensorafi-pytorch-notebook:0.1.0
           macos-native: jupyterlab-pytorch-mps
       - accelerators: [apple]
         ref: jupyterlab-pytorch-mps # pinned native environment (ADR-0017)
@@ -158,9 +158,9 @@ images:
       - accelerators: [nvidia]
         server: vllm
         model_format: safetensors
-        ref: tensora-vllm # KServe ClusterServingRuntime (deploy/charts/cluster-config)
+        ref: tensorafi-vllm # KServe ClusterServingRuntime (deploy/charts/cluster-config)
         driver_refs:
-          docker: ghcr.io/your-org/tensora-vllm-endpoint:0.1.0
+          docker: ghcr.io/your-org/tensorafi-vllm-endpoint:0.1.0
       - accelerators: [apple]
         server: mlx
         model_format: safetensors
@@ -169,5 +169,5 @@ images:
           macos-native: mlx-lm
       - accelerators: [nvidia, apple, amd, cpu]
         server: llama.cpp
-        model_format: gguf # refused until tensora-ml validate checks GGUF (rule 6)
+        model_format: gguf # refused until tensorafi-ml validate checks GGUF (rule 6)
         ref: llama-server # docker and macos-native drivers (planned)

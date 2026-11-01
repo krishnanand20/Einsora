@@ -1,6 +1,6 @@
 # KServe in RawDeployment mode: plain Deployments + Services, no Knative/Istio.
 # Trade-off: no scale-to-zero (see docs/architecture/overview.md, model serving).
-# The tensora-vllm ClusterServingRuntime lives in charts/cluster-config.
+# The tensorafi-vllm ClusterServingRuntime lives in charts/cluster-config.
 kserve:
   controller:
     deploymentMode: RawDeployment

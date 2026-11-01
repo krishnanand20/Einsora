@@ -1,6 +1,6 @@
 # Tenancy, trust, and isolation
 
-Tensora involves three parties. In a Solo install they're all the same person. Everywhere else they can differ.
+TensoraFi involves three parties. In a Solo install they're all the same person. Everywhere else they can differ.
 
 | Party | Who | Can be hostile to |
 |---|---|---|
@@ -40,7 +40,7 @@ user only sends prompts. No user code runs on the host.
 **Enforced in code** by `catalog.CheckLaunch`, at create, at start, and again at admission (so a changed
 catalog or tier can't be bypassed): on Apple Silicon, notebooks and endpoints run natively on macOS, so
 only trusted tenants may launch them; untrusted tenants get macOS VMs there. Endpoints are refused when
-their server would load a model format `tensora-ml validate` doesn't check yet (GGUF, so llama.cpp, until
+their server would load a model format `tensorafi-ml validate` doesn't check yet (GGUF, so llama.cpp, until
 roadmap step 10).
 
 On agents, placement (`controller/placement.go`, [ADR-0016](../adr/0016-agent-protocol-and-machine-placement.md))
@@ -81,14 +81,14 @@ checks each machine:
   ([ADR-0019](../adr/0019-driver-specific-runtime-selection.md)). CPU endpoints remain blocked.
 - `macos-native` runs each workload as its own process group under `sandbox-exec` (ADR-0017). The profile
   allows writing only to the workload's data, home, and temporary directories. It denies reading or writing
-  the Tensora state directory (other than reading the workload's own directory and the shared environment),
+  the TensoraFi state directory (other than reading the workload's own directory and the shared environment),
   even inside a temporary directory, so the workload can't change its state file or logs, which the driver
   writes outside the sandbox (and opens without following symlinks). It denies the control plane's database
   and log file wherever they are, and common credential stores (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`,
   `~/.docker`, gcloud, `gh`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc`, the Hugging Face token, shell
   history, browser profiles, keychain files, and others), by path and by their symlinks' targets. It allows
   signals only within the sandbox. It listens on no TCP or UDP port, only on Unix sockets in its own run
-  directory (`TENSORA_AGENT_RUN_DIR`, `~/.tensora/run` by default), and can't reach another workload's
+  directory (`TENSORAFI_AGENT_RUN_DIR`, `~/.tensorafi/run` by default), and can't reach another workload's
   run directory or sockets. Both explicit binds and implicitly bound listeners are denied. Each run
   directory is reserved atomically, and saved names cannot escape that directory. The driver records
   the sandbox fingerprint: after a sandbox change, older servers and their kernels stop before a
@@ -98,7 +98,7 @@ checks each machine:
   before another program reads an item), and the matrix keeps it to the owner's own workloads. A workload
   that ran before but whose data directory is gone fails instead of starting with an empty one.
 - Native MLX endpoints fetch models into per-workload storage and validate them with the same
-  `tensora_ml.validate` policy before loading weights. Accepted snapshots have a checksum manifest;
+  `tensorafi_ml.validate` policy before loading weights. Accepted snapshots have a checksum manifest;
   reused files are revalidated. Serving re-execs offline without the download credentials and loads
   only that local model with remote code disabled. API requests cannot select another model, an
   adapter, or a file. The access proxy accepts existing API tokens only, checks their active user,
@@ -122,7 +122,7 @@ checks each machine:
 | Guest exhausts the host | Hogging RAM, overheating a laptop | Caps; Guaranteed QoS in a datacenter; share only when idle and on AC power; instant reclaim |
 | **Host reads guest data** | An owner inspects a VM disk or process memory | Unavoidable without confidential computing. **Disclosed in the product.** Users shouldn't put secrets on community hosts. |
 | Guest-to-guest access | Reading another user's data or traffic | Tenant-scoped queries (404); a namespace or VM per workload; volumes deleted with the workload; **one untrusted user per Mac GPU** (Metal has no partitioning) |
-| Code execution through model files | A pickle payload, or `auto_map` custom code | `tensora-ml validate` allows safetensors (and GGUF once validated) only; never `trust_remote_code` |
+| Code execution through model files | A pickle payload, or `auto_map` custom code | `tensorafi-ml validate` allows safetensors (and GGUF once validated) only; never `trust_remote_code` |
 | Control plane or agent compromise | Stolen controller or agent credentials | The API has no runtime access; controller RBAC is an allowlist; each agent has its own revocable mTLS certificate; datacenter admin access only over WireGuard |
 | Usage-accounting tampering | Gaming quotas or fair share | Append-only events; metered states must hold capacity |
 | Data leaving its region | A fallback or bug moves data abroad | Rule 9; cross-region fallback only with explicit opt-in |
@@ -147,16 +147,16 @@ checks each machine:
 - **Local accounts** (built):
   - *Passwords* are hashed with argon2id, at most a few at a time, so guessing can't overload the server. Unknown emails cost the same to check as real ones, and older hashes are upgraded at sign-in, so timing doesn't reveal which accounts exist.
   - *Guessing* is limited per account and caller pair (10 failures in 15 minutes) and per caller (30, and 2 attempts at a time), counted as attempts start, so parallel guesses can't slip through (429 with `Retry-After`). A caller is an IPv4 address or an IPv6 /64; an IPv6 /48, which one person can easily hold whole, gets a looser limit of its own (100, and 4 at a time). Where an ISP gives each home a /56 or /64 out of a shared /48, a neighbour can still use up that /48's limit and block sign-in from it for 15 minutes; the per-pair and per-caller limits are the ones that hold for everyone. Knowing the owner's email isn't enough to lock them out, and password checks for a signed-in user (making a token, changing the password) are limited per caller too, so someone holding a stolen session can't use up the owner's. Only attempts whose password was checked count, so the limiter's memory is bounded by how fast passwords can be checked, and it's capped too. New passwords must not be common or mostly one character. Someone with many addresses can still guess slowly (see Open risks).
-  - *Proxies:* behind a reverse proxy, the caller's address comes from `X-Forwarded-For` (every header line, nearest entry first) only if the proxy is listed in `TENSORA_TRUSTED_PROXIES`. List only the proxies' own addresses: every listed address can claim HTTPS and any client address, and the server warns about ranges. A proxied request without `X-Forwarded-For` is refused, since everyone behind the proxy would share one limit. A request with proxy headers from a peer that isn't listed is refused for sign-in and sessions, even from this machine: everyone behind that proxy would share one limit, and what it says about HTTPS can't be believed. A proxy must send `X-Forwarded-For` and `X-Forwarded-Proto`; one that sends neither can't be told apart from a browser on the same machine.
-  - *Passwords and session cookies cross only private connections*: HTTPS (directly, or from a listed proxy that says so), or a browser on this machine. Plain HTTP from another machine is refused unless the operator sets `TENSORA_INSECURE_HTTP=true` for a network they trust.
-  - *Session and API tokens* are 256 random bits, stored only as SHA-256 hashes; a new API token is shown once. The session cookie is HttpOnly and SameSite=Strict, and over HTTPS it's `Secure` with the `__Host-` name, so no other host can set it; over HTTPS a cookie with the plain name is ignored, and a request carrying the session cookie twice is refused. Every cookie request that changes something needs the `X-Tensora-CSRF` header, which other sites can't add.
+  - *Proxies:* behind a reverse proxy, the caller's address comes from `X-Forwarded-For` (every header line, nearest entry first) only if the proxy is listed in `TENSORAFI_TRUSTED_PROXIES`. List only the proxies' own addresses: every listed address can claim HTTPS and any client address, and the server warns about ranges. A proxied request without `X-Forwarded-For` is refused, since everyone behind the proxy would share one limit. A request with proxy headers from a peer that isn't listed is refused for sign-in and sessions, even from this machine: everyone behind that proxy would share one limit, and what it says about HTTPS can't be believed. A proxy must send `X-Forwarded-For` and `X-Forwarded-Proto`; one that sends neither can't be told apart from a browser on the same machine.
+  - *Passwords and session cookies cross only private connections*: HTTPS (directly, or from a listed proxy that says so), or a browser on this machine. Plain HTTP from another machine is refused unless the operator sets `TENSORAFI_INSECURE_HTTP=true` for a network they trust.
+  - *Session and API tokens* are 256 random bits, stored only as SHA-256 hashes; a new API token is shown once. The session cookie is HttpOnly and SameSite=Strict, and over HTTPS it's `Secure` with the `__Host-` name, so no other host can set it; over HTTPS a cookie with the plain name is ignored, and a request carrying the session cookie twice is refused. Every cookie request that changes something needs the `X-TensoraFi-CSRF` header, which other sites can't add.
   - *An API token can't make tokens or change the password*, and a browser session needs the password again to make a token: a token outlives the session that makes it. Changing the password signs out every other session and reports how many API tokens still work. A sign-in that checked the old password can't finish after a password change: both lock the user's row.
   - A user lists and revokes only their own tokens. Disabling an account ends its sessions and tokens. Timelines name the credential that acted (`browser session`, or the token's name and prefix).
-  - The first account comes from `tensora setup` on the machine itself, never from a first-come web form, and `tensora setup -reset-password` is the way back in. Both need access to the database. A reset also signs out every session, which is how to end one that was stolen.
+  - The first account comes from `tensorafi setup` on the machine itself, never from a first-come web form, and `tensorafi setup -reset-password` is the way back in. Both need access to the database. A reset also signs out every session, which is how to end one that was stolen.
 - **Workload web UIs** (Jupyter, endpoint UIs) must be served from a different site than the dashboard and API, such as their own hostname. Code running in a workload controls what its UI serves, and on the dashboard's own origin it could send requests with the user's session cookie and the CSRF header. Another port on the same host isn't a different site for cookies (a notebook on `localhost:8888` can set cookies for the dashboard on `localhost:8080`), and neither is a subdomain of the dashboard's domain.
   - *Built, on the control plane's machine* ([ADR-0017](../adr/0017-local-workload-access-and-native-drivers.md)): the access proxy serves each workload at its own site, `w-<id>.localhost`, and answers no other host name. It opens a workload only with a one-time ticket from the API, which checks the caller's tenant (404 otherwise) and stores only the ticket's hash, for 60 seconds. The ticket is good at its own workload's host only, and the cookie it becomes (HttpOnly, SameSite=Strict) is for that host only and never reaches the workload. A session ends after 12 hours, or when the workload stops. The proxy refuses requests a browser says came from another origin (`Origin`, or Fetch Metadata for anything but a navigation), since a page on another port of the same host is same-site; it keeps the workload's cookies host-only, and the workload can't replace the proxy's. The workload's own token is added by the proxy, and is never in a URL, the database, a log, or an export (JupyterLab's page includes it, for its own scripts). The agent backend takes it only from the agent in its own process. The proxy listens on a loopback address only. The relay for other machines is Phase 2.
   - Native workloads listen on no TCP or UDP port (the sandbox denies it; JupyterLab is on a Unix socket, its kernels on IPC), because a program listening on a loopback port receives the cookies the browser sends to that host, whatever the port. Other programs on the machine still can (see Open risks).
-- Every store query is scoped by tenant. Dev header auth is refused outside `TENSORA_ENV=dev`.
+- Every store query is scoped by tenant. Dev header auth is refused outside `TENSORAFI_ENV=dev`.
 
 **Logs** (details in [logs-and-transparency.md](logs-and-transparency.md))
 
@@ -190,7 +190,7 @@ checks each machine:
 
 ## Compliance notes
 
-Tensora is software. **Whoever operates an instance is responsible** for the law where they operate.
+TensoraFi is software. **Whoever operates an instance is responsible** for the law where they operate.
 
 - **Solo** keeps everything on the user's own machine.
 - **Labs and pools** hold account data, so their operator needs a privacy notice (GDPR, DPDP, CCPA and others apply to operators), an acceptable use policy, and a way to handle abuse reports and lawful requests.

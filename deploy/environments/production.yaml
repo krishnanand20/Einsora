@@ -1,12 +1,12 @@
-# Datacenter profile at scale: ≥3 nodes, HA control plane, Ceph, Keycloak, Tensora. Edit before use.
+# Datacenter profile at scale: ≥3 nodes, HA control plane, Ceph, Keycloak, TensoraFi. Edit before use.
 # One file per regional cell: copy and rename it per region (ADR-0009).
 
 # This cluster's region (ADR-0009): its controller reconciles only this region's workloads. It must be
 # listed in deploy/catalog.yaml, and it can't change once workloads exist in it.
 region: dc-1
 
-domain: tensora.example.com
-acmeEmail: ops@tensora.example.com
+domain: tensorafi.example.com
+acmeEmail: ops@tensorafi.example.com
 
 # A virtual IP in front of the three k3s servers (e.g. kube-vip or a load balancer).
 apiServerHost: 10.0.10.10
@@ -36,7 +36,7 @@ features:
   kserve: true
   keycloak: true
   observability: true
-  tensora: true
+  tensorafi: true
 
-tensora:
+tensorafi:
   version: "0.1.0"

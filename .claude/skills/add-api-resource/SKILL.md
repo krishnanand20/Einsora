@@ -1,6 +1,6 @@
 ---
 name: add-api-resource
-description: Add a new tenant-scoped resource to the Tensora API end to end (migration, store, service, handlers, runtime manifests or driver specs, tests, web types). Use when asked to add an endpoint or resource to the control plane.
+description: Add a new tenant-scoped resource to the TensoraFi API end to end (migration, store, service, handlers, runtime manifests or driver specs, tests, web types). Use when asked to add an endpoint or resource to the control plane.
 ---
 
 Follow [docs/playbooks/add-api-resource.md](../../../docs/playbooks/add-api-resource.md) step by step.

@@ -14,20 +14,20 @@ import (
 )
 
 // TestMain lets the test binary act as a server that starts a child in a session of its own, as
-// Jupyter starts kernels (TENSORA_TEST_ROLE=server), and as that child (kernel).
+// Jupyter starts kernels (TENSORAFI_TEST_ROLE=server), and as that child (kernel).
 func TestMain(m *testing.M) {
-	switch os.Getenv("TENSORA_TEST_ROLE") {
+	switch os.Getenv("TENSORAFI_TEST_ROLE") {
 	case "server":
 		kernel := exec.Command(os.Args[0])
-		kernel.Env = append(os.Environ(), "TENSORA_TEST_ROLE=kernel")
+		kernel.Env = append(os.Environ(), "TENSORAFI_TEST_ROLE=kernel")
 		kernel.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 		if err := kernel.Start(); err != nil {
 			os.Exit(2)
 		}
-		_ = os.WriteFile(os.Getenv("TENSORA_TEST_PIDFILE"), []byte(strconv.Itoa(kernel.Process.Pid)), 0o600)
+		_ = os.WriteFile(os.Getenv("TENSORAFI_TEST_PIDFILE"), []byte(strconv.Itoa(kernel.Process.Pid)), 0o600)
 		// The server runs until the test tells it to exit (the exit file appears); its kernel goes on.
 		for deadline := time.Now().Add(time.Minute); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
-			if _, err := os.Stat(os.Getenv("TENSORA_TEST_EXITFILE")); err == nil {
+			if _, err := os.Stat(os.Getenv("TENSORAFI_TEST_EXITFILE")); err == nil {
 				os.Exit(0)
 			}
 		}
@@ -45,7 +45,7 @@ func startServer(t *testing.T) (Proc, int, string) {
 	t.Helper()
 	dir := t.TempDir()
 	pidFile, exitFile := filepath.Join(dir, "kernel.pid"), filepath.Join(dir, "exit")
-	env := []string{"TENSORA_TEST_ROLE=server", "TENSORA_TEST_PIDFILE=" + pidFile, "TENSORA_TEST_EXITFILE=" + exitFile}
+	env := []string{"TENSORAFI_TEST_ROLE=server", "TENSORAFI_TEST_PIDFILE=" + pidFile, "TENSORAFI_TEST_EXITFILE=" + exitFile}
 	p, err := Start(Spec{Path: os.Args[0], Env: env, Dir: dir,
 		Stdout: filepath.Join(dir, "out.log"), Stderr: filepath.Join(dir, "err.log")})
 	if err != nil {

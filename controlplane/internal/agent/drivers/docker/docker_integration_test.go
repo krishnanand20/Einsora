@@ -13,22 +13,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
 )
 
 // Opt-in smoke test for an already configured local test daemon and a pinned JupyterLab image.
 // It starts and deletes only its own workload; it never configures Docker or the host.
 func TestRealDockerNotebook(t *testing.T) {
-	image := os.Getenv("TENSORA_TEST_DOCKER_NOTEBOOK_IMAGE")
+	image := os.Getenv("TENSORAFI_TEST_DOCKER_NOTEBOOK_IMAGE")
 	if image == "" {
-		t.Skip("set TENSORA_TEST_DOCKER_NOTEBOOK_IMAGE to a pinned JupyterLab image on Linux")
+		t.Skip("set TENSORAFI_TEST_DOCKER_NOTEBOOK_IMAGE to a pinned JupyterLab image on Linux")
 	}
 	runs, err := os.MkdirTemp("/tmp", "td-live-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(runs) })
-	d, err := New(Options{Root: filepath.Join(t.TempDir(), "state"), Runs: runs, Socket: os.Getenv("TENSORA_DOCKER_SOCKET")})
+	d, err := New(Options{Root: filepath.Join(t.TempDir(), "state"), Runs: runs, Socket: os.Getenv("TENSORAFI_DOCKER_SOCKET")})
 	if err != nil {
 		t.Fatal(err)
 	}

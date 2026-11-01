@@ -6,19 +6,19 @@
 | **Access ticket** | A one-time link from `POST /v1/workloads/{id}/access`, valid for 60 seconds, that the access proxy exchanges for a cookie for that workload's site only. Only its hash is stored. |
 | **Activity log** | (Planned) per tenant: every API action by every user, with its request ID. An audit log. Tenant admins can read and export it (ADR-0015). |
 | **Admission** | The controller's decision to place a pending or queued workload onto free capacity |
-| **Agent (node agent)** | Runs on each machine (Linux or macOS), reports its inventory, and runs workloads through drivers (ADR-0013). In Solo it runs inside the control plane's process; other machines will run `tensora agent` and dial out (Phase 2). It syncs with the control plane's agent backend (ADR-0016). |
+| **Agent (node agent)** | Runs on each machine (Linux or macOS), reports its inventory, and runs workloads through drivers (ADR-0013). In Solo it runs inside the control plane's process; other machines will run `tensorafi agent` and dial out (Phase 2). It syncs with the control plane's agent backend (ADR-0016). |
 | **Allocation (usage accounting)** | Time a resource is reserved for a workload in a metered state, whatever its utilization. Used for quotas and fairness, never money (ADR-0011). |
 | **API token** | A credential for the CLI and scripts (`tsk_…`), made on the dashboard's API tokens page. Shown once, stored only as a hash, revocable, and optionally expiring. |
 | **Apple Silicon** | Apple's M-series chips. Their GPU is used through **Metal**, and CPU and GPU share **unified memory**. |
 | **CDI** | Containerized Data Importer (Datacenter): imports and clones VM disk images into PVCs (DataVolume, DataSource) |
 | **Cell** | One region's runtime (agent machines or a Kubernetes cluster), its storage, and its regional controller (ADR-0009) |
 | **Cilium** | eBPF-based CNI providing networking, NetworkPolicy, kube-proxy replacement, and Gateway API (Datacenter) |
-| **Community pool** | A Tensora instance where hosts lend idle machines to any of its users (ADR-0014) |
+| **Community pool** | A TensoraFi instance where hosts lend idle machines to any of its users (ADR-0014) |
 | **DataSource** | A CDI object naming a "golden" disk that VM disks are cloned from (Datacenter) |
 | **DCGM** | NVIDIA Data Center GPU Manager. Its exporter publishes GPU metrics. |
 | **Desired state** | What a machine should be running, parking, or removing, worked out from the store on every sync, so a restart never loses it (ADR-0016) |
 | **Driver** | The part of the agent that runs one kind of workload on one OS, for example `macos-native`, `macos-vz`, `docker`, or `libvirt`; `sim` runs nothing, for development. Each driver's isolation (strong or weak) is set by the control plane, never by the agent. |
-| **Export (workload export)** | One JSON file (`tensora.workload-export/v1`) with everything recorded about a workload: inputs, timeline, usage, and redactions. `tensora export <id>`, or **Download full log** in the dashboard (ADR-0015). |
+| **Export (workload export)** | One JSON file (`tensorafi.workload-export/v1`) with everything recorded about a workload: inputs, timeline, usage, and redactions. `tensorafi export <id>`, or **Download full log** in the dashboard (ADR-0015). |
 | **Fallback** | An opt-in substitute (another GPU class, CPU, machine, replica, model, or region) used when the requested one is unavailable (ADR-0010) |
 | **Gateway API** | The Kubernetes ingress API that succeeds Ingress (Datacenter) |
 | **GGUF** | A code-free model file format used by llama.cpp. Allowed once the validator checks it (ADR-0013). |
@@ -27,7 +27,7 @@
 | **Host** | The owner of a machine that runs workloads. Can see guest data on their own machine. |
 | **Inference gateway** | A proxy in front of endpoints: API keys, token counts, rate limits, and request failover (ADR-0010) |
 | **Intent** | What a user asked for, recorded in the store. The controller makes the runtime match it. |
-| **Inventory** | What a machine's agent reports: OS, CPUs, memory, GPUs, the drivers it has, and what Tensora may use (the rest stays the owner's). It never decides the machine's owner, region, or sharing. |
+| **Inventory** | What a machine's agent reports: OS, CPUs, memory, GPUs, the drivers it has, and what TensoraFi may use (the rest stays the owner's). It never decides the machine's owner, region, or sharing. |
 | **IOMMU** | CPU feature (Intel VT-d, AMD-Vi) that isolates device DMA; required for passthrough |
 | **Isolation (strong or weak)** | How well a driver separates a workload from its host: strong (a VM, or a container in its own VM) or weak (a shared kernel, or the macOS sandbox). Weak isolation is only for the machine owner's own workloads (the trust matrix). |
 | **Isolation tier** | In code today: `trusted` (owners) or `untrusted` (invited and community users) |
@@ -40,7 +40,7 @@
 | **Metered** | The workload states whose time is counted by usage accounting (`running`) |
 | **MIG** | Multi-Instance GPU: hardware partitioning of A100, H100, and later cards |
 | **MLX** | Apple's array framework for machine learning on Apple Silicon. Uses safetensors weights. |
-| **Operator** | Whoever runs a Tensora control plane: an individual, a team, a company, or a pool operator |
+| **Operator** | Whoever runs a TensoraFi control plane: an individual, a team, a company, or a pool operator |
 | **Park** | Release a workload's GPUs while keeping its disks (VM halted, notebook scaled to 0) |
 | **Passthrough** | Giving a VM exclusive, direct access to a whole PCI device through VFIO |
 | **Placement** | Where a workload actually runs: region, machine, and `placed_class` |
@@ -58,7 +58,7 @@
 | **Sync** | The one call between an agent and the control plane: the agent reports what it has, and gets the machine's complete desired state back as soon as it changes (a long poll; ADR-0016) |
 | **Tenant** | A user or organization account. In a datacenter its objects live in namespace `t-<slug>`. |
 | **Time-slicing** | Several processes sharing one GPU with no memory isolation. Never used between different users. |
-| **Timeline** | A workload's complete list of state changes and notes, each with a time and a human-readable reason (`workload_events`). A **note** records a decision that leaves the state as it was, such as a retry. `tensora events <id>` (ADR-0015). |
+| **Timeline** | A workload's complete list of state changes and notes, each with a time and a human-readable reason (`workload_events`). A **note** records a decision that leaves the state as it was, such as a retry. `tensorafi events <id>` (ADR-0015). |
 | **Trust level** | Owner, invited, or community. Decides which drivers may run a user's workloads (the trust matrix). |
 | **Unified memory** | On Apple Silicon, RAM shared by the CPU and GPU. macOS caps the GPU's share by default. |
 | **Usage accounting** | Recording who used how much compute, for quotas, fair share, and reports. Never billing. |

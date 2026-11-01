@@ -15,9 +15,9 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // database/sql driver, used only by goose
 	"github.com/pressly/goose/v3"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/store"
-	"github.com/tensora/tensora/controlplane/migrations"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/migrations"
 )
 
 type Store struct{ pool *pgxpool.Pool }

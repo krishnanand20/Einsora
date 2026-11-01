@@ -10,13 +10,13 @@ infra/ansible/group_vars/all/vault.yml
 .claude/settings.local.json
 CLAUDE.local.md
 
-# Local SQLite stores (TENSORA_DATABASE_URL=sqlite:...)
+# Local SQLite stores (TENSORAFI_DATABASE_URL=sqlite:...)
 *.db
 *.db-wal
 *.db-shm
 *.db-journal
 
-# The agent's state, kept next to a SQLite store (or in TENSORA_AGENT_STATE_DIR): this machine's
+# The agent's state, kept next to a SQLite store (or in TENSORAFI_AGENT_STATE_DIR): this machine's
 # identity, its lock, and macos-native's workloads (their data, and state files holding tokens)
 machine-id
 agent.lock
@@ -53,4 +53,4 @@ web/dist/
 
 # Local logs and workload exports (may contain personal data; see ADR-0015)
 *.log
-tensora-*.json
+tensorafi-*.json

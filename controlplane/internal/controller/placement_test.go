@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/cluster"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/testutil"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
 )
 
 func TestClusterPlacementCountsWhatsHeld(t *testing.T) {

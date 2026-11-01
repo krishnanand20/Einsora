@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/agent"
-	"github.com/tensora/tensora/controlplane/internal/agent/drivers/sim"
-	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/sim"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 // conn records what the agent sends and answers with resp.

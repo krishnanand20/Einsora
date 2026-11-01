@@ -58,9 +58,9 @@ Put the GPU device IDs into `deploy/environments/<env>.yaml` under `gpuPassthrou
 ## 5. Get the kubeconfig (over WireGuard)
 
 ```bash
-scp ubuntu@<node>:/etc/rancher/k3s/k3s.yaml ~/.kube/tensora.yaml   # needs sudo on the node to read
-sed -i '' 's/127.0.0.1/<node-ip>/' ~/.kube/tensora.yaml
-export KUBECONFIG=~/.kube/tensora.yaml
+scp ubuntu@<node>:/etc/rancher/k3s/k3s.yaml ~/.kube/tensorafi.yaml   # needs sudo on the node to read
+sed -i '' 's/127.0.0.1/<node-ip>/' ~/.kube/tensorafi.yaml
+export KUBECONFIG=~/.kube/tensorafi.yaml
 ```
 
 ## 6. Install the platform

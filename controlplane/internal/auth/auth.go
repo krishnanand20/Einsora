@@ -9,14 +9,14 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 type Authenticator interface {
 	Authenticate(r *http.Request) (domain.Principal, error)
 }
 
-// Dev trusts the X-Dev-Tenant and X-Dev-User headers. config refuses it outside TENSORA_ENV=dev.
+// Dev trusts the X-Dev-Tenant and X-Dev-User headers. config refuses it outside TENSORAFI_ENV=dev.
 type Dev struct{}
 
 func (Dev) Authenticate(r *http.Request) (domain.Principal, error) {

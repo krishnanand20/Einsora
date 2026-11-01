@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/credential"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/credential"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
 )
 
 // AccessTicketTTL is how long a ticket to open a workload lasts: long enough for the browser to

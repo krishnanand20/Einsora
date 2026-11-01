@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/cluster"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/testutil"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
 )
 
 func ctxFor(t *testing.T, tier domain.IsolationTier, imageID string) Context {
@@ -27,7 +27,7 @@ func ctxFor(t *testing.T, tier domain.IsolationTier, imageID string) Context {
 	}
 	return Context{
 		TenantSlug: "acme", Tier: tier, GPU: gpu, Image: img, Runtime: runtime,
-		StorageClass: "tensora-block", ImagesNamespace: "tensora-images", UntrustedRuntimeClass: "kata-test",
+		StorageClass: "tensorafi-block", ImagesNamespace: "tensorafi-images", UntrustedRuntimeClass: "kata-test",
 	}
 }
 
@@ -89,7 +89,7 @@ func TestEveryBuilderEmitsUnstructuredSafeTypes(t *testing.T) {
 			}
 		}
 	}
-	for _, o := range Tenant("acme", map[string]int{"nvidia.com/gpu": 3}, "tensora-images") {
+	for _, o := range Tenant("acme", map[string]int{"nvidia.com/gpu": 3}, "tensorafi-images") {
 		if err := cluster.CheckJSONTypes(o); err != nil {
 			t.Errorf("tenant %v: %v", o["kind"], err)
 		}
@@ -180,7 +180,7 @@ func TestEndpointUsesSafeRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	isvc := objs[0]
-	if got := dig(t, isvc, "spec", "predictor", "model", "runtime"); got != "tensora-vllm" {
+	if got := dig(t, isvc, "spec", "predictor", "model", "runtime"); got != "tensorafi-vllm" {
 		t.Errorf("runtime = %v", got)
 	}
 	if got := dig(t, isvc, "spec", "predictor", "model", "args", 0); got != "--tensor-parallel-size=2" {
@@ -193,7 +193,7 @@ func TestEndpointUsesSafeRuntime(t *testing.T) {
 }
 
 func TestTenantNetworkIsolation(t *testing.T) {
-	objs := Tenant("acme", map[string]int{"nvidia.com/gpu": 3}, "tensora-images")
+	objs := Tenant("acme", map[string]int{"nvidia.com/gpu": 3}, "tensorafi-images")
 	var policy, quota cluster.Manifest
 	for _, o := range objs {
 		switch o["kind"] {

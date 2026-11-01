@@ -24,7 +24,7 @@ alloy:
           target_label  = "container"
         }
         rule {
-          source_labels = ["__meta_kubernetes_pod_label_tensora_io_tenant"]
+          source_labels = ["__meta_kubernetes_pod_label_tensorafi_io_tenant"]
           target_label  = "tenant"
         }
       }

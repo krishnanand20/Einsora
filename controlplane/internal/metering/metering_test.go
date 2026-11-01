@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/metering"
-	"github.com/tensora/tensora/controlplane/internal/service"
-	"github.com/tensora/tensora/controlplane/internal/store"
-	"github.com/tensora/tensora/controlplane/internal/testutil"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/metering"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
 )
 
 var base = time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)

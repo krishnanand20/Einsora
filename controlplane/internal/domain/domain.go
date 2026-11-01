@@ -1,4 +1,4 @@
-// Package domain holds Tensora's core types and rules. It depends on nothing else in the
+// Package domain holds TensoraFi's core types and rules. It depends on nothing else in the
 // module, so storage, HTTP, Kubernetes, and metering code can all depend on it.
 package domain
 

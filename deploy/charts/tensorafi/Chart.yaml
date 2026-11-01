@@ -1,6 +1,6 @@
 apiVersion: v2
-name: tensora
-description: Tensora control plane (api, controller, metering) and dashboard.
+name: tensorafi
+description: TensoraFi control plane (api, controller, metering) and dashboard.
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

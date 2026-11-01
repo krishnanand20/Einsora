@@ -61,7 +61,7 @@ describe("toApiError", () => {
 
 describe("filenameFromDisposition", () => {
   it("uses the server's file name", () => {
-    expect(filenameFromDisposition("attachment; filename=tensora-llm-1.json", "x.json")).toBe("tensora-llm-1.json");
+    expect(filenameFromDisposition("attachment; filename=tensorafi-llm-1.json", "x.json")).toBe("tensorafi-llm-1.json");
     expect(filenameFromDisposition('attachment; filename="a b.json"', "x.json")).toBe("a b.json");
   });
 

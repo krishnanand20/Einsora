@@ -10,7 +10,7 @@ What users can launch.
 | `vm/ubuntu-24.04-cuda/` | Datacenter VM base image, as a CDI DataSource (catalog id `ubuntu-24.04-cuda`) |
 
 For Linux Solo, build the vLLM image below. In a datacenter, the `openai-endpoint` catalog entry's vLLM runtime
-points to the `tensora-vllm` ClusterServingRuntime in `deploy/charts/cluster-config`, which pins an
+points to the `tensorafi-vllm` ClusterServingRuntime in `deploy/charts/cluster-config`, which pins an
 upstream vLLM image.
 
 ## How the catalog is shaped (ADR-0009, 0010, 0013)
@@ -22,7 +22,7 @@ upstream vLLM image.
   - endpoints (`openai-endpoint`): vLLM on NVIDIA, MLX on Apple, llama.cpp on anything, including CPU
   - notebooks (`pytorch-notebook`): the CUDA container on NVIDIA and CPU, and a uv-managed environment with PyTorch on Macs for both Apple and explicitly selected CPU classes. That environment's lock file, with hashes, is `controlplane/internal/agent/drivers/macosnative/envs/jupyterlab-pytorch-mps.txt`, embedded in the binary; its header says how to regenerate it.
   - VMs (`ubuntu-24.04-cuda`): NVIDIA passthrough today; macOS guests (Virtualization framework) arrive with the `macos-vz` driver
-- An endpoint runtime names its `server` and the `model_format` it loads. Only formats `tensora-ml validate` checks are accepted (rule 6): safetensors today, GGUF from roadmap step 10, so llama.cpp endpoints wait until then.
+- An endpoint runtime names its `server` and the `model_format` it loads. Only formats `tensorafi-ml validate` checks are accepted (rule 6): safetensors today, GGUF from roadmap step 10, so llama.cpp endpoints wait until then.
 - A runtime's `ref` is what the backend runs: a CDI DataSource, container image, or KServe ServingRuntime on Kubernetes, or a name the node agent's driver understands (`macos-native`: `jupyterlab-pytorch-mps`, an environment whose lock is embedded in the binary). The optional `driver_refs` map names the supported agent drivers and their refs, such as `docker: <pinned image>` and `macos-native: jupyterlab-pytorch-mps`. A driver absent from a nonempty map cannot use that runtime. Without a map, legacy refs still work; `container_ref` is the older Docker override. The API shows accelerators and server, never runtime refs or the driver map.
 
 ## Adding an image
@@ -45,8 +45,8 @@ Rules for images in user workloads:
 From the repository root, on an already configured Linux Docker host:
 
 ```bash
-docker build -f images/containers/pytorch-notebook/Dockerfile -t ghcr.io/your-org/tensora-pytorch-notebook:0.1.0 .
-docker build -f images/containers/vllm-endpoint/Dockerfile -t ghcr.io/your-org/tensora-vllm-endpoint:0.1.0 .
+docker build -f images/containers/pytorch-notebook/Dockerfile -t ghcr.io/your-org/tensorafi-pytorch-notebook:0.1.0 .
+docker build -f images/containers/vllm-endpoint/Dockerfile -t ghcr.io/your-org/tensorafi-vllm-endpoint:0.1.0 .
 ```
 
 These are local tags matching `images/catalog.yaml`, not published images. Change the catalog refs

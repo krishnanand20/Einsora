@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tensora/tensora/controlplane/internal/api"
-	"github.com/tensora/tensora/controlplane/internal/auth"
-	"github.com/tensora/tensora/controlplane/internal/service"
-	"github.com/tensora/tensora/controlplane/internal/testutil"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/api"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/auth"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
 )
 
 func newHandler(t *testing.T) http.Handler {

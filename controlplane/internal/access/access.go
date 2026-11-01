@@ -22,9 +22,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/credential"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/credential"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
 )
 
 // Targets finds the Unix socket a running workload's server listens on, and its token: the agent
@@ -34,9 +34,9 @@ type Targets interface {
 }
 
 const (
-	cookieName  = "tensora_access"
+	cookieName  = "tensorafi_access"
 	sessionTTL  = 12 * time.Hour
-	openPath    = "/_tensora/open"
+	openPath    = "/_tensorafi/open"
 	maxSessions = 10000
 )
 
@@ -85,7 +85,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	key, sess, ok := s.session(r, id)
 	if !ok {
-		page(w, http.StatusUnauthorized, "Open this workload from the Tensora dashboard.")
+		page(w, http.StatusUnauthorized, "Open this workload from the TensoraFi dashboard.")
 		return
 	}
 	if fromElsewhere(r) {
@@ -102,7 +102,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		delete(s.sessions, key)
 		s.mu.Unlock()
-		page(w, http.StatusUnauthorized, "This workload has restarted since it was opened. Open it again from the Tensora dashboard.")
+		page(w, http.StatusUnauthorized, "This workload has restarted since it was opened. Open it again from the TensoraFi dashboard.")
 		return
 	}
 	s.proxy(socket, token).ServeHTTP(w, r)
@@ -267,5 +267,5 @@ func page(w http.ResponseWriter, code int, msg string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(code)
-	_, _ = fmt.Fprintf(w, "<!doctype html><title>Tensora</title><p>%s", html.EscapeString(msg))
+	_, _ = fmt.Fprintf(w, "<!doctype html><title>TensoraFi</title><p>%s", html.EscapeString(msg))
 }

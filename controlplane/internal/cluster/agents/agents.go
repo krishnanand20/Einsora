@@ -19,11 +19,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
-	"github.com/tensora/tensora/controlplane/internal/catalog"
-	"github.com/tensora/tensora/controlplane/internal/cluster"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/catalog"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
 )
 
 type Options struct {
@@ -449,7 +449,7 @@ func (h *Hub) online(s *session) bool {
 }
 
 // Capacity lists the machines connected now, with their devices per class, the CPUs and memory
-// their agents let Tensora use, and their drivers. The controller places on them. Right after the
+// their agents let TensoraFi use, and their drivers. The controller places on them. Right after the
 // hub starts, while machines in its region haven't all reconnected, it says it's settling, so a
 // restart doesn't queue workloads for machines that are about to come back.
 func (h *Hub) Capacity(ctx context.Context) (cluster.Capacity, error) {
@@ -592,7 +592,7 @@ func RegisterLocal(ctx context.Context, st store.Store, id uuid.UUID, owner, nam
 			existing, err := q.MachineByID(ctx, id)
 			switch {
 			case err == nil && existing.TenantID != t.ID:
-				return domain.Errorf(domain.CodeConflict, "this machine belongs to another tenant than %s (TENSORA_MACHINE_OWNER); a machine's owner can't change yet", owner)
+				return domain.Errorf(domain.CodeConflict, "this machine belongs to another tenant than %s (TENSORAFI_MACHINE_OWNER); a machine's owner can't change yet", owner)
 			case err == nil && existing.Region != region:
 				return domain.Errorf(domain.CodeConflict, "this machine is registered in region %s, not %s; a machine never moves region", existing.Region, region)
 			case err == nil:

@@ -9,7 +9,7 @@
 | Apple GPU use and unified memory | macOS IOKit, through the agent (no root needed) | Planned (approach to validate) |
 | Workload timeline | Every state change and note with its reason; readable and exportable by the owner ([logs and transparency](logs-and-transparency.md)) | **Built** |
 | Workload output logs | The agent ships the driver's stdout and stderr to the control plane, for the workload's owner only | Planned (Phase 1) |
-| Control plane logs | `slog` to stderr; `TENSORA_LOG_LEVEL=debug` for detail and `TENSORA_LOG_FILE` for a complete copy on disk; `request_id` on every request line | **Built** |
+| Control plane logs | `slog` to stderr; `TENSORAFI_LOG_LEVEL=debug` for detail and `TENSORAFI_LOG_FILE` for a complete copy on disk; `request_id` on every request line | **Built** |
 | Alerts | Dashboard notifications: machine offline, disk nearly full, workload failed | Planned (Phase 2) |
 | Prometheus | `/metrics` on the control plane and agents, for people who already run Prometheus | Planned (Phase 3) |
 

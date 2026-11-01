@@ -14,11 +14,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/catalog"
-	"github.com/tensora/tensora/controlplane/internal/cluster"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/service"
-	"github.com/tensora/tensora/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/catalog"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
 )
 
 // errNotInCatalog marks a workload whose GPU class or image was removed from the catalog.
@@ -191,7 +191,7 @@ func (c *Controller) ReconcileOnce(ctx context.Context) error {
 }
 
 // admit places pending and queued workloads where there's room, then runs them. Capacity comes from
-// the backend; allocation comes from the store, because every workload goes through Tensora.
+// the backend; allocation comes from the store, because every workload goes through TensoraFi.
 func (c *Controller) admit(ctx context.Context) error {
 	var waiting, holding []domain.Workload
 	var machines []domain.Machine

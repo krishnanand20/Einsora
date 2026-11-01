@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tensora/tensora/controlplane/internal/redact"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/redact"
 )
 
 // The narrow Engine API client uses only net/http. Remote daemons are deliberately unsupported:

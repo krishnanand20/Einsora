@@ -4,11 +4,11 @@ Every machine belongs to one region (ADR-0009), so use that region's inventory a
 
 ## Lab: add an agent machine (planned, Phase 2)
 
-1. Install Tensora on the machine (see [00-quickstart.md](00-quickstart.md), or [mac-host.md](mac-host.md) for a Mac).
+1. Install TensoraFi on the machine (see [00-quickstart.md](00-quickstart.md), or [mac-host.md](mac-host.md) for a Mac).
 2. In the dashboard: Machines → Add machine → copy the enrolment token.
-3. On the new machine, run `tensora agent --join <token>`. The agent dials out, so no ports need opening.
+3. On the new machine, run `tensorafi agent --join <token>`. The agent dials out, so no ports need opening.
 4. **Check:** the machine shows Online, with the right CPU, RAM, and accelerators (NVIDIA GPUs, or the Apple GPU and its unified memory).
-5. **Burn-in** if it has a GPU: `tensora-ml burnin` (CUDA today; Metal planned).
+5. **Burn-in** if it has a GPU: `tensorafi-ml burnin` (CUDA today; Metal planned).
 6. **Sharing level:** new machines are **private**. Change this only if the owner wants to share (ADR-0014).
 
 ## Datacenter: add a Kubernetes node

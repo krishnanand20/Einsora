@@ -32,12 +32,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/agent"
-	"github.com/tensora/tensora/controlplane/internal/agent/drivers/process"
-	"github.com/tensora/tensora/controlplane/internal/agent/drivers/pythonruntime"
-	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/redact"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/process"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/pythonruntime"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/redact"
 )
 
 //go:embed envs/*.txt
@@ -66,7 +66,7 @@ type Options struct {
 	Private []string
 	// Runs holds each workload's run directory: its server's Unix socket, its kernels' sockets, and
 	// its temporary files. Socket paths are short on macOS (104 bytes), so it's a short path, not
-	// inside State: empty means ~/.tensora/run.
+	// inside State: empty means ~/.tensorafi/run.
 	Runs string
 	// UV is the uv binary; empty means the one on PATH.
 	UV  string
@@ -123,7 +123,7 @@ func New(opts Options) (*Driver, error) {
 	}
 	runs := opts.Runs
 	if runs == "" {
-		runs = filepath.Join(home, ".tensora", "run")
+		runs = filepath.Join(home, ".tensorafi", "run")
 	}
 	if runs, err = privateDir(runs); err != nil {
 		return nil, err
@@ -581,7 +581,7 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 		return "", err
 	}
 	defer func() { _ = buildLock.Close() }()
-	marker := filepath.Join(dir, ".tensora-ready")
+	marker := filepath.Join(dir, ".tensorafi-ready")
 	if _, err := os.Stat(marker); err == nil {
 		return dir, nil
 	}
@@ -607,7 +607,7 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 	} {
 		cmd := exec.CommandContext(ctx, d.uv, args...) //nolint:gosec // fixed arguments
 		cmd.Env = uvEnv
-		// The uv child retains the flock if Tensora crashes. A recovering process waits until
+		// The uv child retains the flock if TensoraFi crashes. A recovering process waits until
 		// that child exits before removing or rebuilding the same environment directory.
 		cmd.ExtraFiles = []*os.File{buildLock}
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -615,7 +615,7 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 		}
 	}
 	if ref == "mlx-lm" {
-		if err := os.WriteFile(filepath.Join(dir, "tensora-runtime.zip"), pythonruntime.Bytes(), 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "tensorafi-runtime.zip"), pythonruntime.Bytes(), 0o600); err != nil {
 			return "", err
 		}
 	}

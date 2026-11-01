@@ -20,7 +20,7 @@ ML-specific tooling that the Go core platform orchestrates but doesn't implement
 - **Changes to `validate.py`** need a test that proves the new behavior, plus review from someone who knows the trust model (see CONTRIBUTING.md). Never loosen the allowlist to make one model work. Ask the user to convert the model instead.
 - **Heavy dependencies** (`torch`, `mlx`, `transformers`) are optional extras, imported inside functions. That keeps `validate`, `ingest`, and `bench` light and testable without a GPU.
 - **Never load model weights** in the validator. Inspect headers and metadata only. Loading is exactly what an attacker wants us to do.
-- **Credentials** come from the environment (`AWS_*`, `HF_TOKEN`, `TENSORA_BENCH_API_KEY`). Never pass them as CLI arguments, because those show up in process lists and job specs.
+- **Credentials** come from the environment (`AWS_*`, `HF_TOKEN`, `TENSORAFI_BENCH_API_KEY`). Never pass them as CLI arguments, because those show up in process lists and job specs.
 - **Output:** JSON on stdout, logs on stderr, and a failed check exits with code 1. The control plane and agents parse this.
 - Python 3.12, full type hints, `mypy --strict` must pass, and code is formatted with ruff.
 

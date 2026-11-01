@@ -1,4 +1,4 @@
-"""tensora-ml command line. Results are JSON on stdout; a failed check exits 1."""
+"""tensorafi-ml command line. Results are JSON on stdout; a failed check exits 1."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def _emit(result: Any) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="tensora-ml", description=__doc__)
+    parser = argparse.ArgumentParser(prog="tensorafi-ml", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("validate", help="check a local model directory against the model policy")
@@ -45,14 +45,14 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "validate":
-        from tensora_ml.validate import validate_model_dir
+        from tensorafi_ml.validate import validate_model_dir
 
         report = validate_model_dir(args.path, int(args.max_gb * GIB))
         _emit(report.as_dict())
         return 0 if report.ok else 1
 
     if args.command == "ingest":
-        from tensora_ml.ingest import ModelRejectedError, ingest
+        from tensorafi_ml.ingest import ModelRejectedError, ingest
 
         try:
             _emit(ingest(args.source, args.dest, max_total_bytes=int(args.max_gb * GIB)))
@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "bench":
-        from tensora_ml import bench
+        from tensorafi_ml import bench
 
         _emit(
             asyncio.run(
@@ -72,14 +72,14 @@ def main(argv: list[str] | None = None) -> int:
                     requests=args.requests,
                     concurrency=args.concurrency,
                     max_tokens=args.max_tokens,
-                    api_key=os.environ.get("TENSORA_BENCH_API_KEY"),
+                    api_key=os.environ.get("TENSORAFI_BENCH_API_KEY"),
                 )
             )
         )
         return 0
 
     if args.command == "burnin":
-        from tensora_ml import burnin
+        from tensorafi_ml import burnin
 
         results = burnin.run(seconds=args.seconds, matrix_size=args.matrix_size)
         _emit(results)

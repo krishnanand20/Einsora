@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tensora/tensora/controlplane/internal/api"
-	"github.com/tensora/tensora/controlplane/internal/auth"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/service"
-	"github.com/tensora/tensora/controlplane/internal/testutil"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/api"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/auth"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
 )
 
 func TestParseWithIDAcceptsFlagsEitherSide(t *testing.T) {
@@ -38,8 +38,8 @@ func TestCLIEventsAndExport(t *testing.T) {
 	svc := service.New(st, testutil.Catalog(t), nil)
 	srv := httptest.NewServer(api.New(svc, auth.Dev{}, slog.New(slog.DiscardHandler), st.Ping).Handler())
 	t.Cleanup(srv.Close)
-	t.Setenv("TENSORA_API_URL", srv.URL)
-	t.Setenv("TENSORA_DEV_TENANT", "acme")
+	t.Setenv("TENSORAFI_API_URL", srv.URL)
+	t.Setenv("TENSORAFI_DEV_TENANT", "acme")
 
 	ctx := context.Background()
 	w, err := svc.CreateWorkload(ctx, testutil.Acme, service.CreateWorkloadInput{
@@ -63,7 +63,7 @@ func TestCLIEventsAndExport(t *testing.T) {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(path)
-	if err != nil || !bytes.Contains(data, []byte(`"format":"tensora.workload-export/v1"`)) {
+	if err != nil || !bytes.Contains(data, []byte(`"format":"tensorafi.workload-export/v1"`)) {
 		t.Fatalf("export file: %v %s", err, data)
 	}
 	if info, _ := os.Stat(path); info.Mode().Perm() != 0o600 {

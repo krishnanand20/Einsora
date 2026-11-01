@@ -25,4 +25,4 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/tensora/tensora
+        - github.com/krishnanand20/tensorafi

@@ -12,7 +12,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/tensora/tensora/controlplane/internal/client"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/client"
 )
 
 func isClientCommand(cmd string) bool {
@@ -32,7 +32,7 @@ func runClient(ctx context.Context, cmd string, args []string, stdout io.Writer)
 		fs.SetOutput(io.Discard)
 		all := fs.Bool("all", false, "include deleted workloads")
 		if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
-			return errors.New("usage: tensora workloads [-all]")
+			return errors.New("usage: tensorafi workloads [-all]")
 		}
 		ws, err := c.ListWorkloads(ctx, *all)
 		if err != nil {
@@ -50,7 +50,7 @@ func runClient(ctx context.Context, cmd string, args []string, stdout io.Writer)
 	case "events":
 		fs := flag.NewFlagSet("events", flag.ContinueOnError)
 		asJSON := fs.Bool("json", false, "print the raw JSON events")
-		id, err := parseWithID(fs, args, "tensora events <workload-id> [-json]")
+		id, err := parseWithID(fs, args, "tensorafi events <workload-id> [-json]")
 		if err != nil {
 			return err
 		}
@@ -80,9 +80,9 @@ func runClient(ctx context.Context, cmd string, args []string, stdout io.Writer)
 
 	case "export":
 		fs := flag.NewFlagSet("export", flag.ContinueOnError)
-		out := fs.String("o", "", "file to write (default: tensora-<name>-<id>.json; - for stdout)")
+		out := fs.String("o", "", "file to write (default: tensorafi-<name>-<id>.json; - for stdout)")
 		force := fs.Bool("f", false, "replace the file if it exists")
-		id, err := parseWithID(fs, args, "tensora export <workload-id> [-o file] [-f]")
+		id, err := parseWithID(fs, args, "tensorafi export <workload-id> [-o file] [-f]")
 		if err != nil {
 			return err
 		}
@@ -122,7 +122,7 @@ func writePrivate(path string, data []byte, replace bool) error {
 		_, err = f.Write(data)
 		return errors.Join(err, f.Close())
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".tensora-export-*")
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".tensorafi-export-*")
 	if err != nil {
 		return err
 	}

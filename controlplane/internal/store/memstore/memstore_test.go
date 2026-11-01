@@ -3,9 +3,9 @@ package memstore_test
 import (
 	"testing"
 
-	"github.com/tensora/tensora/controlplane/internal/store"
-	"github.com/tensora/tensora/controlplane/internal/store/memstore"
-	"github.com/tensora/tensora/controlplane/internal/store/storetest"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store/memstore"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store/storetest"
 )
 
 func TestConformance(t *testing.T) {

@@ -7,9 +7,9 @@ This file is the **single source of truth** for agent instructions. `CLAUDE.md` 
 Each top-level component has its own `AGENTS.md` with component rules — read the one
 closest to the files you are changing. Rules here apply everywhere; nested files add to them.
 
-## What Tensora is
+## What TensoraFi is
 
-Tensora (a working name) is a **free, open, self-hosted GPU cloud**. Anyone installs it on machines they
+TensoraFi is a **free, open, self-hosted GPU cloud** (MIT licence). Anyone installs it on machines they
 have, from one Apple Silicon Mac or Linux PC up to a datacenter. They launch **GPU VMs**, **Jupyter notebooks**,
 and **OpenAI-compatible model endpoints**, and can share idle machines with others. It's for everyone:
 students, developers, startups, small companies, enterprises, and big tech.
@@ -28,10 +28,10 @@ guests from each other, and be honest that hosts can see guest data. See
 
 | Path | Owns | Language / tooling |
 |---|---|---|
-| `controlplane/` | The `tensora` binary: REST API, controller, usage accounting (`metering`), the node agent (in-process for Solo), and the planned drivers, `tensora up`, and inference gateway. Must build for linux/amd64, linux/arm64, and darwin/arm64. | Go 1.27, stdlib `net/http`, pgx, modernc.org/sqlite (pure Go), client-go, goose, golangci-lint |
+| `controlplane/` | The `tensorafi` binary: REST API, controller, usage accounting (`metering`), the node agent (in-process for Solo), and the planned drivers, `tensorafi up`, and inference gateway. Must build for linux/amd64, linux/arm64, and darwin/arm64. | Go 1.27, stdlib `net/http`, pgx, modernc.org/sqlite (pure Go), client-go, goose, golangci-lint |
 | `ml/` | ML layer: model validation (safetensors; GGUF planned), ingestion, endpoint benchmarking, GPU burn-in (CUDA; Metal planned) | Python 3.12, uv, ruff, mypy, pytest |
 | `web/` | Dashboard (to be embedded in the binary for Solo) | TypeScript, React, Vite, TanStack Query |
-| `deploy/` | **Datacenter profile:** cluster add-ons (helmfile), `cluster-config` chart, `tensora` chart | Helm, helmfile, Kustomize |
+| `deploy/` | **Datacenter profile:** cluster add-ons (helmfile), `cluster-config` chart, `tensorafi` chart | Helm, helmfile, Kustomize |
 | `infra/` | **Datacenter profile:** Linux server bootstrap (OS, IOMMU/VFIO, k3s, WireGuard) | Ansible, bash |
 | `images/` | Launch catalog (`catalog.yaml`); notebook and VM image definitions | Dockerfile, cloud-init |
 | `docs/` | Product spec, architecture, ADRs, roadmap, runbooks, playbooks, hardware | Markdown |
@@ -46,15 +46,15 @@ Run from the repo root (`make help` lists everything):
 - `make web-dev` — dashboard on `:5173`, proxied to the local API
 - `make test` — all tests (`make test-cp`, `make test-ml`, `make test-web` for one component)
 - `make lint` — gofmt, go vet, golangci-lint, ruff, mypy, tsc, yamllint
-- `make build-all` — cross-compile `tensora` for linux/amd64, linux/arm64, and darwin/arm64
+- `make build-all` — cross-compile `tensorafi` for linux/amd64, linux/arm64, and darwin/arm64
 - `make fmt` — auto-format everything
 - `make deploy-check` — render the Datacenter charts and validate with kubeconform (no cluster needed)
 
-With `TENSORA_AUTH_MODE=local`, create the owner account once with `tensora setup -email you@example.com`,
-then sign in on the dashboard and make API tokens there. The `tensora` binary is also a CLI client for a
-running API (set `TENSORA_TOKEN`): `tensora workloads [-all]`, `tensora events <id>`,
-`tensora export <id>` ([logs and transparency](docs/architecture/logs-and-transparency.md)). For full
-server logs, set `TENSORA_LOG_LEVEL=debug` and `TENSORA_LOG_FILE=<path>`.
+With `TENSORAFI_AUTH_MODE=local`, create the owner account once with `tensorafi setup -email you@example.com`,
+then sign in on the dashboard and make API tokens there. The `tensorafi` binary is also a CLI client for a
+running API (set `TENSORAFI_TOKEN`): `tensorafi workloads [-all]`, `tensorafi events <id>`,
+`tensorafi export <id>` ([logs and transparency](docs/architecture/logs-and-transparency.md)). For full
+server logs, set `TENSORAFI_LOG_LEVEL=debug` and `TENSORAFI_LOG_FILE=<path>`.
 
 **Before saying a task is done:** run the lint and test targets for every component you
 touched and report the actual output. If a tool is missing, say so — do not claim success.
@@ -66,10 +66,10 @@ touched and report the actual output. If a tool is missing, say so — do not cl
 3. **Tenant resources are isolated per tenant.** In a datacenter they live in the namespace `t-<slug>` with the labels in `internal/cluster/labels.go`. On agents, each workload gets its own sandbox or VM, data directory, and network rules. Never share them between tenants.
 4. **Untrusted code runs only behind strong isolation, per the trust matrix** in `docs/architecture/tenancy-and-isolation.md`. Invited and community users get VMs, Kata, or Linux-in-VM containers; native macOS execution and plain runc are for owners only. No GPU time-slicing between different users.
 5. **Usage accounting comes from allocation intervals** (workload lifecycle events), not utilization. It drives quotas, fair share, and reports. **There is no billing** ([ADR-0011](docs/adr/0011-free-for-everyone.md)).
-6. **Model weights must be in a code-free format:** safetensors, or GGUF once `tensora-ml validate` supports it ([ADR-0013](docs/adr/0013-node-agent-and-apple-silicon.md)). Never pickle, and never `trust_remote_code`. The validator (`ml/src/tensora_ml/validate.py`) is the enforcement point.
+6. **Model weights must be in a code-free format:** safetensors, or GGUF once `tensorafi-ml validate` supports it ([ADR-0013](docs/adr/0013-node-agent-and-apple-silicon.md)). Never pickle, and never `trust_remote_code`. The validator (`ml/src/tensorafi_ml/validate.py`) is the enforcement point.
 7. **Every workload state change goes through `service.Transition`**, which validates against `domain` state rules and appends a `workload_events` row. Usage accounting depends on those rows. Never write `state` directly.
 8. **Every store query that touches tenant data is scoped by tenant ID.** A request from tenant B for tenant A's object returns 404, never 403 (don't leak existence).
-9. **Every workload belongs to exactly one region, and its data never leaves that region** unless the user explicitly opts in. Solo has one region, `local` ([ADR-0009](docs/adr/0009-regions-global-control-plane-regional-cells.md)). Every workload, machine, and usage record carries its region; each controller reconciles one (`TENSORA_REGION`); a machine hosts only workloads in its own region. New code must not assume a single region.
+9. **Every workload belongs to exactly one region, and its data never leaves that region** unless the user explicitly opts in. Solo has one region, `local` ([ADR-0009](docs/adr/0009-regions-global-control-plane-regional-cells.md)). Every workload, machine, and usage record carries its region; each controller reconciles one (`TENSORAFI_REGION`); a machine hosts only workloads in its own region. New code must not assume a single region.
 10. **Fallbacks are opt-in and visible** ([ADR-0010](docs/adr/0010-fallbacks-cpu-placement-and-inference-failover.md)). Never silently give a user a different GPU class, CPU, model, machine, or region. Record `placed_class`, say what served each response, and account usage for what actually ran.
 11. **Cross-platform:** `controlplane/` must build and run on linux/amd64, linux/arm64, and darwin/arm64 (`make build-all`). OS-specific code lives only behind build tags in driver packages. No Linux-only assumptions anywhere else.
 12. **Free for everyone:** no pricing, payment, invoice, paid-tier, or paywall logic in code, UI, or docs ([ADR-0011](docs/adr/0011-free-for-everyone.md)).
@@ -82,7 +82,7 @@ touched and report the actual output. If a tool is missing, say so — do not cl
 - **Python (ml/):** type hints everywhere (mypy strict), ruff, pytest. Heavy deps (`torch`, `mlx`) are optional extras and imported lazily.
 - **TypeScript (web/):** strict mode; API types in `web/src/api/types.ts` mirror the Go JSON shapes — update both together.
 - **API:** JSON over HTTP, versioned under `/v1`. Errors are `{"error": {"code", "message", "request_id"}}`, and every response carries a server-generated `X-Request-ID`; log it with every request-scoped line. Responses never expose runtime internals (node names, object names, IPs, host paths).
-- **Config:** environment variables prefixed `TENSORA_` (see `.env.example`). No secrets in code, values files, tests, or docs.
+- **Config:** environment variables prefixed `TENSORAFI_` (see `.env.example`). No secrets in code, values files, tests, or docs.
 - **Kubernetes/Helm (Datacenter):** pin every chart and image version; never `latest`.
 - **Words:** say *user*, not *customer*; *usage accounting*, not *billing*. There's nothing to buy.
 - **Commits:** Conventional Commits — `feat(api): ...`, `fix(deploy): ...`, `docs(adr): ...`.

@@ -1,11 +1,11 @@
 {{- if .Values.features.kserve }}
 # The only runtime tenant endpoints may use on Kubernetes (catalog image "openai-endpoint", its
-# vLLM runtime → ref tensora-vllm).
+# vLLM runtime → ref tensorafi-vllm).
 # AGENTS.md rule 6: weights must be safetensors; never add --trust-remote-code here.
 apiVersion: serving.kserve.io/v1alpha1
 kind: ClusterServingRuntime
 metadata:
-  name: tensora-vllm
+  name: tensorafi-vllm
 spec:
   annotations:
     prometheus.kserve.io/port: "8080"

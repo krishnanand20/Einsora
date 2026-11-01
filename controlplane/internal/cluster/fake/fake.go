@@ -1,4 +1,4 @@
-// Package fake is an in-memory cluster.Backend for `tensora dev` and tests. It reports cluster-wide
+// Package fake is an in-memory cluster.Backend for `tensorafi dev` and tests. It reports cluster-wide
 // capacity per class, like Kubernetes, and workloads become ready as soon as they're run.
 package fake
 
@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/cluster"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
 )
 
 type Backend struct {

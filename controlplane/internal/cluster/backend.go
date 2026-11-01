@@ -1,4 +1,4 @@
-// Package cluster is the only boundary between Tensora and the runtimes that run workloads
+// Package cluster is the only boundary between TensoraFi and the runtimes that run workloads
 // (AGENTS.md rule 2): Kubernetes (kube), node agents (agent), and an in-memory fake. The interface
 // is runtime-neutral (ADR-0016): the controller places a workload and hands over a Spec; each
 // backend turns it into what its runtime needs.
@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/catalog"
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/catalog"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 // Manifest is one Kubernetes object as unstructured JSON-compatible data.
@@ -70,7 +70,7 @@ type Capacity struct {
 }
 
 // MachineCapacity is one connected machine: its devices per catalog class, the CPUs and memory
-// Tensora may use there (its agent keeps the rest for the owner), and the drivers it has.
+// TensoraFi may use there (its agent keeps the rest for the owner), and the drivers it has.
 type MachineCapacity struct {
 	ID        uuid.UUID
 	Devices   map[string]int // devices per GPU class; CPU classes need none
@@ -94,7 +94,7 @@ type Leader interface {
 
 type Backend interface {
 	// Capacity reports where workloads can go. Allocation comes from the store, because every
-	// workload goes through Tensora; the controller subtracts it.
+	// workload goes through TensoraFi; the controller subtracts it.
 	Capacity(ctx context.Context) (Capacity, error)
 	// Run makes the workload run: create it, or update it to running. Idempotent.
 	Run(ctx context.Context, s Spec) error

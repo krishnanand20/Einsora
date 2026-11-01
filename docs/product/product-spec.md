@@ -1,14 +1,14 @@
-# Tensora: product definition
+# TensoraFi: product definition
 
-> **"Tensora" is a working name.** Several companies already use it, so the final name is
-> pending a trademark search (see the roadmap's open decisions).
+> The product's name is **TensoraFi**, and it's MIT-licensed ([ADR-0020](../adr/0020-name-and-licence.md)).
+> Before the first release: register `tensorafi.dev` and run a trademark search in your main markets.
 
 This is the north star for what we're building and for whom. Engineering docs say *how*; this
 document says *what* and *why*. Every roadmap item should trace back to something here.
 
 ## In one sentence
 
-**Tensora is a free, open GPU cloud you run yourself.** Install it on any machine you have (a MacBook,
+**TensoraFi is a free, open GPU cloud you run yourself.** Install it on any machine you have (a MacBook,
 a Mac Studio, a gaming PC, a rack of NVIDIA servers) and launch **GPU VMs**, **Jupyter notebooks**,
 and **OpenAI-compatible model endpoints** on it. Use it alone, share it with your team or class, or
 lend your idle machines to others. The same software runs from one laptop to a datacenter, free for everyone.
@@ -40,12 +40,12 @@ Profiles ([ADR-0012](../adr/0012-deployment-profiles.md)) are the same product a
 
 | Profile | Install | Machines | Underneath |
 |---|---|---|---|
-| **Solo** | `brew install` or an install script, then `tensora up` | 1 | One binary, SQLite, built-in dashboard |
-| **Lab** | Solo on one machine, plus `tensora agent` on the others | 2 to ~20, mixing Linux and Mac | Node agents ([ADR-0013](../adr/0013-node-agent-and-apple-silicon.md)), SQLite or Postgres |
+| **Solo** | `brew install` or an install script, then `tensorafi up` | 1 | One binary, SQLite, built-in dashboard |
+| **Lab** | Solo on one machine, plus `tensorafi agent` on the others | 2 to ~20, mixing Linux and Mac | Node agents ([ADR-0013](../adr/0013-node-agent-and-apple-silicon.md)), SQLite or Postgres |
 | **Datacenter** | helmfile and Ansible (`deploy/`, `infra/`) | 3 to thousands | Kubernetes, KubeVirt, KServe, GPU Operator, Ceph, Postgres HA, SSO |
 
 **Sharing** ([ADR-0014](../adr/0014-sharing-idle-compute.md)): every machine is **private** by default.
-Its owner can open it to **invited** people, or to a **community pool**: any Tensora instance where hosts
+Its owner can open it to **invited** people, or to a **community pool**: any TensoraFi instance where hosts
 lend idle machines to its users.
 
 ## Principles
@@ -67,9 +67,9 @@ lend idle machines to its users.
 | **Machines** | The local machine | Agents join over LAN, WireGuard, or the internet (outbound only) | Node pools, regions | Idle detection, schedules, caps, preemption | Auto-discovery on LAN |
 | **Users and access** | One local account, API tokens | Users, invites, teams, quotas | SSO (OIDC/SAML), RBAC | Community accounts, fair share, reports and bans | SCIM |
 | **Inference** | Endpoints from Hugging Face (safetensors, GGUF) | API keys, request failover | Autoscaling, regional inference gateway | Managed inference on shared hosts | Serverless model API across a pool; model registry; LoRA adapters |
-| **Logs** ([details](../architecture/logs-and-transparency.md)) | Workload timeline with reasons, complete export, request IDs (built); workload output and `tensora logs --follow` | Activity log per team (who did what); output from remote machines | Output logs through Loki; activity log (audit log) retention | Hosts see their machine's activity, never guests' output | — |
-| **Reliability and ops** | `tensora backup` | Machine health, alerts in the dashboard | HA control plane, Prometheus, backups | Host reputation | Upgrades without downtime |
-| **Developer tools** | REST API, dashboard, `tensora` CLI | Python SDK | Verified Datacenter install docs and charts | Pool directory | Terraform provider, templates gallery |
+| **Logs** ([details](../architecture/logs-and-transparency.md)) | Workload timeline with reasons, complete export, request IDs (built); workload output and `tensorafi logs --follow` | Activity log per team (who did what); output from remote machines | Output logs through Loki; activity log (audit log) retention | Hosts see their machine's activity, never guests' output | — |
+| **Reliability and ops** | `tensorafi backup` | Machine health, alerts in the dashboard | HA control plane, Prometheus, backups | Host reputation | Upgrades without downtime |
+| **Developer tools** | REST API, dashboard, `tensorafi` CLI | Python SDK | Verified Datacenter install docs and charts | Pool directory | Terraform provider, templates gallery |
 
 ## Quality bar
 
@@ -86,7 +86,7 @@ lend idle machines to its users.
 
 ## How it compares
 
-| Tool | Great at | Tensora adds |
+| Tool | Great at | TensoraFi adds |
 |---|---|---|
 | Ollama, LM Studio | Running models on one machine | VMs and notebooks too; many machines; many users; sharing |
 | exo and similar | Pooling home devices for inference | VMs, notebooks, isolation between users, a datacenter path |
@@ -100,7 +100,7 @@ Check this list again before launch, because these projects move fast.
 ## Free and open: what that means
 
 - **No money anywhere:** no pricing pages, payment flows, invoices, or "contact sales". Usage accounting exists only for quotas, fairness, and reports.
-- **Open source.** Apache-2.0 is recommended. The licence is an open decision.
+- **Open source, under the MIT licence** ([ADR-0020](../adr/0020-name-and-licence.md)): anyone may use, change, and redistribute it, including commercially.
 - **Anyone can host a pool.** Universities, companies, communities, or the project itself. Pool operators set their own rules and are responsible for them.
 - **Models keep their own licences.** Users must follow each model's licence (for example, Llama's). The catalog shows the licence when one is known.
 
@@ -108,7 +108,7 @@ Check this list again before launch, because these projects move fast.
 
 | Topic | What it means | Needed by |
 |---|---|---|
-| Licence and trademark | Choose the open-source licence; clear the product name | M1 |
+| Licence and trademark | Licence: MIT (decided). Name: TensoraFi (decided); a trademark search (classes 9 and 42) and the `tensorafi.dev` domain before the first release | M1 |
 | Privacy | Solo keeps everything local. Pools hold account data, so a pool operator needs a privacy notice (GDPR, DPDP, CCPA and others apply to operators, not to the software). | M4 |
 | Acceptable use | A default AUP template for pools: no attacks, no illegal content, no crypto mining on shared hosts | M4 |
 | Host disclosure | Clear in-product warnings that host owners can see guest data | M4 |
@@ -129,7 +129,7 @@ One person with AI agents can build the software, and this repo is set up for th
 | Milestone | Exit criteria | Roadmap |
 |---|---|---|
 | **M0 Foundation** ✓ | Repo, architecture, core platform on a fake cluster, ML validator, dashboard skeleton | Phase 0 |
-| **M1 Solo** | On a fresh Mac (Apple Silicon) or Linux box: one-command install; `tensora up`; launch a notebook and a model endpoint on the local GPU (Metal or CUDA) or CPU from the dashboard, CLI, or API | Phase 1 |
+| **M1 Solo** | On a fresh Mac (Apple Silicon) or Linux box: one-command install; `tensorafi up`; launch a notebook and a model endpoint on the local GPU (Metal or CUDA) or CPU from the dashboard, CLI, or API | Phase 1 |
 | **M2 Lab** | Mixed Mac and Linux machines in one instance; invites, users, and quotas; VMs (libvirt, macOS VZ); fallbacks; API keys for endpoints; usage reports | Phase 2 |
 | **M3 Datacenter** | The Kubernetes profile in production use: KubeVirt, KServe, Ceph, Postgres HA, SSO, regions, audit logs, published install docs | Phase 3 |
 | **M4 Sharing** | Invite-only sharing, then community pools: idle detection, caps, preemption, managed inference, fair share, abuse tools | Phase 4 |
@@ -155,5 +155,6 @@ machines; crypto mining on shared hosts; training fabrics (InfiniBand) before th
 | 2026-10-23 | **Node agent; Apple Silicon Macs as first-class hosts** (ADR-0013) | Current |
 | 2026-10-23 | **Sharing idle compute**: private, invite-only, community pools (ADR-0014) | Current |
 | 2026-10-24 | **Logs and transparency**: complete, exportable logs; nothing hidden except secrets, and redactions are reported (ADR-0015) | Current |
-| 2026-10-23 | "Tensora" is a working name; choose and clear a final name before the first release | Current |
+| 2026-10-23 | ~~"Tensora" is a working name; choose and clear a final name before the first release~~ | Superseded by ADR-0020 |
+| 2026-11-01 | **Name: TensoraFi; licence: MIT** (ADR-0020) | Current |
 | 2026-10-23 | ~~Paid cloud with USD pricing, payments, and a first region in India~~ | Superseded by ADR-0011 and ADR-0012 |

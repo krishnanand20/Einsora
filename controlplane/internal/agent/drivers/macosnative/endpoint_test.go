@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tensora/tensora/controlplane/internal/agent/drivers/pythonruntime"
-	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/pythonruntime"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 func fakeEndpoint(args []string) {
@@ -69,7 +69,7 @@ func endpointEnvironment(t *testing.T, d *Driver, python string) string {
 		t.Fatal(err)
 	}
 	for name, data := range map[string][]byte{
-		"bin/python": []byte(python), ".tensora-ready": {}, "tensora-runtime.zip": pythonruntime.Bytes(),
+		"bin/python": []byte(python), ".tensorafi-ready": {}, "tensorafi-runtime.zip": pythonruntime.Bytes(),
 	} {
 		mode := os.FileMode(0o600)
 		if name == "bin/python" {

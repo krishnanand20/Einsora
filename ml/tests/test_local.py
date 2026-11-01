@@ -9,8 +9,8 @@ from typing import Any
 
 import pytest
 
-from tensora_ml.ingest import ModelRejectedError, sha256_file
-from tensora_ml.local import _s3, fetch_model, safe_name
+from tensorafi_ml.ingest import ModelRejectedError, sha256_file
+from tensorafi_ml.local import _s3, fetch_model, safe_name
 
 
 def model_files() -> dict[str, bytes]:
@@ -63,7 +63,7 @@ def test_local_fetch_is_validated_pinned_and_private(tmp_path: Path, hf: Any) ->
     assert sorted(p.name for p in dest.iterdir()) == [
         "config.json",
         "model.safetensors",
-        "tensora-manifest.json",
+        "tensorafi-manifest.json",
         "tokenizer.json",
     ]
     assert sorted(p.name for p in tmp_path.iterdir()) == ["model"]

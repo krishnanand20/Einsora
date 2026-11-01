@@ -2,12 +2,12 @@
 
 ## Reporting a vulnerability
 
-Email **security@tensora.example** (replace with a real address before the first release). Please don't
+Email **security@tensorafi.example** (replace with a real address before the first release). Please don't
 open public issues for vulnerabilities. We aim to acknowledge reports within 2 business days.
 
 ## Threat model in one paragraph
 
-Tensora runs code on machines that may belong to someone other than the person launching it. Users may
+TensoraFi runs code on machines that may belong to someone other than the person launching it. Users may
 be hostile to the machine's owner (the host), to the instance's operator, and to each other. Hosts can
 see what runs on their own machines. We must prevent users from:
 

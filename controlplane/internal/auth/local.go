@@ -5,18 +5,18 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 const (
 	// SessionCookie holds a signed-in browser's session token. It's HttpOnly and SameSite=Strict.
-	SessionCookie = "tensora_session"
+	SessionCookie = "tensorafi_session"
 	// SecureSessionCookie is its name over HTTPS (see Transport.SessionCookieName).
-	SecureSessionCookie = "__Host-tensora_session"
+	SecureSessionCookie = "__Host-tensorafi_session"
 	// CSRFHeader must accompany every browser request that changes something. A page on another
 	// site can't add a custom header to a request here without a CORS preflight, which this API
 	// never allows, so the header proves the request came from the dashboard itself.
-	CSRFHeader = "X-Tensora-CSRF"
+	CSRFHeader = "X-TensoraFi-CSRF"
 )
 
 // PrincipalResolver turns a credential into an identity; the service implements it.

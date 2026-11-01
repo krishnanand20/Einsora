@@ -4,8 +4,10 @@ Short records of decisions that are expensive to reverse. To write one, follow
 [docs/playbooks/write-an-adr.md](../playbooks/write-an-adr.md). Claude Code users can run `/new-adr`.
 
 ADRs are history, so they're never rewritten. When a later decision changes an earlier one, the earlier
-ADR gets a banner at the top saying what still applies. **Read the newest ADRs first:** 0011 to 0019
-define today's product.
+ADR gets a banner at the top saying what still applies. **Read the newest ADRs first:** 0011 to 0020
+define today's product. ADRs 0001 to 0019 use the working name "Tensora" and its identifiers
+(`TENSORA_*`, `tensora.io/*`, the `tensora` binary); [ADR-0020](0020-name-and-licence.md) maps them to
+TensoraFi's.
 
 | # | Decision | Status |
 |---|---|---|
@@ -18,6 +20,7 @@ define today's product.
 | [0017](0017-local-workload-access-and-native-drivers.md) | **Workload access and native drivers:** open workloads through an access proxy at their own `*.localhost` host with one-time tickets; native drivers are supervised, sandboxed processes | Proposed (proxy, process supervisor, and `macos-native` notebooks and MLX endpoints built) |
 | [0018](0018-linux-docker-driver.md) | **Linux Docker driver:** local Engine API, owner-only containers, physical NVIDIA UUIDs, private socket access, durable recovery | Proposed (implemented; live Linux/CUDA validation pending) |
 | [0019](0019-driver-specific-runtime-selection.md) | **Driver-specific runtimes:** choose by accelerator and driver; native CPU notebooks reserve Metal access explicitly | Proposed (implemented; real CPU/Metal notebook tests) |
+| [0020](0020-name-and-licence.md) | **Name and licence:** the product is TensoraFi, renamed everywhere in one change; MIT licence | Accepted |
 | [0001](0001-kubernetes-kubevirt-gpu-operator.md) | Kubernetes, KubeVirt, and the GPU Operator | Accepted; Datacenter profile only (0012) |
 | [0002](0002-k3s-single-node-first.md) | k3s with embedded etcd | Accepted; Datacenter profile only (0012) |
 | [0003](0003-language-split.md) | Go for the core platform, Python for the ML layer, TypeScript for the dashboard | Accepted |

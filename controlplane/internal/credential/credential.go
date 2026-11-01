@@ -114,7 +114,7 @@ var common = sync.OnceValue(func() map[string]bool {
 		trustno11234 sunshine1234 football1234 baseball1234 superman1234 princess1234 dragon123456
 		monkey123456 master123456 abc123456789 abcdefghijkl abcdefghijklmn abcd12345678 abcd1234abcd
 		passw0rd1234 p4ssw0rd1234 letmeinletmein whatever1234 starwars1234 pokemon12345
-		tensora12345 tensora123456 tensoratensora
+		tensorafi12345 tensorafi123456 tensorafitensorafi
 	`) {
 		set[p] = true
 	}

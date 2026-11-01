@@ -10,10 +10,10 @@ ML  := ml
 WEB := web
 
 # macOS can mark ml/.venv hidden (seen with repos in iCloud-synced folders), and Python 3.12+ then
-# ignores its .pth files, so `import tensora_ml` fails. Clear the flag before running Python tools.
+# ignores its .pth files, so `import tensorafi_ml` fails. Clear the flag before running Python tools.
 UNHIDE_VENV   = if [ "$$(uname)" = Darwin ] && [ -d $(ML)/.venv ]; then chflags -R nohidden $(ML)/.venv; fi
 
-PG_URL        ?= postgres://tensora:tensora@localhost:5432/tensora?sslmode=disable
+PG_URL        ?= postgres://tensorafi:tensorafi@localhost:5432/tensorafi?sslmode=disable
 GOLANGCI_LINT ?= golangci-lint
 # CRD schemas (KubeVirt, KServe, Gateway API, cert-manager, ...) from the community catalog.
 CRD_SCHEMAS   := https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
@@ -30,7 +30,7 @@ REQUIRED_TOOLS := go uv node npm
 OPTIONAL_TOOLS := pre-commit docker helm kubeconform golangci-lint
 
 .PHONY: doctor setup
-doctor: ## Check that the tools Tensora needs are installed (macOS or Linux)
+doctor: ## Check that the tools TensoraFi needs are installed (macOS or Linux)
 	@missing=""; \
 	for t in $(REQUIRED_TOOLS); do \
 	  if command -v $$t >/dev/null 2>&1; then printf '  ok        %s\n' "$$t"; \
@@ -57,29 +57,29 @@ setup: doctor ## Install dev dependencies for all components
 # ---------------------------------------------------------------- local dev
 .PHONY: dev dev-pg web-dev migrate
 dev: ## All-in-one local stack: API+controller+usage accounting, in-memory store, fake backend (:8080; macOS or Linux)
-	cd $(CP) && go run ./cmd/tensora dev
+	cd $(CP) && go run ./cmd/tensorafi dev
 
 dev-pg: ## Same as dev, but against Postgres in Docker
 	docker compose up -d --wait postgres
-	cd $(CP) && TENSORA_DATABASE_URL='$(PG_URL)' go run ./cmd/tensora migrate
-	cd $(CP) && TENSORA_DATABASE_URL='$(PG_URL)' go run ./cmd/tensora dev
+	cd $(CP) && TENSORAFI_DATABASE_URL='$(PG_URL)' go run ./cmd/tensorafi migrate
+	cd $(CP) && TENSORAFI_DATABASE_URL='$(PG_URL)' go run ./cmd/tensorafi dev
 
 web-dev: ## Dashboard dev server on :5173 (proxies /v1 to :8080)
 	cd $(WEB) && npm run dev
 
-migrate: ## Apply DB migrations to $$TENSORA_DATABASE_URL
-	cd $(CP) && go run ./cmd/tensora migrate
+migrate: ## Apply DB migrations to $$TENSORAFI_DATABASE_URL
+	cd $(CP) && go run ./cmd/tensorafi migrate
 
 # ---------------------------------------------------------------- test
 .PHONY: test test-cp test-cp-pg test-ml test-web
 test: test-cp test-ml test-web ## Run all tests
 
-test-cp: ## Go tests (in-memory store; Postgres tests skip without TENSORA_TEST_DATABASE_URL)
+test-cp: ## Go tests (in-memory store; Postgres tests skip without TENSORAFI_TEST_DATABASE_URL)
 	cd $(CP) && go test ./...
 
 test-cp-pg: ## Go tests including Postgres store tests
 	docker compose up -d --wait postgres
-	cd $(CP) && TENSORA_TEST_DATABASE_URL='$(PG_URL)' go test ./...
+	cd $(CP) && TENSORAFI_TEST_DATABASE_URL='$(PG_URL)' go test ./...
 
 test-ml: ## Python ML layer tests
 	@$(UNHIDE_VENV)
@@ -115,11 +115,11 @@ fmt: ## Format all code
 # ---------------------------------------------------------------- deploy (render only, never applies)
 .PHONY: deploy-check
 deploy-check: ## Lint + render charts and validate with kubeconform (no cluster needed)
-	helm lint deploy/charts/tensora --set-file catalog=deploy/catalog.yaml
+	helm lint deploy/charts/tensorafi --set-file catalog=deploy/catalog.yaml
 	helm lint deploy/charts/cluster-config -f deploy/environments/single-node.yaml
-	helm template tensora deploy/charts/tensora --set-file catalog=deploy/catalog.yaml | $(KUBECONFORM)
+	helm template tensorafi deploy/charts/tensorafi --set-file catalog=deploy/catalog.yaml | $(KUBECONFORM)
 	@# A region missing from the catalog must fail to render, not leave workloads pending.
-	@! helm template tensora deploy/charts/tensora --set-file catalog=deploy/catalog.yaml --set cluster.region=nowhere >/dev/null 2>&1 \
+	@! helm template tensorafi deploy/charts/tensorafi --set-file catalog=deploy/catalog.yaml --set cluster.region=nowhere >/dev/null 2>&1 \
 		|| (echo "the chart rendered a region that isn't in the catalog" && exit 1)
 	for env in single-node production; do \
 	  helm template cluster-config deploy/charts/cluster-config -f deploy/environments/$$env.yaml | $(KUBECONFORM) || exit 1; \
@@ -130,16 +130,16 @@ deploy-check: ## Lint + render charts and validate with kubeconform (no cluster 
 PLATFORMS := linux/amd64 linux/arm64 darwin/arm64
 
 .PHONY: build-all
-build-all: ## Cross-compile tensora for linux/amd64, linux/arm64, darwin/arm64 into controlplane/bin/
+build-all: ## Cross-compile tensorafi for linux/amd64, linux/arm64, darwin/arm64 into controlplane/bin/
 	cd $(CP) && for p in $(PLATFORMS); do \
 	  os=$${p%/*}; arch=$${p#*/}; \
-	  echo "building tensora for $$os/$$arch"; \
-	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -o bin/tensora-$$os-$$arch ./cmd/tensora || exit 1; \
+	  echo "building tensorafi for $$os/$$arch"; \
+	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -o bin/tensorafi-$$os-$$arch ./cmd/tensorafi || exit 1; \
 	done
 
 # ---------------------------------------------------------------- images
 .PHONY: images
 images: ## Build container images for controlplane, ml, web
-	docker build -t $(IMAGE_REPO)/tensora-controlplane:$(VERSION) $(CP)
-	docker build -t $(IMAGE_REPO)/tensora-ml:$(VERSION) $(ML)
-	docker build -t $(IMAGE_REPO)/tensora-web:$(VERSION) $(WEB)
+	docker build -t $(IMAGE_REPO)/tensorafi-controlplane:$(VERSION) $(CP)
+	docker build -t $(IMAGE_REPO)/tensorafi-ml:$(VERSION) $(ML)
+	docker build -t $(IMAGE_REPO)/tensorafi-web:$(VERSION) $(WEB)

@@ -13,7 +13,7 @@ from typing import Any
 import httpx
 import pytest
 
-from tensora_ml.native import Piece, Request, Server, parse_request
+from tensorafi_ml.native import Piece, Request, Server, parse_request
 
 
 class FakeEngine:
@@ -177,7 +177,7 @@ def test_error_carries_the_proxy_request_id(client: httpx.Client) -> None:
 def test_serving_reexec_starts_offline_without_fetch_credentials(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from tensora_ml import native
+    from tensorafi_ml import native
 
     monkeypatch.setattr(
         sys,

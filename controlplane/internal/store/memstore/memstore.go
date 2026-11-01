@@ -1,4 +1,4 @@
-// Package memstore is an in-memory Store for `tensora dev` and tests. Transactions are
+// Package memstore is an in-memory Store for `tensorafi dev` and tests. Transactions are
 // serialized by one mutex and rolled back by restoring a snapshot.
 package memstore
 
@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
 )
 
 type Store struct {

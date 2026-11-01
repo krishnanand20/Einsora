@@ -3,20 +3,20 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: tensora
-      POSTGRES_PASSWORD: tensora
-      POSTGRES_DB: tensora
+      POSTGRES_USER: tensorafi
+      POSTGRES_PASSWORD: tensorafi
+      POSTGRES_DB: tensorafi
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tensora"]
+      test: ["CMD-SHELL", "pg_isready -U tensorafi"]
       interval: 2s
       timeout: 3s
       retries: 20
 
-  # Optional: a local Keycloak to exercise TENSORA_AUTH_MODE=oidc.
+  # Optional: a local Keycloak to exercise TENSORAFI_AUTH_MODE=oidc.
   #   docker compose --profile auth up -d keycloak   → http://localhost:8180 (admin/admin)
   keycloak:
     profiles: ["auth"]

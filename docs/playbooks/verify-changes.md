@@ -23,7 +23,7 @@ Also check these when they apply:
 - **Region or fallback logic changed:** there's a test that one region never sees another's workloads, and a test that fallbacks are recorded (`placed_class`) and accounted as what ran (rules 9 and 10).
 - **OS-specific code added:** it's behind build tags in a driver package, and `make build-all` still passes (rule 11).
 - **Nothing costs money:** no pricing, payment, or paid-tier logic appears (rule 12).
-- **Workload behavior changed:** each new decision shows up in the timeline with a specific reason from a fixed vocabulary (never raw runtime text), any new user input is in the export, and secrets in it are redacted and listed (rule 14). Check with `tensora events <id>` and `tensora export <id>` against `make dev`.
+- **Workload behavior changed:** each new decision shows up in the timeline with a specific reason from a fixed vocabulary (never raw runtime text), any new user input is in the export, and secrets in it are redacted and listed (rule 14). Check with `tensorafi events <id>` and `tensorafi export <id>` against `make dev`.
 - **Isolation-sensitive paths changed** (see `CONTRIBUTING.md`): run the `tenancy-reviewer`.
 
 ## Missing tools

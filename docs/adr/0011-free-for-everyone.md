@@ -1,5 +1,8 @@
 # 0011. Free for everyone: no pricing, no billing
 
+> **Update (ADR-0020):** the licence this ADR left open is decided: MIT. The product is now named
+> TensoraFi. Everything else here still applies.
+
 - **Status:** Accepted
 - **Date:** 2026-10-23
 - **Supersedes:** the billing parts of ADR-0006, and the pricing, payment, and "first region" decisions in the product spec's decision log

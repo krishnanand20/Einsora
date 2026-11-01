@@ -1,8 +1,8 @@
-# Tensora docs
+# TensoraFi docs
 
 | Area | Start here |
 |---|---|
-| **What Tensora is, who it's for, the milestones** | [product/product-spec.md](product/product-spec.md) |
+| **What TensoraFi is, who it's for, the milestones** | [product/product-spec.md](product/product-spec.md) |
 | **What we're building next, and in what order** | [roadmap.md](roadmap.md) |
 | **How it fits together** (profiles, agent, Kubernetes, diagrams) | [architecture/overview.md](architecture/overview.md) |
 | Control plane: lifecycle, backends, admission, API | [architecture/control-plane.md](architecture/control-plane.md) |

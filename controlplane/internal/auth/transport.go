@@ -6,17 +6,17 @@ import (
 	"net/netip"
 	"strings"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 // Transport decides what a request's connection can be trusted with: who the client is (for
 // slowing down guessing), and whether passwords and session cookies may cross it.
 type Transport struct {
 	// TrustedProxies are reverse proxies whose X-Forwarded-For and X-Forwarded-Proto are believed
-	// (TENSORA_TRUSTED_PROXIES). Anyone else's are ignored.
+	// (TENSORAFI_TRUSTED_PROXIES). Anyone else's are ignored.
 	TrustedProxies []netip.Prefix
 	// AllowPlainHTTP allows sign-in and session cookies over plain HTTP from other machines
-	// (TENSORA_INSECURE_HTTP=true), for a network the operator trusts.
+	// (TENSORAFI_INSECURE_HTTP=true), for a network the operator trusts.
 	AllowPlainHTTP bool
 }
 
@@ -124,9 +124,9 @@ func (t Transport) Secure(r *http.Request) bool {
 
 var (
 	errPlainHTTP = domain.Errorf(domain.CodeForbidden,
-		"signing in needs HTTPS or this machine; on a network you trust, the operator can set TENSORA_INSECURE_HTTP=true")
+		"signing in needs HTTPS or this machine; on a network you trust, the operator can set TENSORAFI_INSECURE_HTTP=true")
 	errUnlistedProxy = domain.Errorf(domain.CodeForbidden,
-		"this request came through a proxy that isn't in TENSORA_TRUSTED_PROXIES; the operator needs to list it")
+		"this request came through a proxy that isn't in TENSORAFI_TRUSTED_PROXIES; the operator needs to list it")
 	errUnknownClient = domain.Errorf(domain.CodeForbidden,
 		"the proxy's X-Forwarded-For doesn't say who you are; the operator needs to fix the proxy")
 )

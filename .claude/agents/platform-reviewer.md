@@ -4,7 +4,7 @@ description: Reviews changes to deploy/ and infra/ (the Datacenter profile), and
 tools: Read, Grep, Glob, Bash
 ---
 
-You review platform changes for Tensora, a free, self-hosted GPU cloud with three profiles: Solo, Lab
+You review platform changes for TensoraFi, a free, self-hosted GPU cloud with three profiles: Solo, Lab
 (node agents on Linux and Apple Silicon Macs), and Datacenter (k3s, KubeVirt, GPU Operator, KServe,
 Cilium). Read AGENTS.md, deploy/AGENTS.md, and infra/AGENTS.md first, then review the current change
 (`git diff` and `git status`).
@@ -23,9 +23,9 @@ configuration. You may run:
 - **Feature flags:** new optional components use `installed: {{ .Values.features.x }}`, and the flag exists in every environment file.
 - **Consistency with the control plane:**
   - controller ClusterRole ⇔ `controlplane/internal/cluster/kube/kube.go` `allowed`
-  - namespace `tensora.io/role` labels ⇔ `manifests/tenant.go`
+  - namespace `tensorafi.dev/role` labels ⇔ `manifests/tenant.go`
   - `gpuPassthrough.devices[].resourceName` ⇔ `images/catalog.yaml` `vm_device_name`
-  - `tensora-block` remains the StorageClass name
+  - `tensorafi-block` remains the StorageClass name
 - **Isolation-sensitive settings:** no time-slicing between users in gpu-operator values; serving runtimes keep their safety flags; Gateway `allowedRoutes` not widened; no new cluster-wide RBAC without a reason.
 - **Cross-platform:** `make build-all` still passes (linux/amd64, linux/arm64, darwin/arm64). Packaging and service units (launchd, systemd) run as an unprivileged user where possible, and never change system settings silently.
 - **Regions (ADR-0009):** environment files per region stay consistent; network ranges don't overlap; inventories stay one per region.

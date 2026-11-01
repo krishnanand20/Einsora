@@ -26,7 +26,7 @@ export function App() {
     return (
       <div className="shell">
         <header className="topbar">
-          <span className="brand">Tensora</span>
+          <span className="brand">TensoraFi</span>
         </header>
         <main>
           <LoginPage />
@@ -42,7 +42,7 @@ export function App() {
   return (
     <div className="shell">
       <header className="topbar">
-        <span className="brand">Tensora</span>
+        <span className="brand">TensoraFi</span>
         <nav>
           <NavLink to="/" end>
             Workloads

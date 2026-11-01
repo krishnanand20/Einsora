@@ -1,7 +1,7 @@
 # Incident response
 
-For whoever operates a Tensora instance: an individual, a team, a company, or a pool operator.
-In Solo, most of this collapses into "check the dashboard and `tensora` logs".
+For whoever operates a TensoraFi instance: an individual, a team, a company, or a pool operator.
+In Solo, most of this collapses into "check the dashboard and `tensorafi` logs".
 
 ## Severity
 
@@ -32,7 +32,7 @@ In Solo, most of this collapses into "check the dashboard and `tensora` logs".
 | **Node NotReady** | Datacenter | Alert | BMC console: power, kernel panic, or network? |
 | **Disk full** | All | Alert at 85% | Model cache, old workload disks, logs, container images |
 | **Workloads stuck in provisioning** | All | Dashboard, alerts | Check the controller logs, then the agent or runtime logs; compare capacity with what's allocated |
-| **Store down** (SQLite file or Postgres) | All | readyz 503 | The API fails closed and running workloads continue. Restore from backup (`tensora backup` or Postgres backups). |
+| **Store down** (SQLite file or Postgres) | All | readyz 503 | The API fails closed and running workloads continue. Restore from backup (`tensorafi backup` or Postgres backups). |
 | **Region outage** | Datacenter, multi-site Labs | Alerts from that region | Only that region is affected (ADR-0009). Don't move workloads to another region unless users opted in. |
 | **GPU class busy for a long time** | All | Queue depth, fallback rate | Expected under load: opted-in workloads use fallbacks and the rest queue. Add capacity or adjust quotas. |
 | **Host reclaim storm** (many owners return at once) | Sharing | Preemption rate | Expected on shared pools. Check that re-queueing and fallbacks work, and that nothing was lost that should have been kept. |

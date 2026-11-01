@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 // Version is the protocol version. The control plane refuses an agent speaking another.
@@ -57,7 +57,7 @@ type Inventory struct {
 	CPUs         int                  `json:"cpus"`
 	MemoryMiB    int64                `json:"memory_mib"`
 	Accelerators []domain.Accelerator `json:"accelerators"`
-	// UsableCPUs and UsableMemoryMiB are what Tensora may allocate; the agent keeps the rest for
+	// UsableCPUs and UsableMemoryMiB are what TensoraFi may allocate; the agent keeps the rest for
 	// the machine's owner.
 	UsableCPUs      int   `json:"usable_cpus"`
 	UsableMemoryMiB int64 `json:"usable_memory_mib"`
@@ -141,7 +141,7 @@ type Access struct {
 	Token  string `json:"token"`
 }
 
-// MaxSocketPath is the longest Unix socket path every OS Tensora runs on accepts: macOS allows 104
+// MaxSocketPath is the longest Unix socket path every OS TensoraFi runs on accepts: macOS allows 104
 // bytes, with the terminating NUL.
 const MaxSocketPath = 103
 

@@ -12,10 +12,10 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/tensora/tensora/controlplane/internal/catalog"
-	"github.com/tensora/tensora/controlplane/internal/config"
-	"github.com/tensora/tensora/controlplane/internal/service"
-	"github.com/tensora/tensora/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/catalog"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/config"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
 )
 
 // runSetup creates the first account, the machine's owner (ADR-0012). It works on the store
@@ -29,8 +29,8 @@ func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 	name := fs.String("name", "", "the tenant's display name")
 	fromStdin := fs.Bool("password-stdin", false, "read the password from the first line of stdin")
 	reset := fs.Bool("reset-password", false, "set a new password for an existing account and sign it out everywhere")
-	usage := "usage: tensora setup -email you@example.com [-tenant home] [-name \"My lab\"] [-password-stdin]\n" +
-		"       tensora setup -reset-password -email you@example.com [-password-stdin]"
+	usage := "usage: tensorafi setup -email you@example.com [-tenant home] [-name \"My lab\"] [-password-stdin]\n" +
+		"       tensorafi setup -reset-password -email you@example.com [-password-stdin]"
 	if err := fs.Parse(args); err != nil || fs.NArg() > 0 || *email == "" {
 		return errors.New(usage)
 	}
@@ -74,8 +74,8 @@ func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 		return err
 	}
 	_, err = fmt.Fprintf(stdout, "Created the owner account %s in tenant %q (trusted).\n"+
-		"Run the server with TENSORA_AUTH_MODE=local, then sign in on the dashboard, or create an API\n"+
-		"token there for the CLI (TENSORA_TOKEN).\n", u.Email, *tenant)
+		"Run the server with TENSORAFI_AUTH_MODE=local, then sign in on the dashboard, or create an API\n"+
+		"token there for the CLI (TENSORAFI_TOKEN).\n", u.Email, *tenant)
 	return err
 }
 

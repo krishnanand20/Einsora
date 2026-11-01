@@ -9,18 +9,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tensora/tensora/controlplane/internal/catalog"
-	"github.com/tensora/tensora/controlplane/internal/devseed"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/store"
-	"github.com/tensora/tensora/controlplane/internal/store/memstore"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/catalog"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/devseed"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store/memstore"
 )
 
 // Principals for the tenants created by devseed.
 var (
 	Acme     = domain.Principal{Subject: "alice@acme.test", TenantSlug: "acme"}
 	Globex   = domain.Principal{Subject: "bob@globex.test", TenantSlug: "globex"}
-	Internal = domain.Principal{Subject: "ops@tensora.test", TenantSlug: "internal"}
+	Internal = domain.Principal{Subject: "ops@tensorafi.test", TenantSlug: "internal"}
 )
 
 const SSHKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleExampleExampleExampleExampleExampl test@example"

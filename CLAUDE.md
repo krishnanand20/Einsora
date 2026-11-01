@@ -7,7 +7,7 @@
 - **Skills** (`.claude/skills/`): `/verify`, `/new-adr`, `/add-api-resource`, `/add-platform-component`.
   Each wraps a playbook in `docs/playbooks/` so Claude, Codex, and humans follow the same steps.
 - **Subagents** (`.claude/agents/`):
-  - `tenancy-reviewer` — run after any change to `controlplane/internal/{api,service,store,cluster,controller,metering,access}`, agent or driver code, `deploy/`, or `ml/src/tensora_ml/validate.py`. It looks for:
+  - `tenancy-reviewer` — run after any change to `controlplane/internal/{api,service,store,cluster,controller,metering,access}`, agent or driver code, `deploy/`, or `ml/src/tensorafi_ml/validate.py`. It looks for:
     - cross-tenant leaks and broken isolation (the trust matrix)
     - weakened host protections
     - usage-accounting bugs

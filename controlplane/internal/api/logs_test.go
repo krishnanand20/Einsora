@@ -12,12 +12,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tensora/tensora/controlplane/internal/api"
-	"github.com/tensora/tensora/controlplane/internal/auth"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/service"
-	"github.com/tensora/tensora/controlplane/internal/store"
-	"github.com/tensora/tensora/controlplane/internal/testutil"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/api"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/auth"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
 )
 
 func TestEventsEndpoint(t *testing.T) {
@@ -51,7 +51,7 @@ func TestExportEndpoint(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatalf("export: %d %s", rec.Code, rec.Body)
 	}
-	want := `attachment; filename=tensora-llm-` + id + `.json`
+	want := `attachment; filename=tensorafi-llm-` + id + `.json`
 	if got := rec.Header().Get("Content-Disposition"); got != want {
 		t.Errorf("Content-Disposition = %q, want %q", got, want)
 	}
@@ -64,7 +64,7 @@ func TestExportEndpoint(t *testing.T) {
 			t.Errorf("export is missing %q", key)
 		}
 	}
-	if exp["format"] != "tensora.workload-export/v1" || exp["params"].(map[string]any)["model_uri"] != "hf://Qwen/Qwen2.5-0.5B-Instruct" {
+	if exp["format"] != "tensorafi.workload-export/v1" || exp["params"].(map[string]any)["model_uri"] != "hf://Qwen/Qwen2.5-0.5B-Instruct" {
 		t.Errorf("export = %v", exp)
 	}
 	if code, _ := call(t, h, "GET", "/v1/workloads/"+id+"/export", "globex", ""); code != 404 {

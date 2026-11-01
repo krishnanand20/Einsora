@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tensora/tensora/controlplane/internal/agent"
-	"github.com/tensora/tensora/controlplane/internal/agent/drivers/sim"
-	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
-	"github.com/tensora/tensora/controlplane/internal/cluster"
-	"github.com/tensora/tensora/controlplane/internal/cluster/agents"
-	"github.com/tensora/tensora/controlplane/internal/controller"
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/service"
-	"github.com/tensora/tensora/controlplane/internal/store"
-	"github.com/tensora/tensora/controlplane/internal/testutil"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/sim"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster/agents"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/controller"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
 )
 
 // The whole path in one process, as in Solo: a notebook is placed on this machine's GPU, the

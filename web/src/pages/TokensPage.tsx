@@ -15,7 +15,7 @@ function when(at?: string) {
   return at ? new Date(at).toLocaleString() : "—";
 }
 
-/** API tokens for the CLI (TENSORA_TOKEN) and scripts. A new token is shown once and never again. */
+/** API tokens for the CLI (TENSORAFI_TOKEN) and scripts. A new token is shown once and never again. */
 export function TokensPage() {
   const queryClient = useQueryClient();
   const tokens = useQuery({ queryKey: ["tokens"], queryFn: api.listTokens });
@@ -48,7 +48,7 @@ export function TokensPage() {
     <section>
       <h1>API tokens</h1>
       <p className="muted">
-        For the <code>tensora</code> CLI (<code>TENSORA_TOKEN</code>) and scripts. A token acts as you, so treat it
+        For the <code>tensorafi</code> CLI (<code>TENSORAFI_TOKEN</code>) and scripts. A token acts as you, so treat it
         like a password, and revoke it when you no longer need it.
       </p>
 

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
-	"github.com/tensora/tensora/controlplane/internal/redact"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/redact"
 )
 
 // TestRealNotebook uses an environment previously built from the driver's embedded lock. It
@@ -27,12 +27,12 @@ func TestRealNotebook(t *testing.T) {
 }
 
 func testRealNotebook(t *testing.T, accelerator domain.AcceleratorKind) {
-	realEnv := os.Getenv("TENSORA_TEST_NATIVE_ENV")
+	realEnv := os.Getenv("TENSORAFI_TEST_NATIVE_ENV")
 	if realEnv == "" {
-		t.Skip("set TENSORA_TEST_NATIVE_ENV to a driver-built Jupyter environment to test Metal and IPC")
+		t.Skip("set TENSORAFI_TEST_NATIVE_ENV to a driver-built Jupyter environment to test Metal and IPC")
 	}
 	if !filepath.IsAbs(realEnv) {
-		t.Fatal("TENSORA_TEST_NATIVE_ENV must be an absolute path")
+		t.Fatal("TENSORAFI_TEST_NATIVE_ENV must be an absolute path")
 	}
 	d, _ := newDriver(t)
 	lock, _ := envs.ReadFile("envs/" + runtimeRef + ".txt")

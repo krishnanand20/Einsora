@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Tenant sent as X-Dev-Tenant when the API runs with TENSORA_AUTH_MODE=dev. */
+  /** Tenant sent as X-Dev-Tenant when the API runs with TENSORAFI_AUTH_MODE=dev. */
   readonly VITE_DEV_TENANT?: string;
 }
 

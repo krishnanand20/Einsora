@@ -4,13 +4,13 @@ apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataVolume
 metadata:
   name: ubuntu-24.04-cuda
-  namespace: tensora-images
+  namespace: tensorafi-images
 spec:
   source:
     http:
       url: https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
   storage:
-    storageClassName: tensora-block
+    storageClassName: tensorafi-block
     resources:
       requests:
         storage: 20Gi
@@ -19,9 +19,9 @@ apiVersion: cdi.kubevirt.io/v1beta1
 kind: DataSource
 metadata:
   name: ubuntu-24.04-cuda
-  namespace: tensora-images
+  namespace: tensorafi-images
 spec:
   source:
     pvc:
       name: ubuntu-24.04-cuda
-      namespace: tensora-images
+      namespace: tensorafi-images

@@ -1,17 +1,17 @@
-# First model endpoint (runbook 03) using the tensora-vllm runtime from cluster-config.
+# First model endpoint (runbook 03) using the tensorafi-vllm runtime from cluster-config.
 # Node must be labeled nvidia.com/gpu.workload.config=container.
 #   kubectl apply -f deploy/examples/vllm-endpoint.yaml
-#   kubectl -n tensora-smoke get isvc qwen -w
+#   kubectl -n tensorafi-smoke get isvc qwen -w
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: tensora-smoke
+  name: tensorafi-smoke
 ---
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
   name: qwen
-  namespace: tensora-smoke
+  namespace: tensorafi-smoke
   annotations:
     serving.kserve.io/deploymentMode: RawDeployment
 spec:
@@ -21,7 +21,7 @@ spec:
     model:
       modelFormat:
         name: huggingface
-      runtime: tensora-vllm
+      runtime: tensorafi-vllm
       storageUri: hf://Qwen/Qwen2.5-0.5B-Instruct
       resources:
         limits:

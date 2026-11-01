@@ -1,6 +1,6 @@
 # Usage accounting
 
-Tensora is free ([ADR-0011](../adr/0011-free-for-everyone.md)). Usage accounting records **who used how
+TensoraFi is free ([ADR-0011](../adr/0011-free-for-everyone.md)). Usage accounting records **who used how
 much compute, where, and for how long**, and that's all. It's never converted into money.
 
 ## What it's for
@@ -27,7 +27,7 @@ workload keeps it busy. The mechanism comes from ADR-0006.
 ```mermaid
 flowchart LR
   T[service.Transition] -->|append| E[(workload_events<br/>append-only)]
-  E --> M[tensora metering<br/>every 5 min]
+  E --> M[tensorafi metering<br/>every 5 min]
   M -->|insert if absent| U[(usage_records<br/>workload × UTC hour<br/>placed class · region · machine)]
   G[inference gateway<br/>per request · planned] -->|token counts| TU[(token usage)]
   U --> R[quotas · fair share · reports]

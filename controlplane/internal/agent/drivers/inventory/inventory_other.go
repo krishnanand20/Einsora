@@ -5,7 +5,7 @@ package inventory
 import (
 	"context"
 
-	"github.com/tensora/tensora/controlplane/internal/domain"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
 )
 
 func memoryMiB() (int64, error) { return 0, nil }

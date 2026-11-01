@@ -2,7 +2,7 @@
 
 ## Hosting at home
 
-When you run Tensora on a personal machine, or share it ([ADR-0014](../adr/0014-sharing-idle-compute.md)),
+When you run TensoraFi on a personal machine, or share it ([ADR-0014](../adr/0014-sharing-idle-compute.md)),
 **you pay for its electricity**, and your room gets its heat.
 
 | Machine | Typical draw under GPU load | Notes |
@@ -21,7 +21,7 @@ Multiply by your electricity rate to see what sharing costs you. Then set caps a
 dashboard to match (power caps are planned).
 
 - **Heat and noise:** set a schedule (for example, overnight only) for machines in living spaces.
-- **Laptops:** keep them on a hard surface, and let Tensora share only on AC power (the default).
+- **Laptops:** keep them on a hard surface, and let TensoraFi share only on AC power (the default).
 - **Power cuts:** a small UPS on the control plane machine protects its store.
 
 ## Datacenter
@@ -77,4 +77,4 @@ monthly kWh ≈ average kW × 24 × 30 × PUE (colocation ~1.5, office ~2+)
 ```
 
 A node averaging 2.5 kW uses about 2.5 × 720 × 1.5 ≈ 2,700 kWh a month. This is a cost of running
-the hardware, not something Tensora charges for: Tensora is free.
+the hardware, not something TensoraFi charges for: TensoraFi is free.

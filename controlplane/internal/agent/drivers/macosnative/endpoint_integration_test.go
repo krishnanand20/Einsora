@@ -18,19 +18,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tensora/tensora/controlplane/internal/redact"
+	"github.com/krishnanand20/tensorafi/controlplane/internal/redact"
 )
 
 // TestRealEndpoint covers S3 download, safetensors validation, MLX Metal loading, completions,
 // streaming, and cleanup using a tiny random model. It needs the optional serve environment but
 // makes no external model requests and doesn't change machine settings.
 func TestRealEndpoint(t *testing.T) {
-	realEnv := os.Getenv("TENSORA_TEST_NATIVE_ENDPOINT_ENV")
+	realEnv := os.Getenv("TENSORAFI_TEST_NATIVE_ENDPOINT_ENV")
 	if realEnv == "" {
-		t.Skip("set TENSORA_TEST_NATIVE_ENDPOINT_ENV to a Python environment with the serve extra")
+		t.Skip("set TENSORAFI_TEST_NATIVE_ENDPOINT_ENV to a Python environment with the serve extra")
 	}
 	if !filepath.IsAbs(realEnv) {
-		t.Fatal("TENSORA_TEST_NATIVE_ENDPOINT_ENV must be absolute")
+		t.Fatal("TENSORAFI_TEST_NATIVE_ENDPOINT_ENV must be absolute")
 	}
 	python := filepath.Join(realEnv, "bin", "python")
 	fixture := t.TempDir()
@@ -72,7 +72,7 @@ func TestRealEndpoint(t *testing.T) {
 	}))
 	defer s3.Close()
 	t.Setenv("AWS_ENDPOINT_URL_S3", s3.URL)
-	t.Setenv("AWS_ACCESS_KEY_ID", "tensora-local-test")
+	t.Setenv("AWS_ACCESS_KEY_ID", "tensorafi-local-test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "not-a-real-credential")
 	t.Setenv("AWS_DEFAULT_REGION", "us-east-1")
 	d, _ := newDriver(t)

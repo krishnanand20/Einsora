@@ -15,12 +15,12 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_USER: tensora
-          POSTGRES_PASSWORD: tensora
-          POSTGRES_DB: tensora
+          POSTGRES_USER: tensorafi
+          POSTGRES_PASSWORD: tensorafi
+          POSTGRES_DB: tensorafi
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U tensora" --health-interval 2s --health-timeout 3s --health-retries 20
+          --health-cmd "pg_isready -U tensorafi" --health-interval 2s --health-timeout 3s --health-retries 20
     defaults:
       run:
         working-directory: controlplane
@@ -36,7 +36,7 @@ jobs:
       - name: test (including Postgres store)
         run: go test -race ./...
         env:
-          TENSORA_TEST_DATABASE_URL: postgres://tensora:tensora@localhost:5432/tensora?sslmode=disable
+          TENSORAFI_TEST_DATABASE_URL: postgres://tensorafi:tensorafi@localhost:5432/tensorafi?sslmode=disable
       - uses: golangci/golangci-lint-action@v8
         with:
           working-directory: controlplane
