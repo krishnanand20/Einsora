@@ -114,6 +114,13 @@ type Queries interface {
 	// WorkloadsForMetering returns workloads that are metered now or had an event at or after since.
 	WorkloadsForMetering(ctx context.Context, since time.Time) ([]domain.Workload, error)
 
+	// Access tickets (ADR-0017). Creating one is tenant-scoped (its tenant must own the workload);
+	// using one is system-wide, by its hash: the access proxy knows nothing else. UseAccessTicket
+	// marks it used and returns it, or reports not found for an unknown, used, or expired ticket.
+	CreateAccessTicket(ctx context.Context, t domain.AccessTicket) error
+	UseAccessTicket(ctx context.Context, hash string, now time.Time) (domain.AccessTicket, error)
+	DeleteExpiredAccessTickets(ctx context.Context, now time.Time) error
+
 	// Leases, system-wide (controllers only). TakeLease takes or renews the lease name for holder
 	// until now+ttl, and reports whether holder has it: it's free, expired, or already holder's.
 	TakeLease(ctx context.Context, name, holder string, now time.Time, ttl time.Duration) (bool, error)

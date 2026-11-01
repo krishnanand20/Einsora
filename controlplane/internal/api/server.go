@@ -19,16 +19,23 @@ import (
 const maxBodyBytes = 1 << 20
 
 type Server struct {
-	svc   *service.Service
-	auth  auth.Authenticator
-	local *auth.Local // set in local auth mode
-	log   *slog.Logger
-	ready func(context.Context) error
+	svc        *service.Service
+	auth       auth.Authenticator
+	local      *auth.Local // set in local auth mode
+	log        *slog.Logger
+	ready      func(context.Context) error
+	accessPort int // the access proxy's port (ADR-0017); 0 when there's none
 }
 
 func New(svc *service.Service, a auth.Authenticator, log *slog.Logger, ready func(context.Context) error) *Server {
 	s := &Server{svc: svc, auth: a, log: log, ready: ready}
 	s.local, _ = a.(*auth.Local)
+	return s
+}
+
+// WithAccessPort enables opening workloads through the access proxy listening on port.
+func (s *Server) WithAccessPort(port int) *Server {
+	s.accessPort = port
 	return s
 }
 
@@ -48,6 +55,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /v1/workloads/{id}", s.authed(s.workloadAction(s.svc.DeleteWorkload)))
 	mux.Handle("GET /v1/workloads/{id}/events", s.authed(s.workloadEvents))
 	mux.Handle("GET /v1/workloads/{id}/export", s.authed(s.exportWorkload))
+	mux.Handle("POST /v1/workloads/{id}/access", s.authed(s.openWorkload))
 	mux.Handle("GET /v1/auth/me", s.authed(s.me))
 	if s.local != nil {
 		mux.HandleFunc("POST /v1/auth/login", s.login)

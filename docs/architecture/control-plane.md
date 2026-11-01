@@ -46,6 +46,33 @@ it isn't offered for placement, and its workloads' status reads as unknown. In S
 controller's process, on this machine, owned by the tenant `TENSORA_MACHINE_OWNER`. Over the network (Phase 2) the
 same call is `POST /agent/v1/sync` over HTTPS with mutual TLS.
 
+### Opening workloads: the access proxy
+
+Source: `controlplane/internal/access`, [ADR-0017](../adr/0017-local-workload-access-and-native-drivers.md). A
+running notebook is a web server on its machine's loopback address, with its own token. The browser reaches it
+through the access proxy, which runs beside the agent backend in the controller's process, on
+`TENSORA_ACCESS_ADDR` (`127.0.0.1:8090`; loopback only):
+
+1. The dashboard calls `POST /v1/workloads/{id}/access`. The API checks the workload is the caller's tenant's, a
+   running notebook, and placed on a machine, and stores a one-time ticket (its SHA-256 only, valid for 60
+   seconds), and notes in its timeline who asked to open it. It returns
+   `http://w-<id>.localhost:8090/_tensora/open?ticket=…`. The API never talks to the runtime (rule 1): it only
+   stores the ticket.
+2. The proxy takes the ticket once, at that workload's host only, and sets a cookie for that host
+   (`tensora_access`, HttpOnly, SameSite=Strict), backed by a session in memory. A session lasts 12 hours, or
+   until the workload stops: it's bound to the server it opened, and the next run has a new token.
+3. Each request is forwarded to the address and token the agent last reported for a ready workload
+   (`Hub.Target`), with `Authorization: token …` added, `Host` and `Origin` rewritten to the loopback address,
+   and the proxy's own cookie removed both ways.
+
+Each workload is its own site (`w-<id>.localhost`), so a notebook's pages can't use the dashboard's session or
+another workload's. The proxy answers only `w-<uuid>.localhost` hosts, so a web page can't reach it under another
+name (DNS rebinding), and refuses requests a browser says came from another origin, since a page on another port
+of the same host is same-site. The notebook's token stays in the agent backend's memory, taken only from the
+agent in its own process; it's never stored, logged, exported, or in a URL. A workload that listens on a loopback
+port can still receive the browser's cookies for that host (an open risk; see
+[tenancy and isolation](tenancy-and-isolation.md#open-risks)).
+
 ## Workload lifecycle
 
 Source: `controlplane/internal/domain/state.go`. Keep this diagram in sync with it.
@@ -99,7 +126,7 @@ vocabulary, never from raw runtime messages, and `service.CleanReason` cleans ev
 | queued (trusted tenant) | `waiting for l40s-48gb capacity: requested 2 GPU(s), 0 free` |
 | queued (untrusted tenant) | `waiting for l40s-48gb capacity: requested 2 GPU(s), not enough free right now` |
 | admitted | `admitted: 2 × l40s-48gb`, for an endpoint `admitted: 1 × l40s-48gb, served by vllm`, and on agents `admitted: 1 × apple-silicon-32gb on studio with macos-native` |
-| queued (no machine) | `waiting for a machine that can run apple-silicon-32gb to come online`, or `waiting for its machine to come online: its disk is there` |
+| queued (no machine) | `waiting for a machine that can run apple-silicon-32gb to come online`, `waiting for a machine with a driver that runs notebooks on cpu-4c-16g: none here has one yet`, or `waiting for its machine to come online: its disk is there` |
 | machine offline (note) | `its machine is offline; waiting for it to reconnect` |
 | what an agent reports | A fixed reason per code: `starting on its machine`, `waiting for its machine's GPU to be free`, `it ran out of memory`, and so on; an unknown code reads `its machine reported a problem` |
 | retrying (note) | `couldn't start it on the runtime; retrying. The operator's log has the details under this workload's ID.` |
@@ -149,12 +176,13 @@ vocabulary, never from raw runtime messages, and `service.CleanReason` cleans ev
 
 Every tenant also gets a namespace bundle: PSA baseline, a GPU `ResourceQuota`, a default-deny NetworkPolicy, Gateway ingress, and image-clone RBAC.
 
-**Agents** (ADR-0013; the drivers are roadmap step 7, except `sim`, which runs nothing and is for development only):
+**Agents** (ADR-0013, ADR-0017). Built: `macos-native` notebooks. The rest of roadmap step 7 is `macos-native`
+endpoints (7b) and `docker` (7c); the other drivers are Phase 2. `sim` runs nothing and is for development only.
 
 | Kind | Mac | Linux |
 |---|---|---|
 | vm | macOS guest (`macos-vz`, Metal) or Linux guest (CPU) | KVM guest (`libvirt`, VFIO GPU) |
-| notebook | Native Jupyter in a sandbox (`macos-native`, Metal), or a Linux container in its own VM (`macos-container`, CPU) | Container (`docker`, CUDA or CPU) |
+| notebook | Native JupyterLab in a sandbox (`macos-native`, Metal; built), or a Linux container in its own VM (`macos-container`, CPU) | Container (`docker`, CUDA or CPU) |
 | endpoint | MLX or llama.cpp server (`macos-native`, Metal) | vLLM or llama.cpp (`docker`) |
 
 ## API conventions
@@ -163,6 +191,7 @@ Every tenant also gets a namespace bundle: PSA baseline, a GPU `ResourceQuota`, 
 - Errors look like `{"error": {"code", "message", "request_id"}}`. The codes are `invalid_request` (400), `unauthenticated` (401), `forbidden` (403), `not_found` (404), and `conflict`, `quota_exceeded`, `invalid_transition` (409).
 - Every response carries `X-Request-ID`, which the server always generates. The ID is on every log line for that request, along with the tenant and subject once the request is authenticated. A caller's own `X-Request-ID` is logged as `client_request_id` if it's safe (`[A-Za-z0-9._-]`, at most 64 characters), and dropped otherwise.
 - `GET /v1/workloads` and `GET /v1/workloads/{id}` take `include_deleted=true` to include deleted workloads, whose history stays available.
+- `POST /v1/workloads/{id}/access` returns a one-time link that opens a running notebook through the access proxy (above). It's the only API that hands out a way into a workload, and it never returns the workload's own token.
 - Unexpected errors return **500** with a generic message and the request ID. The full error goes only to the operator's log.
 - Async actions return **202** and the current state.
 - Another tenant's object is always **404**.
@@ -185,6 +214,7 @@ Every tenant also gets a namespace bundle: PSA baseline, a GPU `ResourceQuota`, 
 | A GPU class or image removed from the catalog | Waiting workloads fail with `can't start: … is no longer offered by this installation` | *Known gap:* a running or stopping workload of that class can't be parked, because releasing it rebuilds its objects from the catalog. Its timeline says so, and the operator has to restore the entry. Planned: release from what the runtime already has. |
 | Agent offline (laptop closed, machine asleep) | It isn't offered for placement. Its workloads' status reads as unknown, noted once in their timelines (`its machine is offline; waiting for it to reconnect`). After 10 minutes offline, a provisioning or running workload fails (`its machine has been offline for over 10m0s`) and a stopping one is stopped, so neither stays accounted or holds quota; the machine stops them when it returns. VMs and notebooks that ran there wait for it (`waiting for its machine to come online: its disk is there`). | Built |
 | A running workload stops by itself (shut down from inside, or by its runtime) | It fails: `it stopped by itself` | Built |
+| `tensora` restarts while native workloads run | Their processes keep running in their own process groups; `macos-native` finds them again from each workload's state file (process ID and start time, so a reused process ID is never mistaken for one). Access-proxy sessions are in memory, so open tabs need opening again from the dashboard. | Built |
 | Node or machine lost | Its workloads go to `failed` | |
 | One region down | Only that region is affected | ADR-0009 |
 | GPU busy | `queued`, or placed on an opted-in fallback | ADR-0010 |
@@ -203,7 +233,7 @@ Every tenant also gets a namespace bundle: PSA baseline, a GPU `ResourceQuota`, 
 - **Machines** (agents): the in-process agent registers this machine and reports its inventory (built). Enrolment of other machines and health on the dashboard (Phase 2), the `/v1/machines` API and page (roadmap step 9), and sharing levels (Phase 4).
 - **Users, teams, invites**: local accounts and quotas (Phase 2)
 - **Models:** `tensora-ml ingest` validates, then caches per machine or region (Phases 2–3)
-- **Access:** a relay through the control plane to notebooks, endpoints, and VM SSH (Phase 2)
+- **Access:** on the control plane's machine, the access proxy opens notebooks (built, ADR-0017), and will serve endpoints (roadmap step 7b). A relay through the control plane to workloads on other machines, and VM SSH (Phase 2).
 - **Usage API:** `GET /v1/usage`, for reports and fairness, never money (Phase 2)
 - **Logs** ([ADR-0015](../adr/0015-logs-and-transparency.md)): `GET /v1/workloads/{id}/logs` for workload output (Phase 1), and the per-tenant activity log (Phase 2)
 - **Operations:** `/metrics`, admission aging (Phase 3). Leader election is the region lease (built).

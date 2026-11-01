@@ -210,10 +210,20 @@ func (p *pool) choose(w domain.Workload, g catalog.GPUClass) (placement, int, st
 		return placement{}, 0, fmt.Sprintf("waiting for its machine to offer the %s driver again: its disk is there", w.Driver), false
 	case !eligible && diskBound:
 		return placement{}, 0, fmt.Sprintf("waiting for its machine to offer %s again: its disk is there", g.ID), false
+	case !eligible && len(candidates) > 0 && !driverFound:
+		return placement{}, 0, fmt.Sprintf("waiting for a machine with a driver that runs %s on %s: none here has one yet", plural(w.Kind), g.ID), false
 	case !eligible:
 		return placement{}, 0, fmt.Sprintf("waiting for a machine that can run %s to come online", g.ID), false
 	}
 	return placement{}, free, "", false
+}
+
+// plural names a kind of workload in a reason.
+func plural(k domain.WorkloadKind) string {
+	if k == domain.KindVM {
+		return "VMs"
+	}
+	return string(k) + "s"
 }
 
 // candidates are the machines w may be placed on. A VM or notebook that has run before goes back to

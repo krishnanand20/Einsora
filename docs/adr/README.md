@@ -4,7 +4,7 @@ Short records of decisions that are expensive to reverse. To write one, follow
 [docs/playbooks/write-an-adr.md](../playbooks/write-an-adr.md). Claude Code users can run `/new-adr`.
 
 ADRs are history, so they're never rewritten. When a later decision changes an earlier one, the earlier
-ADR gets a banner at the top saying what still applies. **Read the newest ADRs first:** 0011 to 0016
+ADR gets a banner at the top saying what still applies. **Read the newest ADRs first:** 0011 to 0017
 define today's product.
 
 | # | Decision | Status |
@@ -15,6 +15,7 @@ define today's product.
 | [0014](0014-sharing-idle-compute.md) | **Sharing idle compute:** private, invite-only, community pools | Accepted (sharing level stored per machine; enforcement planned) |
 | [0015](0015-logs-and-transparency.md) | **Logs and transparency:** complete, exportable, nothing hidden except secrets | Accepted (timeline, export, CLI built; output and activity logs planned) |
 | [0016](0016-agent-protocol-and-machine-placement.md) | **Agent protocol and machine placement:** one long-polled `Sync`, desired state from the store, a runtime-neutral backend, placement in the controller | Proposed (in-process agent, agent backend, and placement built; network transport Phase 2) |
+| [0017](0017-local-workload-access-and-native-drivers.md) | **Workload access and native drivers:** open workloads through an access proxy at their own `*.localhost` host with one-time tickets; native drivers are supervised, sandboxed processes | Proposed (proxy, process supervisor, and `macos-native` notebooks built; endpoints step 7b) |
 | [0001](0001-kubernetes-kubevirt-gpu-operator.md) | Kubernetes, KubeVirt, and the GPU Operator | Accepted; Datacenter profile only (0012) |
 | [0002](0002-k3s-single-node-first.md) | k3s with embedded etcd | Accepted; Datacenter profile only (0012) |
 | [0003](0003-language-split.md) | Go for the core platform, Python for the ML layer, TypeScript for the dashboard | Accepted |

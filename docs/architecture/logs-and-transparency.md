@@ -22,7 +22,7 @@ state as it was (`still pending`). Reasons are written for you, from a fixed voc
 
 | Situation | Example reason |
 |---|---|
-| You acted, with a local account (the credential is named, never its secret) | `created by you@example.com (API token "laptop" (tsk_Ab3x…))`, `stop requested by you@example.com (browser session)` |
+| You acted, with a local account (the credential is named, never its secret) | `created by you@example.com (API token "laptop" (tsk_Ab3x…))`, `stop requested by you@example.com (browser session)`, `opening in the browser requested by you@example.com (browser session)` (a note) |
 | Waiting for GPUs (trusted tenant: a machine's owner and their team) | `waiting for l40s-48gb capacity: requested 2 GPU(s), 0 free` |
 | Waiting for GPUs (invited or community user) | `waiting for l40s-48gb capacity: requested 2 GPU(s), not enough free right now` |
 | The runtime refused an action and it's being retried (a note) | `couldn't start it on the runtime; retrying. The operator's log has the details under this workload's ID.` |
@@ -30,7 +30,7 @@ state as it was (`still pending`). Reasons are written for you, from a fixed voc
 | Something retrying can't fix | `can't start: GPU class "x" is no longer offered by this installation` |
 | A model server that isn't ready | `model server not ready (RevisionFailed)` |
 | Placed on a machine (node agents) | `admitted: 1 × apple-silicon-32gb on studio with macos-native`: the class, the machine, and the driver |
-| Waiting for a machine | `waiting for a machine that can run apple-silicon-32gb to come online`, or for a VM or notebook that ran before, `waiting for its machine to come online: its disk is there` |
+| Waiting for a machine | `waiting for a machine that can run apple-silicon-32gb to come online`; when the tenant's machines are online but none has a driver for it, `waiting for a machine with a driver that runs notebooks on cpu-4c-16g: none here has one yet`; or for a VM or notebook that ran before, `waiting for its machine to come online: its disk is there` |
 | The machine is offline (a note) | `its machine is offline; waiting for it to reconnect` |
 | What the machine's agent reports | A fixed reason for each code it sends, such as `waiting for its machine's GPU to be free` or `it ran out of memory`. An agent's own words never appear; a code the control plane doesn't know reads `its machine reported a problem`. |
 

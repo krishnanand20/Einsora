@@ -69,8 +69,8 @@ To add more machines, or to share with others, see the Lab and sharing sections 
 
 ## What works today
 
-The development stack runs on macOS (Apple Silicon) and Linux. It uses a fake backend, so nothing
-actually runs on your GPU yet:
+The development stack runs on macOS (Apple Silicon) and Linux. By default it uses a fake backend, so
+nothing runs on your GPU; on a Mac, a real notebook can (below):
 
 ```bash
 brew install go uv node       # on a Mac, if `make doctor` reports them missing
@@ -104,8 +104,8 @@ front (Caddy, nginx, cloudflared, or Tailscale Serve, sending `X-Forwarded-For` 
 and list its address in `TENSORA_TRUSTED_PROXIES`, even when it runs on this machine. Only on a network you
 trust, `TENSORA_INSECURE_HTTP=true` allows plain HTTP instead.
 
-To try the node agent on this machine ([ADR-0016](../adr/0016-agent-protocol-and-machine-placement.md)), use the
-agent backend. Until the real drivers land (roadmap step 7), the `sim` driver only pretends to run workloads, but
+To try the node agent on this machine ([ADR-0016](../adr/0016-agent-protocol-and-machine-placement.md)) without
+running anything, use the agent backend with the `sim` driver. It only pretends to run workloads, but
 everything else is real: this machine is registered and its inventory detected, placement picks it and a driver,
 and the timeline says so.
 
@@ -117,3 +117,25 @@ curl -s -X POST -H 'X-Dev-Tenant: internal' localhost:8080/v1/workloads \
   -d '{"name":"nb","kind":"notebook","image_id":"pytorch-notebook","gpu_class":"apple-silicon-32gb","gpu_count":1}'
 TENSORA_DEV_TENANT=internal go run ./cmd/tensora events <id>   # admitted: 1 × apple-silicon-32gb on <this machine> with sim
 ```
+
+### Run a real notebook on your Mac
+
+On an Apple Silicon Mac, the `macos-native` driver runs JupyterLab with PyTorch on the Mac's GPU (Metal), in a
+sandbox ([ADR-0017](../adr/0017-local-workload-access-and-native-drivers.md)). It needs
+[uv](https://docs.astral.sh/uv/) and a SQLite file for its state:
+
+```bash
+brew install uv
+cd controlplane
+export TENSORA_DATABASE_URL=sqlite:$PWD/tensora.db TENSORA_AUTH_MODE=local TENSORA_CLUSTER_BACKEND=agent
+go run ./cmd/tensora setup -email you@example.com   # once, if you haven't
+go run ./cmd/tensora dev                            # then `make web-dev`, open :5173, and sign in
+```
+
+Launch a **Notebook** on the Apple Silicon class your Mac's memory holds. The first one builds its Python
+environment, a download of a few hundred MB into `native/envs/` next to the database, so it stays
+provisioning for a few minutes; later ones start in seconds. Once it's running, **Open** on its page opens
+JupyterLab in a new tab at `w-<id>.localhost:8090`, its own site, through the access proxy. Its files are in
+`native/workloads/<id>/data`, and survive stopping and starting it, and restarting `tensora`. Deleting the
+workload deletes them. CPU classes don't run natively on a Mac yet: such a notebook waits, and its timeline says
+why.

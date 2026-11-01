@@ -487,3 +487,47 @@ func TestStaleStatusesAreNotTheAnswer(t *testing.T) {
 		t.Errorf("a failure from an earlier attempt: %s; want progressing", obs)
 	}
 }
+
+// The access proxy reaches only the in-process agent's workloads, at the loopback address, and only
+// while they're ready (ADR-0017). A remote agent's report never names a port here, or keeps a token.
+func TestTargetsAreLocalOnly(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	w := f.place(t, f.owner, domain.KindNotebook, "cpu-2c-8g", domain.StateRunning)
+	sync := func(local bool, st protocol.Status) {
+		t.Helper()
+		req := protocol.SyncRequest{Version: protocol.Version, Inventory: mac(), Statuses: []protocol.Status{st}}
+		var err error
+		if local {
+			_, err = f.hub.Conn(f.machine.ID).Sync(ctx, req)
+		} else {
+			_, err = f.hub.Sync(ctx, f.machine.ID, req)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	ready := protocol.Status{ID: w.ID, Attempt: 1, State: protocol.StateReady, Access: &protocol.Access{Port: 41234, Token: "t0ken"}}
+
+	sync(true, ready)
+	if addr, token, ok := f.hub.Target(w.ID); !ok || addr != "127.0.0.1:41234" || token != "t0ken" {
+		t.Errorf("the local agent's ready workload: %q %q %v", addr, token, ok)
+	}
+	sync(false, ready)
+	if _, _, ok := f.hub.Target(w.ID); ok {
+		t.Error("a remote agent's report was taken as a loopback address")
+	}
+	for name, st := range map[string]protocol.Status{
+		"a port out of range": {ID: w.ID, Attempt: 1, State: protocol.StateReady, Access: &protocol.Access{Port: 70000, Token: "t0ken"}},
+		"no token":            {ID: w.ID, Attempt: 1, State: protocol.StateReady, Access: &protocol.Access{Port: 41234}},
+		"not ready":           {ID: w.ID, Attempt: 1, State: protocol.StateProgressing, Access: &protocol.Access{Port: 41234, Token: "t0ken"}},
+	} {
+		sync(true, st)
+		if _, _, ok := f.hub.Target(w.ID); ok {
+			t.Errorf("%s: reachable", name)
+		}
+	}
+	if _, _, ok := f.hub.Target(uuid.New()); ok {
+		t.Error("a workload the agent never reported is reachable")
+	}
+}

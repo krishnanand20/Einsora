@@ -19,10 +19,10 @@ upstream vLLM image.
 - **Apple Silicon classes** are sized by unified memory (`apple-silicon-16gb` to `apple-silicon-128gb`), because memory decides which models fit; one unit is the whole GPU of one Mac. They're for machines' owners only (rule 4). **CPU classes** are sized by vCPUs and memory (`cpu-4c-16g`, `cpu-16c-64g`).
 - **Images list runtimes in order of preference**, and a workload uses the first that supports its class's accelerator:
   - endpoints (`openai-endpoint`): vLLM on NVIDIA, MLX on Apple, llama.cpp on anything, including CPU
-  - notebooks (`pytorch-notebook`): the CUDA container on NVIDIA and CPU, and a uv-managed environment with PyTorch (MPS) on Macs
+  - notebooks (`pytorch-notebook`): the CUDA container on NVIDIA and CPU, and a uv-managed environment with PyTorch (MPS) on Macs. That environment's lock file, with hashes, is `controlplane/internal/agent/drivers/macosnative/envs/jupyterlab-pytorch-mps.txt`, embedded in the binary; its header says how to regenerate it.
   - VMs (`ubuntu-24.04-cuda`): NVIDIA passthrough today; macOS guests (Virtualization framework) arrive with the `macos-vz` driver
 - An endpoint runtime names its `server` and the `model_format` it loads. Only formats `tensora-ml validate` checks are accepted (rule 6): safetensors today, GGUF from roadmap step 10, so llama.cpp endpoints wait until then.
-- A runtime's `ref` is what the backend runs: a CDI DataSource, container image, or KServe ServingRuntime on Kubernetes, or a name the node agent's driver understands (roadmap step 7). The API shows each runtime's accelerators and server, never its ref.
+- A runtime's `ref` is what the backend runs: a CDI DataSource, container image, or KServe ServingRuntime on Kubernetes, or a name the node agent's driver understands (`macos-native`: `jupyterlab-pytorch-mps`, an environment whose lock is embedded in the binary). The API shows each runtime's accelerators and server, never its ref.
 
 ## Adding an image
 

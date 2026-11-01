@@ -38,6 +38,7 @@ type data struct {
 	tokens      map[uuid.UUID]domain.APIToken
 	machines    map[uuid.UUID]domain.Machine
 	leases      map[string]lease
+	tickets     map[string]domain.AccessTicket
 	quotas      map[quotaKey]domain.Quota
 	workloads   map[uuid.UUID]domain.Workload
 	events      []domain.Event
@@ -53,6 +54,7 @@ func New() *Store {
 		tokens:    map[uuid.UUID]domain.APIToken{},
 		machines:  map[uuid.UUID]domain.Machine{},
 		leases:    map[string]lease{},
+		tickets:   map[string]domain.AccessTicket{},
 		quotas:    map[quotaKey]domain.Quota{},
 		workloads: map[uuid.UUID]domain.Workload{},
 		usage:     map[usageKey]domain.UsageRecord{},
@@ -84,6 +86,7 @@ func (d *data) clone() data {
 		c.machines[id] = cloneMachine(m)
 	}
 	c.leases = maps.Clone(d.leases)
+	c.tickets = maps.Clone(d.tickets)
 	c.quotas = maps.Clone(d.quotas)
 	c.workloads = make(map[uuid.UUID]domain.Workload, len(d.workloads))
 	for id, w := range d.workloads {
@@ -92,6 +95,37 @@ func (d *data) clone() data {
 	c.events = slices.Clone(d.events)
 	c.usage = maps.Clone(d.usage)
 	return c
+}
+
+func (q *queries) CreateAccessTicket(_ context.Context, t domain.AccessTicket) error {
+	w, ok := q.d.workloads[t.WorkloadID]
+	if !ok || w.TenantID != t.TenantID {
+		return store.NotFound("workload")
+	}
+	if _, dup := q.d.tickets[t.Hash]; dup {
+		return domain.Errorf(domain.CodeConflict, "access ticket already exists")
+	}
+	q.d.tickets[t.Hash] = t
+	return nil
+}
+
+func (q *queries) UseAccessTicket(_ context.Context, hash string, now time.Time) (domain.AccessTicket, error) {
+	t, ok := q.d.tickets[hash]
+	if !ok || !t.UsedAt.IsZero() || !now.Before(t.ExpiresAt) {
+		return domain.AccessTicket{}, store.NotFound("access ticket")
+	}
+	t.UsedAt = now
+	q.d.tickets[hash] = t
+	return t, nil
+}
+
+func (q *queries) DeleteExpiredAccessTickets(_ context.Context, now time.Time) error {
+	for hash, t := range q.d.tickets {
+		if !now.Before(t.ExpiresAt) {
+			delete(q.d.tickets, hash)
+		}
+	}
+	return nil
 }
 
 type lease struct {

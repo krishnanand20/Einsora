@@ -131,3 +131,9 @@ export interface ApiErrorBody {
   /** request_id matches the X-Request-ID header and the operator's log lines. */
   error: { code: string; message: string; request_id?: string };
 }
+
+/** A one-time URL to open a running workload in the browser, at its own host (ADR-0017). */
+export interface AccessGrant {
+  url: string;
+  expires_at: string;
+}

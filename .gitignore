@@ -14,6 +14,13 @@ CLAUDE.local.md
 *.db
 *.db-wal
 *.db-shm
+*.db-journal
+
+# The agent's state, kept next to a SQLite store (or in TENSORA_AGENT_STATE_DIR): this machine's
+# identity, its lock, and macos-native's workloads (their data, and state files holding tokens)
+machine-id
+agent.lock
+native/
 
 # Go
 controlplane/bin/

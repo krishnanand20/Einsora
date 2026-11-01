@@ -37,7 +37,7 @@ type fixture struct {
 	capacity     cluster.Capacity
 }
 
-// machines: the owner's Mac (36 GB, macos-native and macos-vz) and a guest-visible Linux PC owned
+// machines: the owner's Mac (36 GB, macos-native, macos-container, and macos-vz) and a guest-visible Linux PC owned
 // by someone else in a community pool (two L40S, docker and libvirt).
 func machines() fixture {
 	f := fixture{owner: uuid.New(), guest: uuid.New()}
@@ -45,7 +45,8 @@ func machines() fixture {
 	f.pc = domain.Machine{ID: uuid.New(), TenantID: uuid.New(), Name: "box", Region: domain.RegionLocal, Sharing: domain.SharingCommunity}
 	f.capacity = cluster.Capacity{Machines: []cluster.MachineCapacity{
 		{ID: f.mac.ID, Devices: map[string]int{"apple-silicon-32gb": 1}, VCPUs: 9, MemoryMiB: 27 * 1024, Drivers: []cluster.Driver{
-			{Name: domain.DriverMacOSNative, Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple, domain.AcceleratorCPU}},
+			{Name: domain.DriverMacOSNative, Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple}},
+			{Name: domain.DriverMacOSContainer, Accelerators: []domain.AcceleratorKind{domain.AcceleratorCPU}},
 			{Name: domain.DriverMacOSVZ, Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple, domain.AcceleratorCPU}},
 		}},
 		{ID: f.pc.ID, Devices: map[string]int{"l40s-48gb": 2}, VCPUs: 30, MemoryMiB: 192 * 1024, Drivers: []cluster.Driver{
@@ -77,7 +78,10 @@ func TestMachinePlacementFollowsTheTrustMatrix(t *testing.T) {
 			domain.Workload{TenantID: f.guest, Kind: domain.KindVM, GPUCount: 2},
 			"l40s-48gb", uuid.Nil, "", "waiting for a machine that can run l40s-48gb"},
 		{"the owner's CPU notebook fits by CPUs and memory", domain.Workload{TenantID: f.owner, Kind: domain.KindNotebook, GPUCount: 1},
-			"cpu-4c-16g", f.mac.ID, domain.DriverMacOSNative, ""},
+			"cpu-4c-16g", f.mac.ID, domain.DriverMacOSContainer, ""},
+		{"no driver here runs the owner's CPU VM, and the reason says so, not that the Mac is offline",
+			domain.Workload{TenantID: f.owner, Kind: domain.KindVM, GPUCount: 1},
+			"cpu-4c-16g", uuid.Nil, "", "waiting for a machine with a driver that runs VMs on cpu-4c-16g: none here has one yet"},
 	}
 	for _, tt := range tests {
 		p := newPool(cat, f.capacity, []domain.Machine{f.mac, f.pc}, nil)
@@ -167,24 +171,24 @@ func TestDriverChoiceFollowsTheTrustMatrix(t *testing.T) {
 func TestDriversStickToTheirData(t *testing.T) {
 	cat := testutil.Catalog(t)
 	f := machines()
-	cpu, _ := cat.GPUClass("cpu-2c-8g")
-	container := cluster.Driver{Name: domain.DriverMacOSContainer, Accelerators: []domain.AcceleratorKind{domain.AcceleratorCPU}}
+	apple, _ := cat.GPUClass("apple-silicon-32gb")
 	native := f.capacity.Machines[0].Drivers[0]
-	f.capacity.Machines[0].Drivers = []cluster.Driver{container, native}
-	nb := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, GPUClass: "cpu-2c-8g",
-		GPUCount: 1, MachineID: f.mac.ID, Driver: domain.DriverMacOSNative}
+	sim := cluster.Driver{Name: domain.DriverSim, Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple}}
+	f.capacity.Machines[0].Drivers = []cluster.Driver{native, sim}
+	nb := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, GPUClass: apple.ID,
+		GPUCount: 1, MachineID: f.mac.ID, Driver: domain.DriverSim}
 	p := newPool(cat, f.capacity, []domain.Machine{f.mac}, nil)
-	if pl, _, _, ok := p.choose(nb, cpu); !ok || pl.driver != domain.DriverMacOSNative {
+	if pl, _, _, ok := p.choose(nb, apple); !ok || pl.driver != domain.DriverSim {
 		t.Errorf("placed with %q; want the driver holding its data, not the agent's first choice", pl.driver)
 	}
-	f.capacity.Machines[0].Drivers = []cluster.Driver{container}
+	f.capacity.Machines[0].Drivers = []cluster.Driver{native}
 	p = newPool(cat, f.capacity, []domain.Machine{f.mac}, nil)
-	if _, _, why, ok := p.choose(nb, cpu); ok || why != "waiting for its machine to offer the macos-native driver again: its disk is there" {
+	if _, _, why, ok := p.choose(nb, apple); ok || why != "waiting for its machine to offer the sim driver again: its disk is there" {
 		t.Errorf("without its driver: ok=%v why=%q", ok, why)
 	}
 	fresh := nb
 	fresh.ID, fresh.MachineID, fresh.Driver = uuid.New(), uuid.Nil, ""
-	if pl, _, _, ok := p.choose(fresh, cpu); !ok || pl.driver != domain.DriverMacOSContainer {
+	if pl, _, _, ok := p.choose(fresh, apple); !ok || pl.driver != domain.DriverMacOSNative {
 		t.Errorf("a new notebook: %+v; want the agent's first suitable driver", pl)
 	}
 }

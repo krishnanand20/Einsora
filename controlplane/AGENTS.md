@@ -21,6 +21,7 @@ internal/store/         Store/Queries interfaces
   storetest/            conformance suite every implementation must pass
 internal/service/       business operations, tenant-scoped; Transition() is the single path for state changes
 internal/api/           HTTP handlers (stdlib net/http); thin, and calls the service only
+internal/access/        the access proxy (ADR-0017): opens a running workload at w-<id>.localhost with a one-time ticket
 internal/auth/          authenticators: Local (API tokens and session cookies, with the CSRF check), OIDC (JWT), and Dev (header)
 internal/credential/    argon2id password hashing, and random tokens stored only as SHA-256 hashes
 internal/redact/        removes credentials from URIs and free text; imports nothing internal, so the agent can use it
@@ -36,17 +37,20 @@ internal/agent/         the node agent: syncs with the control plane and runs wo
   drivers/sim/          a driver that runs nothing (development and tests only)
   drivers/inventory/    CPUs, memory, and GPUs, per OS behind build tags
   drivers/hostlock/     one agent per machine: an OS lock (flock) on its state directory
+  drivers/process/      the process supervisor for native drivers: process groups, log files, start-time checks (Unix)
+  drivers/macosnative/  macos-native (darwin): JupyterLab in a uv environment from a hashed lock, under sandbox-exec
 internal/metering/      usage accounting: events → metered intervals → hourly usage records (no money)
 internal/devseed/       dev tenants (acme and globex untrusted, internal trusted)
 internal/testutil/      fixtures: real catalog, seeded store, manual clock
 migrations/             goose SQL files embedded into the binary: postgres/ and sqlite/, one file per version in each
-(planned) internal/agent/drivers/    macosnative, docker (step 7); macosvz, macoscontainer, libvirt (Phase 2)
+(planned) internal/agent/drivers/    macosnative endpoints (step 7b), docker (step 7c); macosvz, macoscontainer, libvirt (Phase 2)
 (planned) the HTTPS agent transport, enrolment, and agent certificates (Phase 2)
 ```
 
 Allowed imports flow downward: `api → service → store, domain`; `controller → service, cluster, store`;
-`cluster/agents → agent/protocol, store, catalog`; `agent → agent/protocol, domain`. `api` must never import
-`cluster`, `controller`, or `agent`; `agent` never imports `store` or `cluster` (an agent knows only what it's
+`cluster/agents → agent/protocol, store, catalog`; `agent → agent/protocol, domain`; `access → store, credential,
+domain` (it finds workloads through an interface the agent backend implements). `api` must never import
+`cluster`, `controller`, `agent`, or `access`; `agent` never imports `store` or `cluster` (an agent knows only what it's
 told); and `domain` imports nothing internal.
 
 ## Rules specific to this module

@@ -10,8 +10,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"reflect"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 	"unicode"
@@ -77,6 +79,10 @@ type session struct {
 	generation    uint64 // bumped whenever the machine's desired state may have changed
 	wake          chan struct{}
 	statusesKnown bool // a sync has reported the agent's complete status
+	// local means the agent runs in this process, on this machine: its workloads' ports are
+	// reachable at the loopback address (ADR-0017). Remote machines are reached through the relay
+	// (Phase 2), never by their reported ports.
+	local bool
 	// inventoryRefused means the last report didn't fit the machine: it isn't offered for placement.
 	inventoryRefused bool
 	refusedReport    *protocol.Inventory // the last refused report, logged once
@@ -162,7 +168,7 @@ type localConn struct {
 }
 
 func (c localConn) Sync(ctx context.Context, req protocol.SyncRequest) (protocol.SyncResponse, error) {
-	return c.h.Sync(ctx, c.id, req)
+	return c.h.sync(ctx, c.id, req, true)
 }
 
 func (h *Hub) session(id uuid.UUID) *session {
@@ -181,6 +187,14 @@ func (h *Hub) session(id uuid.UUID) *session {
 // Sync records machine id's report and answers with its desired state, waiting up to PollTimeout
 // for a change when the agent is already up to date.
 func (h *Hub) Sync(ctx context.Context, id uuid.UUID, req protocol.SyncRequest) (protocol.SyncResponse, error) {
+	return h.sync(ctx, id, req, false)
+}
+
+// sync is Sync, from the agent in this process (local) or another machine's. Only a local agent's
+// workloads are reached at the loopback address, so only its statuses keep how to reach them
+// (ADR-0017): a remote agent's would send the workload's token off its machine, and name ports on
+// this one.
+func (h *Hub) sync(ctx context.Context, id uuid.UUID, req protocol.SyncRequest, local bool) (protocol.SyncResponse, error) {
 	if req.Version != protocol.Version {
 		return protocol.SyncResponse{}, domain.Errorf(domain.CodeInvalid, "protocol version %d isn't supported; this control plane speaks %d", req.Version, protocol.Version)
 	}
@@ -208,10 +222,14 @@ func (h *Hub) Sync(ctx context.Context, id uuid.UUID, req protocol.SyncRequest) 
 		default:
 			st.State, st.Code = protocol.StateFailed, "" // an unknown state reads as a problem
 		}
+		if a := st.Access; a != nil && (!local || st.State != protocol.StateReady || a.Port < 1 || a.Port > 65535 ||
+			a.Token == "" || len(a.Token) > 512) {
+			st.Access = nil
+		}
 		statuses[st.ID] = st
 	}
 	h.mu.Lock()
-	s.statuses, s.statusesKnown, s.lastSync, s.applied = statuses, true, now, req.Applied
+	s.statuses, s.statusesKnown, s.lastSync, s.applied, s.local = statuses, true, now, req.Applied, local
 	h.mu.Unlock()
 
 	if err := h.recordInventory(ctx, s, m, req.Inventory, now); err != nil {
@@ -539,6 +557,22 @@ func (h *Hub) Observe(_ context.Context, ref cluster.Ref) (cluster.Observed, str
 		return cluster.ObservedFailed, protocol.FailureReason(st.Code), nil
 	}
 	return cluster.ObservedProgressing, protocol.ProgressReason(st.Code), nil
+}
+
+// Target is where the access proxy reaches a ready workload on this machine, and the token its
+// server expects (ADR-0017): only for a workload whose agent runs in this process and reported it
+// ready with access just now. The token is never stored or logged.
+func (h *Hub) Target(id uuid.UUID) (addr, token string, ok bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, s := range h.sessions {
+		st, has := s.statuses[id]
+		if !has || !s.local || !h.online(s) || st.State != protocol.StateReady || st.Access == nil {
+			continue
+		}
+		return net.JoinHostPort("127.0.0.1", strconv.Itoa(st.Access.Port)), st.Access.Token, true
+	}
+	return "", "", false
 }
 
 // RegisterLocal finds or creates the record of the control plane's own machine, owned by the tenant

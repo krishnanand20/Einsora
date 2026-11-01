@@ -2,6 +2,8 @@
 
 | Term | Meaning |
 |---|---|
+| **Access proxy** | Opens a running workload's web UI in the browser at its own site, `w-<id>.localhost:<port>`, so its code can't act with the dashboard's session. It adds the workload's own token itself, so the token is never in a URL (ADR-0017). |
+| **Access ticket** | A one-time link from `POST /v1/workloads/{id}/access`, valid for 60 seconds, that the access proxy exchanges for a cookie for that workload's site only. Only its hash is stored. |
 | **Activity log** | (Planned) per tenant: every API action by every user, with its request ID. An audit log. Tenant admins can read and export it (ADR-0015). |
 | **Admission** | The controller's decision to place a pending or queued workload onto free capacity |
 | **Agent (node agent)** | Runs on each machine (Linux or macOS), reports its inventory, and runs workloads through drivers (ADR-0013). In Solo it runs inside the control plane's process; other machines will run `tensora agent` and dial out (Phase 2). It syncs with the control plane's agent backend (ADR-0016). |

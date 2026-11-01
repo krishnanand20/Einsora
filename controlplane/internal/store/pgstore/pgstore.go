@@ -360,6 +360,32 @@ func (q *queries) TakeLease(ctx context.Context, name, holder string, now time.T
 	return err == nil, err
 }
 
+func (q *queries) CreateAccessTicket(ctx context.Context, t domain.AccessTicket) error {
+	tag, err := q.db.Exec(ctx, `INSERT INTO access_tickets (ticket_hash, tenant_id, workload_id, subject, expires_at)
+		SELECT $1, $2, $3, $4, $5 WHERE EXISTS (SELECT 1 FROM workloads WHERE id = $3 AND tenant_id = $2)`,
+		t.Hash, t.TenantID, t.WorkloadID, t.Subject, t.ExpiresAt)
+	if err != nil {
+		return mapErr(err, "access ticket")
+	}
+	if tag.RowsAffected() == 0 {
+		return store.NotFound("workload")
+	}
+	return nil
+}
+
+func (q *queries) UseAccessTicket(ctx context.Context, hash string, now time.Time) (domain.AccessTicket, error) {
+	t := domain.AccessTicket{Hash: hash, UsedAt: now}
+	err := q.db.QueryRow(ctx, `UPDATE access_tickets SET used_at = $2
+		WHERE ticket_hash = $1 AND used_at IS NULL AND expires_at > $2
+		RETURNING tenant_id, workload_id, subject, expires_at`, hash, now).Scan(&t.TenantID, &t.WorkloadID, &t.Subject, &t.ExpiresAt)
+	return t, mapErr(err, "access ticket")
+}
+
+func (q *queries) DeleteExpiredAccessTickets(ctx context.Context, now time.Time) error {
+	_, err := q.db.Exec(ctx, `DELETE FROM access_tickets WHERE expires_at <= $1`, now)
+	return err
+}
+
 func (q *queries) ReleaseLease(ctx context.Context, name, holder string) error {
 	_, err := q.db.Exec(ctx, `DELETE FROM leases WHERE name = $1 AND holder = $2`, name, holder)
 	return err

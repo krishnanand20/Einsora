@@ -1,0 +1,38 @@
+;; The macos-native sandbox (ADR-0017). macos-native runs only the machine owner's own workloads (the
+;; trust matrix), so this protects the owner's files from mistakes, not from an attacker: a workload
+;; writes only to its own data, home, and temporary directories, and can't read or change the agent's
+;; state (other workloads, the database, the shared environment, its own state file and logs), signal
+;; processes outside its sandbox, or read the owner's credentials. The network and the GPU are open.
+;; Later rules take precedence over earlier ones. The driver appends rules that deny the owner's
+;; credential stores and the control plane's private files, wherever they are.
+(version 1)
+(allow default)
+
+(deny file-write*)
+(allow file-write*
+  (subpath "/private/tmp")
+  (subpath "/private/var/folders")
+  (literal "/dev/null")
+  (literal "/dev/zero")
+  (literal "/dev/tty")
+  (literal "/dev/dtracehelper")
+  (regex #"^/dev/fd/"))
+
+;; The agent's state, wherever it is (even inside a temporary directory): no reading or writing,
+;; except reading the workload's own directory and its environment (which other workloads share),
+;; and writing its data, home, and temporary directories. Its state file and logs are the agent's:
+;; the agent writes them without the sandbox, so the workload must not be able to plant anything
+;; there, such as a symlink.
+(deny file-read* file-write* (subpath (param "STATE")))
+(allow file-read*
+  (subpath (param "WORKLOAD"))
+  (subpath (param "ENV"))
+  (subpath (param "PYTHONS")))
+(allow file-write*
+  (subpath (string-append (param "WORKLOAD") "/data"))
+  (subpath (string-append (param "WORKLOAD") "/home"))
+  (subpath (string-append (param "WORKLOAD") "/tmp")))
+
+;; Signals only within the sandbox: a workload can't stop the agent or the owner's other programs.
+(deny signal)
+(allow signal (target same-sandbox))

@@ -163,7 +163,7 @@ func TestGPUStaysBusyUntilItsWorkloadStops(t *testing.T) {
 func TestAgentNeverSwitchesDriversForData(t *testing.T) {
 	ctx := context.Background()
 	c := &conn{}
-	first, second := sim.New(domain.AcceleratorCPU), renamed{sim.New(domain.AcceleratorCPU), domain.DriverMacOSNative}
+	first, second := sim.New(domain.AcceleratorCPU), renamed{sim.New(domain.AcceleratorCPU), domain.DriverDocker}
 	a := agent.New(c, []agent.Driver{first, second}, macInventory, "test", slog.New(slog.DiscardHandler))
 	if _, err := a.Sync(ctx, 0, true); err != nil {
 		t.Fatal(err)
@@ -173,7 +173,7 @@ func TestAgentNeverSwitchesDriversForData(t *testing.T) {
 	ep.ID, ep.Kind = uuid.New(), domain.KindEndpoint
 	a.Apply(ctx, []protocol.Desired{nb, ep})
 	// Placed again with another driver: a new attempt.
-	nb.Driver, ep.Driver = domain.DriverMacOSNative, domain.DriverMacOSNative
+	nb.Driver, ep.Driver = domain.DriverDocker, domain.DriverDocker
 	nb.Attempt, ep.Attempt = 2, 2
 	a.Apply(ctx, []protocol.Desired{nb, ep})
 	got := statuses(t, a, c)
@@ -277,16 +277,16 @@ func TestSlowDriversDontStopSyncing(t *testing.T) {
 func TestAWorkloadHeldTwiceIsSortedOut(t *testing.T) {
 	ctx := context.Background()
 	c := &conn{}
-	first, second := sim.New(domain.AcceleratorApple), renamed{sim.New(domain.AcceleratorApple), domain.DriverMacOSNative}
+	first, second := renamed{sim.New(domain.AcceleratorApple), domain.DriverDocker}, sim.New(domain.AcceleratorApple)
 	a := agent.New(c, []agent.Driver{first, second}, macInventory, "test", slog.New(slog.DiscardHandler))
 	if _, err := a.Sync(ctx, 0, true); err != nil {
 		t.Fatal(err)
 	}
 	ep := gpuWorkload(protocol.ModeRun)
-	ep.Kind = domain.KindEndpoint
+	ep.Kind, ep.Driver = domain.KindEndpoint, domain.DriverDocker
 	_ = first.Run(ctx, ep)
 	moved := ep
-	moved.Driver, moved.Attempt = domain.DriverMacOSNative, 2
+	moved.Driver, moved.Attempt = domain.DriverSim, 2
 	_ = second.Run(ctx, moved)
 
 	other := gpuWorkload(protocol.ModeRun)

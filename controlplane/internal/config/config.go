@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -38,8 +39,13 @@ type Config struct {
 	// MachineOwner is the tenant (slug) that owns this machine when the agent backend runs an agent
 	// in-process (Solo): TENSORA_MACHINE_OWNER, home by default, the tenant `tensora setup` makes.
 	MachineOwner string
-	// AgentDrivers are the in-process agent's drivers (TENSORA_AGENT_DRIVERS, comma-separated).
-	// Only sim exists so far, and only in dev; the real drivers are roadmap step 7.
+	// AccessAddr is where the access proxy listens (TENSORA_ACCESS_ADDR, ADR-0017): workloads open at
+	// w-<id>.localhost on its port, so it's a loopback address: a browser resolves *.localhost to its own
+	// machine, so another machine could never open them, and would only see plain HTTP.
+	AccessAddr string
+	// AgentDrivers are the in-process agent's drivers (TENSORA_AGENT_DRIVERS, comma-separated); empty
+	// means every real driver this machine can run. macos-native exists so far (notebooks; endpoints
+	// and docker are the rest of roadmap step 7), and sim, which runs nothing, in dev only.
 	AgentDrivers []string
 	// AgentStateDir keeps this machine's identity for the in-process agent (TENSORA_AGENT_STATE_DIR).
 	// Empty means the SQLite database's directory.
@@ -86,6 +92,7 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		ClusterBackend:        get("CLUSTER_BACKEND", "fake"),
 		MachineOwner:          get("MACHINE_OWNER", "home"),
 		AgentStateDir:         get("AGENT_STATE_DIR", ""),
+		AccessAddr:            get("ACCESS_ADDR", "127.0.0.1:8090"),
 		UntrustedRuntimeClass: get("UNTRUSTED_RUNTIME_CLASS", "kata-qemu-nvidia-gpu"),
 		StorageClass:          get("STORAGE_CLASS", "tensora-block"),
 		ImagesNamespace:       get("IMAGES_NAMESPACE", "tensora-images"),
@@ -168,11 +175,16 @@ func (c Config) validate() error {
 		}
 		for _, d := range c.AgentDrivers {
 			switch {
-			case d != domain.DriverSim:
-				errs = append(errs, fmt.Errorf("TENSORA_AGENT_DRIVERS: unknown driver %q (only sim exists so far)", d))
-			case c.Env != "dev":
+			case d != domain.DriverSim && d != domain.DriverMacOSNative:
+				errs = append(errs, fmt.Errorf("TENSORA_AGENT_DRIVERS: unknown driver %q (sim and macos-native exist so far)", d))
+			case d == domain.DriverSim && c.Env != "dev":
 				errs = append(errs, errors.New("TENSORA_AGENT_DRIVERS=sim runs nothing, so it's only for TENSORA_ENV=dev"))
 			}
+		}
+		if host, port, err := net.SplitHostPort(c.AccessAddr); err != nil || port == "" || port == "0" {
+			errs = append(errs, fmt.Errorf("TENSORA_ACCESS_ADDR must be host:port, got %q", c.AccessAddr))
+		} else if ip := net.ParseIP(host); host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+			errs = append(errs, fmt.Errorf("TENSORA_ACCESS_ADDR must be a loopback address such as 127.0.0.1:8090, got %q: workloads open at *.localhost, on the browser's own machine", c.AccessAddr))
 		}
 	default:
 		errs = append(errs, fmt.Errorf("TENSORA_CLUSTER_BACKEND must be fake, kubernetes, or agent, got %q", c.ClusterBackend))

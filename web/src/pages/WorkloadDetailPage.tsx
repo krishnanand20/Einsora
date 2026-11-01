@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 
 import { api } from "../api/client";
-import { classShown, describeChange, isSettling } from "../workloads";
+import { canOpen, classShown, describeChange, isSettling } from "../workloads";
 
 /**
  * One workload: its complete timeline, and a download of everything recorded about it (ADR-0015).
@@ -32,6 +32,24 @@ export function WorkloadDetailPage() {
     },
   });
 
+  // The tab opens on the click, so it isn't blocked as a popup, and is pointed at the one-time URL
+  // once the API answers. It loses its link back here: the notebook can't steer the dashboard.
+  const open = useMutation({
+    mutationFn: async () => {
+      const tab = window.open("about:blank", "_blank");
+      try {
+        const grant = await api.openWorkload(id);
+        if (tab) {
+          tab.opener = null;
+          tab.location.href = grant.url;
+        }
+      } catch (err) {
+        tab?.close();
+        throw err;
+      }
+    },
+  });
+
   if (workload.isPending) return <p>Loading…</p>;
   if (workload.isError) return <p className="error">{workload.error.message}</p>;
   const w = workload.data;
@@ -43,11 +61,19 @@ export function WorkloadDetailPage() {
       </p>
       <div className="section-head">
         <h1>{w.name}</h1>
-        <button disabled={download.isPending} onClick={() => download.mutate()}>
-          {download.isPending ? "Preparing…" : "Download full log"}
-        </button>
+        <span className="actions">
+          {canOpen(w) && (
+            <button disabled={open.isPending} onClick={() => open.mutate()}>
+              {open.isPending ? "Opening…" : "Open"}
+            </button>
+          )}
+          <button disabled={download.isPending} onClick={() => download.mutate()}>
+            {download.isPending ? "Preparing…" : "Download full log"}
+          </button>
+        </span>
       </div>
       {download.isError && <p className="error">{download.error.message}</p>}
+      {open.isError && <p className="error">{open.error.message}</p>}
       <p className="muted">
         {w.kind} · <span className={`state state-${w.state}`}>{w.state}</span> · {classShown(w)} · region {w.region} · id{" "}
         {w.id}

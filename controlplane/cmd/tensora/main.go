@@ -15,15 +15,18 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/tensora/tensora/controlplane/internal/access"
 	"github.com/tensora/tensora/controlplane/internal/agent"
 	"github.com/tensora/tensora/controlplane/internal/agent/drivers/hostlock"
 	"github.com/tensora/tensora/controlplane/internal/agent/drivers/inventory"
+	"github.com/tensora/tensora/controlplane/internal/agent/drivers/macosnative"
 	"github.com/tensora/tensora/controlplane/internal/agent/drivers/sim"
 	"github.com/tensora/tensora/controlplane/internal/api"
 	"github.com/tensora/tensora/controlplane/internal/auth"
@@ -300,9 +303,35 @@ func newController(cfg config.Config, log *slog.Logger, st store.Store, cat *cat
 		}, nil
 	}
 	return func(ctx context.Context) error {
-		defer ctrl.Release(ctx) // only once this machine's agent has stopped too
-		return runAll(ctx, run, runLocalAgent(cfg, log, st, hub, ctrl.Leading()))
+		defer ctrl.Release(ctx) // only once this machine's agent and the access proxy have stopped too
+		return runAll(ctx, run, runLocalAgent(cfg, log, st, hub, ctrl.Leading()),
+			runAccessProxy(cfg, log, st, hub, ctrl.Leading()))
 	}, nil
+}
+
+// runAccessProxy serves workloads' web servers at their own hosts (ADR-0017), once this process's
+// controller leads its region: the agent backend that knows where they listen is the leader's.
+func runAccessProxy(cfg config.Config, log *slog.Logger, st store.Store, hub *agents.Hub, leading <-chan struct{}) func(context.Context) error {
+	return func(ctx context.Context) error {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-leading:
+		}
+		log = log.With("component", "access")
+		srv := &http.Server{Addr: cfg.AccessAddr, Handler: access.New(st, hub, log, nil), ReadHeaderTimeout: 10 * time.Second}
+		errc := make(chan error, 1)
+		go func() { errc <- srv.ListenAndServe() }()
+		log.Info("access proxy listening", "addr", cfg.AccessAddr)
+		select {
+		case err := <-errc:
+			return fmt.Errorf("access proxy: %w", err)
+		case <-ctx.Done():
+			shutdown, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			return srv.Shutdown(shutdown)
+		}
+	}
 }
 
 // runLocalAgent registers this machine, owned by TENSORA_MACHINE_OWNER, and runs its agent in this
@@ -342,14 +371,9 @@ func runLocalAgent(cfg config.Config, log *slog.Logger, st store.Store, hub *age
 			}
 			if err == nil {
 				log.Info("this machine is registered", "machine", m.Name, "id", m.ID, "owner", cfg.MachineOwner, "region", m.Region)
-				var drivers []agent.Driver
-				for _, d := range cfg.AgentDrivers {
-					if d == domain.DriverSim {
-						drivers = append(drivers, sim.New(domain.AcceleratorNVIDIA, domain.AcceleratorApple, domain.AcceleratorAMD, domain.AcceleratorCPU))
-					}
-				}
+				drivers := localDrivers(cfg, idFile, log)
 				if len(drivers) == 0 {
-					log.Warn("this machine's agent has no drivers yet (roadmap step 7), so workloads wait for a machine that can run them; " +
+					log.Warn("this machine's agent has no drivers it can use, so workloads wait for a machine that can run them; " +
 						"TENSORA_AGENT_DRIVERS=sim simulates them in dev")
 				}
 				return agent.New(hub.Conn(m.ID), drivers, inventory.Detect, "dev", log).Run(ctx)
@@ -396,6 +420,64 @@ func machineIDFile(cfg config.Config) (string, error) {
 		return "", fmt.Errorf("agent state directory %s can be written by other users (mode %v); run: chmod go-w %s", dir, di.Mode().Perm(), dir)
 	}
 	return filepath.Join(dir, "machine-id"), nil
+}
+
+// localDrivers builds this machine's drivers: the ones TENSORA_AGENT_DRIVERS names, or every real
+// one this machine can run. A driver that can't run here is skipped, and the log says why.
+func localDrivers(cfg config.Config, idFile string, log *slog.Logger) []agent.Driver {
+	names := cfg.AgentDrivers
+	if len(names) == 0 {
+		names = []string{domain.DriverMacOSNative}
+	}
+	var drivers []agent.Driver
+	for _, name := range names {
+		switch name {
+		case domain.DriverSim:
+			drivers = append(drivers, sim.New(domain.AcceleratorNVIDIA, domain.AcceleratorApple, domain.AcceleratorAMD, domain.AcceleratorCPU))
+		case domain.DriverMacOSNative:
+			if idFile == "" {
+				log.Warn("macos-native needs a state directory: use a SQLite database (TENSORA_DATABASE_URL=sqlite:...) or set TENSORA_AGENT_STATE_DIR")
+				continue
+			}
+			private, err := privateFiles(cfg)
+			if err != nil {
+				log.Warn("macos-native can't keep workloads out of the control plane's files; not starting it", "err", err)
+				continue
+			}
+			state := filepath.Dir(idFile)
+			d, err := macosnative.New(macosnative.Options{Root: filepath.Join(state, "native"), State: state, Private: private,
+				Log: log.With("driver", name)})
+			if err != nil {
+				log.Info("driver not available here", "driver", name, "why", err.Error())
+				continue
+			}
+			drivers = append(drivers, d)
+		}
+	}
+	return drivers
+}
+
+// privateFiles are the control plane's files that no workload may read or write, wherever they are:
+// the SQLite database with its journal files, and the log file.
+func privateFiles(cfg config.Config) ([]string, error) {
+	db, err := cfg.Database()
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	if db.Driver == "sqlite" {
+		for _, suffix := range []string{"", "-wal", "-shm", "-journal"} {
+			out = append(out, db.DSN+suffix)
+		}
+	}
+	if cfg.LogFile != "" {
+		abs, err := filepath.Abs(cfg.LogFile)
+		if err != nil {
+			return nil, fmt.Errorf("TENSORA_LOG_FILE: %w", err)
+		}
+		out = append(out, abs)
+	}
+	return out, nil
 }
 
 // waitForHostLock takes this machine's agent lock, waiting while another agent (one still
@@ -484,6 +566,20 @@ func machineName() string {
 	return name
 }
 
+// apiServer is the API, able to open workloads through the access proxy when the agent backend
+// runs it (ADR-0017).
+func apiServer(cfg config.Config, svc *service.Service, authn auth.Authenticator, log *slog.Logger, st store.Store) *api.Server {
+	s := api.New(svc, authn, log.With("component", "api"), st.Ping)
+	if cfg.ClusterBackend == "agent" {
+		if _, port, err := net.SplitHostPort(cfg.AccessAddr); err == nil {
+			if p, err := strconv.Atoi(port); err == nil {
+				s.WithAccessPort(p)
+			}
+		}
+	}
+	return s
+}
+
 func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, st store.Store, cat *catalog.Catalog) error {
 	svc := service.New(st, cat, nil)
 	var authn auth.Authenticator
@@ -516,7 +612,7 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, st store
 	}
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           api.New(svc, authn, log.With("component", "api"), st.Ping).Handler(),
+		Handler:           apiServer(cfg, svc, authn, log, st).Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	errc := make(chan error, 1)

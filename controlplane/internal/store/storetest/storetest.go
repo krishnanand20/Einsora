@@ -27,6 +27,50 @@ func Run(t *testing.T, newStore func(t *testing.T) store.Store) {
 	t.Run("MachinesAndPlacement", func(t *testing.T) { testMachinesAndPlacement(t, newStore(t)) })
 	t.Run("LocalAccounts", func(t *testing.T) { testLocalAccounts(t, newStore(t)) })
 	t.Run("Leases", func(t *testing.T) { testLeases(t, newStore(t)) })
+	t.Run("AccessTickets", func(t *testing.T) { testAccessTickets(t, newStore(t)) })
+}
+
+// A ticket opens its workload once, before it expires; a ticket for another tenant's workload is
+// refused when it's made.
+func testAccessTickets(t *testing.T, st store.Store) {
+	ctx := context.Background()
+	a, b := tenant(t, st, "alpha"), tenant(t, st, "bravo")
+	w := workload(t, st, a, domain.StatePending, 1)
+	ticket := domain.AccessTicket{Hash: "h1", TenantID: a.ID, WorkloadID: w.ID, Subject: "alice", ExpiresAt: t0.Add(time.Minute)}
+	tx(t, st, func(q store.Queries) error { return q.CreateAccessTicket(ctx, ticket) })
+	if code, _ := domain.CodeOf(st.InTx(ctx, func(q store.Queries) error {
+		other := ticket
+		other.Hash, other.TenantID = "h2", b.ID
+		return q.CreateAccessTicket(ctx, other)
+	})); code != domain.CodeNotFound {
+		t.Errorf("a ticket for another tenant's workload: code %q, want not found", code)
+	}
+	use := func(hash string, at time.Time) (domain.AccessTicket, error) {
+		var got domain.AccessTicket
+		err := st.InTx(ctx, func(q store.Queries) error {
+			var err error
+			got, err = q.UseAccessTicket(ctx, hash, at)
+			return err
+		})
+		return got, err
+	}
+	got, err := use("h1", t0.Add(30*time.Second))
+	if err != nil || got.WorkloadID != w.ID || got.TenantID != a.ID || got.Subject != "alice" {
+		t.Errorf("using the ticket = %+v, %v", got, err)
+	}
+	if _, err := use("h1", t0.Add(31*time.Second)); !domain.IsNotFound(err) {
+		t.Errorf("using it twice: %v; want not found", err)
+	}
+	late := ticket
+	late.Hash = "h3"
+	tx(t, st, func(q store.Queries) error { return q.CreateAccessTicket(ctx, late) })
+	if _, err := use("h3", t0.Add(2*time.Minute)); !domain.IsNotFound(err) {
+		t.Errorf("an expired ticket: %v; want not found", err)
+	}
+	tx(t, st, func(q store.Queries) error { return q.DeleteExpiredAccessTickets(ctx, t0.Add(2*time.Minute)) })
+	if _, err := use("missing", t0); !domain.IsNotFound(err) {
+		t.Errorf("an unknown ticket: %v", err)
+	}
 }
 
 // One holder at a time: a lease is free once it expires, and only its holder renews it early.
@@ -99,12 +143,13 @@ var (
 		"usage_records":    {"created_at", "gpu_class", "gpu_count", "machine_id", "period_start", "region", "seconds", "tenant_id", "workload_id"},
 		"idempotency_keys": {"created_at", "idempotency_key", "request_hash", "response_body", "response_status", "subject", "tenant_id"},
 		"leases":           {"expires_at", "holder", "name"},
+		"access_tickets":   {"expires_at", "subject", "tenant_id", "ticket_hash", "used_at", "workload_id"},
 		"users":            {"created_at", "disabled_at", "email", "id", "password_hash", "tenant_id"},
 		"sessions":         {"created_at", "expires_at", "token_hash", "user_id"},
 		"api_tokens":       {"created_at", "expires_at", "id", "last_used_at", "name", "prefix", "revoked_at", "token_hash", "user_id"},
 	}
 	SchemaIndexes = []string{
-		"api_tokens_active_name_idx", "idempotency_keys_created_idx", "machines_region_idx",
+		"access_tickets_expires_idx", "api_tokens_active_name_idx", "idempotency_keys_created_idx", "machines_region_idx",
 		"sessions_expires_idx", "sessions_user_idx", "users_tenant_idx",
 		"usage_records_tenant_idx", "workload_events_at_idx", "workload_events_workload_idx",
 		"workloads_active_state_idx", "workloads_machine_idx", "workloads_region_state_idx", "workloads_tenant_idx",

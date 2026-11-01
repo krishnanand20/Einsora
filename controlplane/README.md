@@ -46,9 +46,22 @@ the operator can write to.
 its own process ([ADR-0016](../docs/adr/0016-agent-protocol-and-machine-placement.md)): it registers the machine,
 owned by the tenant `TENSORA_MACHINE_OWNER` (`home` by default, which `tensora setup` creates), reports its CPUs,
 memory, and GPU (an Apple Silicon GPU through sysctl, NVIDIA GPUs through `nvidia-smi`), and runs what the
-controller places on it. Until the real drivers land (roadmap step 7), `TENSORA_AGENT_DRIVERS=sim` simulates them
-in dev: `TENSORA_CLUSTER_BACKEND=agent TENSORA_AGENT_DRIVERS=sim TENSORA_MACHINE_OWNER=internal go run ./cmd/tensora dev`,
-then launch on `apple-silicon-32gb` (or whichever tier this Mac's memory holds) or a CPU class with `X-Dev-Tenant: internal`.
+controller places on it with its drivers (`TENSORA_AGENT_DRIVERS`; empty means every one this machine can run).
+
+- **`macos-native`** ([ADR-0017](../docs/adr/0017-local-workload-access-and-native-drivers.md)), on an Apple Silicon
+  Mac with [uv](https://docs.astral.sh/uv/) installed (`brew install uv`), runs notebooks: JupyterLab with PyTorch on
+  Metal, as a process in its own process group under `sandbox-exec`, with its data in `native/workloads/<id>/data`
+  next to the SQLite database. Its Python environment is built once per machine from a lock file with hashes
+  (`internal/agent/drivers/macosnative/envs/`), a download of a few hundred MB. Notebooks keep running across a
+  `tensora` restart, and the driver finds them again. Endpoints are next (roadmap step 7b).
+- **`sim`** runs nothing and reports workloads as running, in dev only:
+  `TENSORA_CLUSTER_BACKEND=agent TENSORA_AGENT_DRIVERS=sim TENSORA_MACHINE_OWNER=internal go run ./cmd/tensora dev`,
+  then launch on `apple-silicon-32gb` (or whichever tier this Mac's memory holds) or a CPU class with `X-Dev-Tenant: internal`.
+
+A running notebook opens through the **access proxy** on `TENSORA_ACCESS_ADDR` (`127.0.0.1:8090`), at its own host,
+`w-<id>.localhost:8090`: the dashboard's Open button asks the API for a one-time link, and the proxy turns it
+into a cookie for that host only and adds the notebook's own token to every request, so the token is never
+in a URL.
 The machine's ID is saved in `machine-id` next to the SQLite database (or in `TENSORA_AGENT_STATE_DIR`), so a new
 hostname is only a new label; with the in-memory store nothing is saved. The agent backend runs with SQLite until
 agents join over the network (Phase 2). Only one controller reconciles a region: another started for the same
@@ -71,6 +84,7 @@ your laptop, use `TENSORA_CLUSTER_BACKEND=kubernetes`. It reads `KUBECONFIG`. Ne
 | GET | `/v1/workloads/{id}` | `?include_deleted=true` also finds a deleted workload. A workload shows where it runs once admitted: `region`, `placed_class`, and on agents `machine_id` and `driver`. |
 | POST | `/v1/workloads/{id}/stop` | 202; VMs and notebooks keep their disks |
 | POST | `/v1/workloads/{id}/start` | 202; re-checks quota |
+| POST | `/v1/workloads/{id}/access` | 201 `{url, expires_at}`: a one-time link that opens a running notebook in the browser through the access proxy, valid for 60 seconds ([ADR-0017](../docs/adr/0017-local-workload-access-and-native-drivers.md)). Agent backend only. |
 | DELETE | `/v1/workloads/{id}` | 202; idempotent |
 | GET | `/v1/workloads/{id}/events` | `{"items": [{id, from?, to, reason, at}]}`, the full timeline, oldest first. A note has `from` equal to `to`. Works after deletion. |
 | GET | `/v1/workloads/{id}/export` | The complete log as a JSON attachment (`tensora.workload-export/v1`): workload, inputs, timeline, usage (with its machine), `output_logs`, and `redactions`, plus the last placement (`last_placed_class`, `last_machine_id`, `last_driver`). Works after deletion. |

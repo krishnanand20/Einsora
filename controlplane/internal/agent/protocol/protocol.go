@@ -7,6 +7,8 @@ package protocol
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -126,13 +128,28 @@ type Status struct {
 	Attempt int64     `json:"attempt"` // the attempt the driver last ran it for
 	State   State     `json:"state"`
 	Code    Code      `json:"code,omitempty"`
+	// Access is where a ready workload's web server listens on its machine, and the token it
+	// expects (ADR-0017). The control plane keeps it in memory only, for its access proxy.
+	Access *Access `json:"access,omitempty"`
 }
+
+// Access is how the access proxy reaches a workload on its machine.
+type Access struct {
+	Port  int    `json:"port"`
+	Token string `json:"token"`
+}
+
+// String and LogValue keep the token out of logs if an Access is ever printed or logged.
+func (a Access) String() string { return fmt.Sprintf("Access{Port:%d}", a.Port) }
+
+func (a Access) LogValue() slog.Value { return slog.GroupValue(slog.Int("port", a.Port)) }
 
 // Code says why a workload is in its state.
 type Code string
 
 const (
 	CodeStarting       Code = "starting"
+	CodePreparing      Code = "preparing"         // getting its software ready, which can take minutes the first time
 	CodeDevicesBusy    Code = "devices-busy"      // waiting for another workload to free its GPU
 	CodeExited         Code = "exited"            // it stopped by itself
 	CodeOutOfMemory    Code = "out-of-memory"     //
@@ -142,6 +159,7 @@ const (
 	CodeInvalid        Code = "invalid"           // the agent can't run what it was given
 	CodeDriverProblem  Code = "driver-problem"    // the driver failed; the agent's log has details
 	CodeRemovingFailed Code = "removing-failed"   // removing it failed; retried
+	CodeDiskMissing    Code = "disk-missing"      // a workload that ran here before has no data here now
 )
 
 // Reason is the text an owner reads for code. Unknown codes, which a newer or hostile agent could
@@ -150,6 +168,8 @@ func Reason(code Code) string {
 	switch code {
 	case CodeStarting, "":
 		return "starting on its machine"
+	case CodePreparing:
+		return "preparing its software on its machine; the first time, this downloads a few hundred MB"
 	case CodeDevicesBusy:
 		return "waiting for its machine's GPU to be free"
 	case CodeExited:
@@ -168,6 +188,8 @@ func Reason(code Code) string {
 		return "its machine's driver failed; the machine's log has the details"
 	case CodeRemovingFailed:
 		return "its machine couldn't remove it yet; retrying"
+	case CodeDiskMissing:
+		return "its disk isn't on its machine any more"
 	}
 	return "its machine reported a problem"
 }
@@ -186,7 +208,7 @@ func ProgressReason(code Code) string {
 // a known code, which a hostile or buggy agent could send, reads as a problem, never as "starting".
 func FailureReason(code Code) string {
 	switch code {
-	case "", CodeStarting, CodeDevicesBusy, CodeRemovingFailed:
+	case "", CodeStarting, CodePreparing, CodeDevicesBusy, CodeRemovingFailed:
 		return Reason("unknown")
 	}
 	return Reason(code)

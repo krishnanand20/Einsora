@@ -11,6 +11,11 @@ export function availableActions(state: WorkloadState): Action[] {
   return actions;
 }
 
+/** Whether the dashboard can open a workload in the browser: a running notebook on a machine (ADR-0017). */
+export function canOpen(w: Pick<Workload, "kind" | "state" | "machine_id">): boolean {
+  return w.kind === "notebook" && w.state === "running" && !!w.machine_id;
+}
+
 /** States where the controller is still working, so the list should poll. */
 export function isSettling(state: WorkloadState): boolean {
   return ["pending", "queued", "provisioning", "stopping", "deleting"].includes(state);

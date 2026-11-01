@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import { filenameFromDisposition, safeNext, toApiError, workloadPath } from "./api/client";
 import type { CatalogImage, GpuClass } from "./api/types";
-import { availableActions, classShown, describeChange, isSettling, launchableClasses, runtimeFor } from "./workloads";
+import {
+  availableActions,
+  canOpen,
+  classShown,
+  describeChange,
+  isSettling,
+  launchableClasses,
+  runtimeFor,
+} from "./workloads";
 
 describe("availableActions", () => {
   it("matches the control plane's lifecycle rules", () => {
@@ -18,6 +26,17 @@ describe("isSettling", () => {
   it("polls only while the controller is working", () => {
     expect(isSettling("provisioning")).toBe(true);
     expect(isSettling("running")).toBe(false);
+  });
+});
+
+describe("canOpen", () => {
+  it("opens only running notebooks that are on a machine", () => {
+    const m = "6f1c2d3e-0000-4000-8000-000000000001";
+    expect(canOpen({ kind: "notebook", state: "running", machine_id: m })).toBe(true);
+    expect(canOpen({ kind: "notebook", state: "provisioning", machine_id: m })).toBe(false);
+    expect(canOpen({ kind: "notebook", state: "running" })).toBe(false);
+    expect(canOpen({ kind: "endpoint", state: "running", machine_id: m })).toBe(false);
+    expect(canOpen({ kind: "vm", state: "running", machine_id: m })).toBe(false);
   });
 });
 

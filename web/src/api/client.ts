@@ -1,4 +1,5 @@
 import type {
+  AccessGrant,
   ApiErrorBody,
   ApiToken,
   Catalog,
@@ -112,6 +113,8 @@ export const api = {
     request<Workload>("GET", workloadPath(id, includeDeleted ? "?include_deleted=true" : "")),
   workloadEvents: (id: string) => request<List<WorkloadEvent>>("GET", workloadPath(id, "/events")),
   exportWorkload,
+  /** A one-time URL that opens a running notebook through the access proxy (ADR-0017). */
+  openWorkload: (id: string) => request<AccessGrant>("POST", workloadPath(id, "/access")),
   createWorkload: (input: CreateWorkload) => request<Workload>("POST", "/v1/workloads", input),
   stopWorkload: (id: string) => request<Workload>("POST", workloadPath(id, "/stop")),
   startWorkload: (id: string) => request<Workload>("POST", workloadPath(id, "/start")),

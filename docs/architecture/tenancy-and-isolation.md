@@ -64,6 +64,19 @@ checks each machine:
   stopped or removed counts until it has stopped). So a bug or a race can't put two users on one GPU.
 - What an agent reports must fit its machine: one Apple GPU, only on an Apple Silicon Mac; NVIDIA and AMD GPUs
   only on Linux; drivers only on their own OS.
+- `macos-native` runs each workload as its own process group under `sandbox-exec` (ADR-0017). The profile
+  allows writing only to the workload's data, home, and temporary directories. It denies reading or writing
+  the Tensora state directory (other than reading the workload's own directory and the shared environment),
+  even inside a temporary directory, so the workload can't change its state file or logs, which the driver
+  writes outside the sandbox (and opens without following symlinks). It denies the control plane's database
+  and log file wherever they are, and common credential stores (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.kube`,
+  `~/.docker`, gcloud, `gh`, `~/.git-credentials`, `~/.npmrc`, `~/.pypirc`, the Hugging Face token, shell
+  history, browser profiles, keychain files, and others), by path and by their symlinks' targets. It allows
+  signals only within the sandbox. Stopping a workload stops every process descended from it, including
+  kernels in sessions of their own. It protects the owner's files from mistakes, not from an attacker:
+  network access is allowed, the keychain is still reachable through macOS's security service (which asks
+  before another program reads an item), and the matrix keeps it to the owner's own workloads. A workload
+  that ran before but whose data directory is gone fails instead of starting with an empty one.
 - An agent deletes a workload's data only when told to remove that workload. One it has but wasn't told about
   is stopped and kept, so a mistake about which machine it is can't wipe anything. A machine is found by the ID
   saved next to its database, never by its hostname.
@@ -92,7 +105,7 @@ checks each machine:
 
 **Compute**
 - Datacenter tenant pods get `automountServiceAccountToken: false`, no host namespaces, dropped capabilities, RuntimeDefault seccomp, requests equal to limits, and the Kata runtime class for untrusted tenants.
-- Agents run non-owner workloads only through strong-isolation drivers, per the matrix (enforced by placement and checked again by the agent). They will cap memory, CPU, GPU memory, and disk on every workload (the drivers, roadmap step 7). A machine's owner keeps a quarter of its CPUs and memory: placement uses only what the agent reports as usable.
+- Agents run non-owner workloads only through strong-isolation drivers, per the matrix (enforced by placement and checked again by the agent). Drivers that can cap memory, CPU, GPU memory, and disk will (`docker` with cgroups, step 7c; the VM drivers, Phase 2). `macos-native` can't: macOS has no per-process memory or CPU limits, so a native notebook can use the whole Mac, which is one reason it's for the owner's own workloads only. A machine's owner keeps a quarter of its CPUs and memory: placement uses only what the agent reports as usable.
 - No GPU time-slicing between different users, ever. On a Mac, an untrusted user gets the whole GPU or none of it.
 
 **Network** (details in [networking.md](networking.md))
@@ -110,7 +123,9 @@ checks each machine:
   - *An API token can't make tokens or change the password*, and a browser session needs the password again to make a token: a token outlives the session that makes it. Changing the password signs out every other session and reports how many API tokens still work. A sign-in that checked the old password can't finish after a password change: both lock the user's row.
   - A user lists and revokes only their own tokens. Disabling an account ends its sessions and tokens. Timelines name the credential that acted (`browser session`, or the token's name and prefix).
   - The first account comes from `tensora setup` on the machine itself, never from a first-come web form, and `tensora setup -reset-password` is the way back in. Both need access to the database. A reset also signs out every session, which is how to end one that was stolen.
-- **Workload web UIs** (Jupyter, endpoint UIs; roadmap step 7 and the relay) must be served from a different site than the dashboard and API, such as their own hostname. Code running in a workload controls what its UI serves, and on the dashboard's own origin it could send requests with the user's session cookie and the CSRF header. Another port on the same host isn't a different site for cookies (a notebook on `localhost:8888` can set cookies for the dashboard on `localhost:8080`), and neither is a subdomain of the dashboard's domain.
+- **Workload web UIs** (Jupyter, endpoint UIs) must be served from a different site than the dashboard and API, such as their own hostname. Code running in a workload controls what its UI serves, and on the dashboard's own origin it could send requests with the user's session cookie and the CSRF header. Another port on the same host isn't a different site for cookies (a notebook on `localhost:8888` can set cookies for the dashboard on `localhost:8080`), and neither is a subdomain of the dashboard's domain.
+  - *Built, on the control plane's machine* ([ADR-0017](../adr/0017-local-workload-access-and-native-drivers.md)): the access proxy serves each workload at its own site, `w-<id>.localhost`, and answers no other host name. It opens a workload only with a one-time ticket from the API, which checks the caller's tenant (404 otherwise) and stores only the ticket's hash, for 60 seconds. The ticket is good at its own workload's host only, and the cookie it becomes (HttpOnly, SameSite=Strict) is for that host only and never reaches the workload. A session ends after 12 hours, or when the workload stops. The proxy refuses requests a browser says came from another origin (`Origin`, or Fetch Metadata for anything but a navigation), since a page on another port of the same host is same-site; it keeps the workload's cookies host-only, and the workload can't replace the proxy's. The workload's own token is added by the proxy, and is never in a URL, the database, a log, or an export (JupyterLab's page includes it, for its own scripts). The agent backend takes it only from the agent in its own process. The proxy listens on a loopback address only. The relay for other machines is Phase 2.
+  - *Open:* a program listening on a loopback port receives the cookies the browser sends to that host, whatever the port (see Open risks).
 - Every store query is scoped by tenant. Dev header auth is refused outside `TENSORA_ENV=dev`.
 
 **Logs** (details in [logs-and-transparency.md](logs-and-transparency.md))
@@ -137,7 +152,9 @@ checks each machine:
 | Datacenter admin network not firewalled | Open | Phase 3 |
 | The controller's ServiceAccount can create pods in any namespace | Accepted | Kind allowlist, RBAC limited to listed resources, audit logging |
 | Hosts can see guest data | **Accepted and disclosed** | Product warnings; confidential computing out of scope |
-| Before machines are shared (Phase 4) | Open | Two things to change first: a CPU workload under `macos-native` can still use the Mac's GPU through Metal, so on an Apple machine any active weak-driver workload must count as holding the GPU; and drivers must refuse to create a fresh disk for a workload that ran before (step 7). Placement uses only the tenant's own machines until then. |
+| Before machines are shared (Phase 4) | Open | Two things to change first: once `macos-native` runs CPU workloads (roadmap step 7), a CPU workload under it can still use the Mac's GPU through Metal, so on an Apple machine any active weak-driver workload must count as holding the GPU; and every driver must refuse to create a fresh disk for a workload that ran before (`macos-native` does; `docker` must, step 7c). Placement uses only the tenant's own machines until then. |
+| A program listening on a loopback port gets the browser's cookies for that host: cookies ignore ports | Open | A `macos-native` workload (or any local program) listens on `127.0.0.1:7777`; its page sends the browser there, then on to another path there, and that same-site navigation carries the dashboard's session cookie (or, at `w-<id>.localhost:7777`, another workload's access session). With it, the workload can call the API as the user, or reach the other workload through the proxy. Only the machine owner's own workloads run natively, but a notebook can run code its owner didn't write. Plan: native workloads can't listen on TCP (the sandbox denies it; JupyterLab on a Unix socket, kernels over IPC), to be validated with the real environment. Until then, run only notebooks you trust natively. Other local OS users can do the same; Solo assumes a single-user machine. |
+| Access-proxy sessions aren't checked against the user's access again | Accepted | A session lasts 12 hours or until its workload stops, so a user whose account is disabled keeps a notebook tab they already opened until then. Stop the workload to end every session for it. Phase 2 (users and teams) ends sessions with the account. |
 | Slow guessing from many addresses, and making sign-in busy | Accepted (mitigated) | Per-caller limits, a cap on concurrent password checks, and refusing common passwords keep guessing slow, but someone with many IPv4 addresses or IPv6 /48s can still guess slowly, or keep the password checks busy so sign-in answers "busy" for a while. Use a long, uncommon password. Before exposing sign-in to the internet, put a rate-limiting proxy in front; Phase 2 adds per-account alerts. |
 | Admission outcomes reveal whether a GPU class is full | Accepted (mitigated) | Untrusted tenants get no free-GPU counts, but queued versus admitted still shows whether a class has room. When sharing lands (Phase 4), compute capacity only over machines that user may use, so the signal covers only what they could run on anyway. |
 

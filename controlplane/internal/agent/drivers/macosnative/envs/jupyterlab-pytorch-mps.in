@@ -1,0 +1,9 @@
+# The macos-native notebook environment (ADR-0017): JupyterLab with PyTorch (MPS) and MLX on Apple
+# Silicon. jupyterlab-pytorch-mps.txt is the lock the driver installs, with hashes. To update it:
+#   uv pip compile jupyterlab-pytorch-mps.in --python-version 3.12 --python-platform aarch64-apple-darwin \
+#     --generate-hashes --no-header -o jupyterlab-pytorch-mps.txt
+jupyterlab
+ipykernel
+torch
+mlx
+numpy

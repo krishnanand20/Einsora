@@ -46,6 +46,17 @@ func (t APIToken) Usable(now time.Time) bool {
 	return t.RevokedAt.IsZero() && (t.ExpiresAt.IsZero() || now.Before(t.ExpiresAt))
 }
 
+// AccessTicket lets one person open one workload once, through the access proxy (ADR-0017). Only
+// its hash is stored.
+type AccessTicket struct {
+	Hash       string
+	TenantID   uuid.UUID
+	WorkloadID uuid.UUID
+	Subject    string // who opened it, for the operator's log
+	ExpiresAt  time.Time
+	UsedAt     time.Time // zero until used
+}
+
 // NormalizeEmail trims and lowercases an email, and reports whether it looks like one: a local part,
 // an @, and a domain, with no spaces or control characters, at most 254 bytes. Sign-in compares the
 // normalized form.
