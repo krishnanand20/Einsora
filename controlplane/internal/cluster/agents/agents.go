@@ -10,10 +10,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
+	"path/filepath"
 	"reflect"
 	"slices"
-	"strconv"
 	"sync"
 	"time"
 	"unicode"
@@ -222,8 +221,8 @@ func (h *Hub) sync(ctx context.Context, id uuid.UUID, req protocol.SyncRequest, 
 		default:
 			st.State, st.Code = protocol.StateFailed, "" // an unknown state reads as a problem
 		}
-		if a := st.Access; a != nil && (!local || st.State != protocol.StateReady || a.Port < 1 || a.Port > 65535 ||
-			a.Token == "" || len(a.Token) > 512) {
+		if a := st.Access; a != nil && (!local || st.State != protocol.StateReady || !filepath.IsAbs(a.Socket) ||
+			filepath.Clean(a.Socket) != a.Socket || len(a.Socket) > protocol.MaxSocketPath || a.Token == "" || len(a.Token) > 512) {
 			st.Access = nil
 		}
 		statuses[st.ID] = st
@@ -559,10 +558,10 @@ func (h *Hub) Observe(_ context.Context, ref cluster.Ref) (cluster.Observed, str
 	return cluster.ObservedProgressing, protocol.ProgressReason(st.Code), nil
 }
 
-// Target is where the access proxy reaches a ready workload on this machine, and the token its
-// server expects (ADR-0017): only for a workload whose agent runs in this process and reported it
-// ready with access just now. The token is never stored or logged.
-func (h *Hub) Target(id uuid.UUID) (addr, token string, ok bool) {
+// Target is the Unix socket where the access proxy reaches a ready workload on this machine, and the
+// token its server expects (ADR-0017): only for a workload whose agent runs in this process and
+// reported it ready with access just now. The token is never stored or logged.
+func (h *Hub) Target(id uuid.UUID) (socket, token string, ok bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for _, s := range h.sessions {
@@ -570,7 +569,7 @@ func (h *Hub) Target(id uuid.UUID) (addr, token string, ok bool) {
 		if !has || !s.local || !h.online(s) || st.State != protocol.StateReady || st.Access == nil {
 			continue
 		}
-		return net.JoinHostPort("127.0.0.1", strconv.Itoa(st.Access.Port)), st.Access.Token, true
+		return st.Access.Socket, st.Access.Token, true
 	}
 	return "", "", false
 }

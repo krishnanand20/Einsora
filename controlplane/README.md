@@ -49,11 +49,15 @@ memory, and GPU (an Apple Silicon GPU through sysctl, NVIDIA GPUs through `nvidi
 controller places on it with its drivers (`TENSORA_AGENT_DRIVERS`; empty means every one this machine can run).
 
 - **`macos-native`** ([ADR-0017](../docs/adr/0017-local-workload-access-and-native-drivers.md)), on an Apple Silicon
-  Mac with [uv](https://docs.astral.sh/uv/) installed (`brew install uv`), runs notebooks: JupyterLab with PyTorch on
-  Metal, as a process in its own process group under `sandbox-exec`, with its data in `native/workloads/<id>/data`
-  next to the SQLite database. Its Python environment is built once per machine from a lock file with hashes
-  (`internal/agent/drivers/macosnative/envs/`), a download of a few hundred MB. Notebooks keep running across a
-  `tensora` restart, and the driver finds them again. Endpoints are next (roadmap step 7b).
+  Mac with [uv](https://docs.astral.sh/uv/) installed (`brew install uv`), runs notebooks: JupyterLab with PyTorch and
+  MLX on Metal, as a process in its own process group under `sandbox-exec`, with its data in
+  `native/workloads/<id>/data` next to the SQLite database. It listens on a Unix socket, not a port, and its kernels
+  talk over IPC, both in a short run directory (`TENSORA_AGENT_RUN_DIR`, `~/.tensora/run` by default; macOS limits
+  socket paths to 104 bytes). Its Python environment is built once per machine from a lock file with hashes
+  (`internal/agent/drivers/macosnative/envs/`): a download of a few hundred MB, about 750 MB on disk. Notebooks keep
+  running across a `tensora` restart, and the driver finds them again. Endpoints are next (roadmap step 7b).
+  If an upgrade changes the sandbox, the driver stops older servers and kernels and records a
+  `sandbox-changed` failure asking you to restart; notebook data is kept.
 - **`sim`** runs nothing and reports workloads as running, in dev only:
   `TENSORA_CLUSTER_BACKEND=agent TENSORA_AGENT_DRIVERS=sim TENSORA_MACHINE_OWNER=internal go run ./cmd/tensora dev`,
   then launch on `apple-silicon-32gb` (or whichever tier this Mac's memory holds) or a CPU class with `X-Dev-Tenant: internal`.
@@ -124,4 +128,13 @@ lifecycle, admission, and usage accounting is in [docs/architecture/control-plan
 go build -o bin/tensora ./cmd/tensora          # for this machine
 make -C .. build-all                           # linux/amd64, linux/arm64, darwin/arm64 into bin/
 docker build -t tensora-controlplane .         # Linux container image (Datacenter profile)
+```
+
+On Apple Silicon, the optional real-notebook test reuses a Jupyter environment already built by the
+driver from its embedded lock. It starts a sandboxed kernel, checks IPC, and executes PyTorch MPS and
+MLX Metal operations without downloading packages. From `controlplane/`:
+
+```bash
+TENSORA_TEST_NATIVE_ENV="/absolute/path/to/native/envs/jupyterlab-pytorch-mps-<hash>" \
+  go test ./internal/agent/drivers/macosnative -run TestRealNotebook -count=1 -v
 ```

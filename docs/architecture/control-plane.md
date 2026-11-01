@@ -49,7 +49,8 @@ same call is `POST /agent/v1/sync` over HTTPS with mutual TLS.
 ### Opening workloads: the access proxy
 
 Source: `controlplane/internal/access`, [ADR-0017](../adr/0017-local-workload-access-and-native-drivers.md). A
-running notebook is a web server on its machine's loopback address, with its own token. The browser reaches it
+running notebook is a web server on a Unix socket on its machine, with its own token: native workloads listen on no
+TCP or UDP port (below). The browser reaches it
 through the access proxy, which runs beside the agent backend in the controller's process, on
 `TENSORA_ACCESS_ADDR` (`127.0.0.1:8090`; loopback only):
 
@@ -61,17 +62,23 @@ through the access proxy, which runs beside the agent backend in the controller'
 2. The proxy takes the ticket once, at that workload's host only, and sets a cookie for that host
    (`tensora_access`, HttpOnly, SameSite=Strict), backed by a session in memory. A session lasts 12 hours, or
    until the workload stops: it's bound to the server it opened, and the next run has a new token.
-3. Each request is forwarded to the address and token the agent last reported for a ready workload
-   (`Hub.Target`), with `Authorization: token …` added, `Host` and `Origin` rewritten to the loopback address,
-   and the proxy's own cookie removed both ways.
+3. Each request is forwarded to the socket and token the agent last reported for a ready workload
+   (`Hub.Target`), with `Authorization: token …` added, `Host` and `Origin` rewritten to `localhost`, and the
+   proxy's own cookie removed both ways. Connections to workloads aren't reused.
 
 Each workload is its own site (`w-<id>.localhost`), so a notebook's pages can't use the dashboard's session or
 another workload's. The proxy answers only `w-<uuid>.localhost` hosts, so a web page can't reach it under another
 name (DNS rebinding), and refuses requests a browser says came from another origin, since a page on another port
 of the same host is same-site. The notebook's token stays in the agent backend's memory, taken only from the
-agent in its own process; it's never stored, logged, exported, or in a URL. A workload that listens on a loopback
-port can still receive the browser's cookies for that host (an open risk; see
-[tenancy and isolation](tenancy-and-isolation.md#open-risks)).
+agent in its own process; it's never stored, logged, exported, or in a URL. Native workloads can't listen on a
+TCP or UDP port at all: cookies ignore ports, so a workload listening on one could be handed the browser's cookies
+for its host, the dashboard's session included. JupyterLab listens on a Unix socket in the workload's run
+directory (`TENSORA_AGENT_RUN_DIR`, `~/.tensora/run` by default: macOS limits socket paths to 104 bytes), and its
+kernels talk to it over IPC there ([tenancy and isolation](tenancy-and-isolation.md#open-risks)).
+The sandbox denies both explicit IP binds and implicitly bound listeners. A sandbox change stops
+older servers and kernels before reporting a `sandbox-changed` failure; the owner can restart the
+workload with its saved notebook data under the new sandbox. Ordinary restarts adopt the existing
+processes when the recorded sandbox fingerprint still matches.
 
 ## Workload lifecycle
 

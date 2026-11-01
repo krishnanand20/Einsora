@@ -446,7 +446,7 @@ func localDrivers(cfg config.Config, idFile string, log *slog.Logger) []agent.Dr
 			}
 			state := filepath.Dir(idFile)
 			d, err := macosnative.New(macosnative.Options{Root: filepath.Join(state, "native"), State: state, Private: private,
-				Log: log.With("driver", name)})
+				Runs: cfg.AgentRunDir, Log: log.With("driver", name)})
 			if err != nil {
 				log.Info("driver not available here", "driver", name, "why", err.Error())
 				continue

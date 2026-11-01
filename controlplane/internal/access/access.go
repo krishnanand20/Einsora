@@ -6,10 +6,12 @@
 package access
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -25,9 +27,10 @@ import (
 	"github.com/tensora/tensora/controlplane/internal/store"
 )
 
-// Targets finds where a running workload's server listens, and its token: the agent backend.
+// Targets finds the Unix socket a running workload's server listens on, and its token: the agent
+// backend.
 type Targets interface {
-	Target(id uuid.UUID) (addr, token string, ok bool)
+	Target(id uuid.UUID) (socket, token string, ok bool)
 }
 
 const (
@@ -84,7 +87,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		page(w, http.StatusForbidden, "This request came from another site.")
 		return
 	}
-	addr, token, ok := s.targets.Target(id)
+	socket, token, ok := s.targets.Target(id)
 	switch {
 	case !ok:
 		page(w, http.StatusServiceUnavailable, "This workload isn't running right now.")
@@ -97,7 +100,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		page(w, http.StatusUnauthorized, "This workload has restarted since it was opened. Open it again from the Tensora dashboard.")
 		return
 	}
-	s.proxy(addr, token).ServeHTTP(w, r)
+	s.proxy(socket, token).ServeHTTP(w, r)
 }
 
 // open takes a one-time ticket and starts a session for this workload's host. It answers with a
@@ -195,16 +198,24 @@ func (s *Server) session(r *http.Request, id uuid.UUID) (string, session, bool) 
 	return key, sess, true
 }
 
-// proxy forwards to the workload's server as if from its own loopback address, with its token, and
-// without the proxy's cookie: the workload never sees the session that reaches it.
-func (s *Server) proxy(addr, token string) *httputil.ReverseProxy {
+// proxy forwards to the workload's server on its Unix socket, as if from localhost (the host its
+// server expects), with its token, and without the proxy's cookie: the workload never sees the
+// session that reaches it. Connections aren't reused, so one workload's can never carry another's
+// requests.
+func (s *Server) proxy(socket, token string) *httputil.ReverseProxy {
 	return &httputil.ReverseProxy{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+			},
+			DisableKeepAlives: true,
+		},
 		Rewrite: func(pr *httputil.ProxyRequest) {
-			pr.SetURL(&url.URL{Scheme: "http", Host: addr})
-			pr.Out.Host = addr
+			pr.SetURL(&url.URL{Scheme: "http", Host: "localhost"})
+			pr.Out.Host = "localhost"
 			pr.Out.Header.Set("Authorization", "token "+token)
 			if pr.In.Header.Get("Origin") != "" {
-				pr.Out.Header.Set("Origin", "http://"+addr)
+				pr.Out.Header.Set("Origin", "http://localhost")
 			}
 			var kept []string
 			for _, c := range pr.In.Cookies() {

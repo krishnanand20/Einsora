@@ -148,6 +148,7 @@ func TestAgentBackend(t *testing.T) {
 		"a bad owner":                                  {"TENSORA_CLUSTER_BACKEND": "agent", "TENSORA_MACHINE_OWNER": "My Lab"},
 		"Postgres, until agents join over the network": {"TENSORA_CLUSTER_BACKEND": "agent", "TENSORA_DATABASE_URL": "postgres://db/tensora"},
 		"a relative state directory":                   {"TENSORA_CLUSTER_BACKEND": "agent", "TENSORA_AGENT_STATE_DIR": "state"},
+		"a relative run directory":                     {"TENSORA_CLUSTER_BACKEND": "agent", "TENSORA_AGENT_RUN_DIR": "run"},
 	} {
 		if _, err := FromEnv(env(kv)); err == nil {
 			t.Errorf("%s: accepted", name)

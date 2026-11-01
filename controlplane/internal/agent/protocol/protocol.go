@@ -133,16 +133,21 @@ type Status struct {
 	Access *Access `json:"access,omitempty"`
 }
 
-// Access is how the access proxy reaches a workload on its machine.
+// Access is how the access proxy reaches a workload on its machine: its server's Unix socket, never a
+// TCP port (ADR-0017), and the token the server expects.
 type Access struct {
-	Port  int    `json:"port"`
-	Token string `json:"token"`
+	Socket string `json:"socket"`
+	Token  string `json:"token"`
 }
 
-// String and LogValue keep the token out of logs if an Access is ever printed or logged.
-func (a Access) String() string { return fmt.Sprintf("Access{Port:%d}", a.Port) }
+// MaxSocketPath is the longest Unix socket path every OS Tensora runs on accepts: macOS allows 104
+// bytes, with the terminating NUL.
+const MaxSocketPath = 103
 
-func (a Access) LogValue() slog.Value { return slog.GroupValue(slog.Int("port", a.Port)) }
+// String and LogValue keep the token out of logs if an Access is ever printed or logged.
+func (a Access) String() string { return fmt.Sprintf("Access{Socket:%s}", a.Socket) }
+
+func (a Access) LogValue() slog.Value { return slog.GroupValue(slog.String("socket", a.Socket)) }
 
 // Code says why a workload is in its state.
 type Code string
@@ -160,6 +165,7 @@ const (
 	CodeDriverProblem  Code = "driver-problem"    // the driver failed; the agent's log has details
 	CodeRemovingFailed Code = "removing-failed"   // removing it failed; retried
 	CodeDiskMissing    Code = "disk-missing"      // a workload that ran here before has no data here now
+	CodeSandboxChanged Code = "sandbox-changed"   // an old native server must stop before using the updated sandbox
 )
 
 // Reason is the text an owner reads for code. Unknown codes, which a newer or hostile agent could
@@ -190,6 +196,8 @@ func Reason(code Code) string {
 		return "its machine couldn't remove it yet; retrying"
 	case CodeDiskMissing:
 		return "its disk isn't on its machine any more"
+	case CodeSandboxChanged:
+		return "its native sandbox changed; restart the workload to use the updated protections"
 	}
 	return "its machine reported a problem"
 }

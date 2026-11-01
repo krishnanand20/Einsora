@@ -49,7 +49,11 @@ type Config struct {
 	AgentDrivers []string
 	// AgentStateDir keeps this machine's identity for the in-process agent (TENSORA_AGENT_STATE_DIR).
 	// Empty means the SQLite database's directory.
-	AgentStateDir         string
+	AgentStateDir string
+	// AgentRunDir holds native workloads' Unix sockets and temporary files (TENSORA_AGENT_RUN_DIR,
+	// ADR-0017). macOS limits a socket's path to 104 bytes, so it must be short. Empty means
+	// ~/.tensora/run.
+	AgentRunDir           string
 	UntrustedRuntimeClass string
 	StorageClass          string
 	ImagesNamespace       string
@@ -92,6 +96,7 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		ClusterBackend:        get("CLUSTER_BACKEND", "fake"),
 		MachineOwner:          get("MACHINE_OWNER", "home"),
 		AgentStateDir:         get("AGENT_STATE_DIR", ""),
+		AgentRunDir:           get("AGENT_RUN_DIR", ""),
 		AccessAddr:            get("ACCESS_ADDR", "127.0.0.1:8090"),
 		UntrustedRuntimeClass: get("UNTRUSTED_RUNTIME_CLASS", "kata-qemu-nvidia-gpu"),
 		StorageClass:          get("STORAGE_CLASS", "tensora-block"),
@@ -172,6 +177,9 @@ func (c Config) validate() error {
 		}
 		if c.AgentStateDir != "" && !filepath.IsAbs(c.AgentStateDir) {
 			errs = append(errs, errors.New("TENSORA_AGENT_STATE_DIR must be an absolute path"))
+		}
+		if c.AgentRunDir != "" && !filepath.IsAbs(c.AgentRunDir) {
+			errs = append(errs, errors.New("TENSORA_AGENT_RUN_DIR must be an absolute path"))
 		}
 		for _, d := range c.AgentDrivers {
 			switch {

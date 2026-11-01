@@ -1,12 +1,16 @@
 package access_test
 
 import (
+	"bufio"
 	"context"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +24,7 @@ import (
 	"github.com/tensora/tensora/controlplane/internal/testutil"
 )
 
-// targets is the agent backend's view: workload → its server's address and token.
+// targets is the agent backend's view: workload → its server's socket and token.
 type targets map[uuid.UUID][2]string
 
 func (t targets) Target(id uuid.UUID) (string, string, bool) {
@@ -42,16 +46,41 @@ func newFixture(t *testing.T) fixture {
 	st := testutil.SeededStore(t)
 	ctx := context.Background()
 	f := fixture{st: st, workload: uuid.New(), seen: make(chan *http.Request, 10)}
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// The workload's server listens on a Unix socket, at a short path: macOS allows 104 bytes.
+	dir, err := os.MkdirTemp("", "ta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	socket := filepath.Join(dir, "jupyter.sock")
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.seen <- r.Clone(context.Background())
+		if strings.HasSuffix(r.URL.Path, "/channels") {
+			conn, rw, err := http.NewResponseController(w).Hijack()
+			if err != nil {
+				http.Error(w, "upgrade failed", http.StatusInternalServerError)
+				return
+			}
+			defer func() { _ = conn.Close() }()
+			_, _ = rw.WriteString("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n")
+			_ = rw.Flush()
+			_, _ = io.Copy(conn, rw)
+			return
+		}
 		http.SetCookie(w, &http.Cookie{Name: "tensora_access", Value: "planted"})
 		w.Header().Add("Set-Cookie", "tensora_access =planted-with-a-space; Path=/") // a browser trims the name
 		w.Header().Add("Set-Cookie", "everywhere=1; Domain=localhost; Path=/")       // for every workload's host
 		http.SetCookie(w, &http.Cookie{Name: "_xsrf", Value: "jupyter-own"})
 		_, _ = io.WriteString(w, "jupyter")
 	}))
+	upstream.Listener = l
+	upstream.Start()
 	t.Cleanup(upstream.Close)
-	err := st.InTx(ctx, func(q store.Queries) error {
+	err = st.InTx(ctx, func(q store.Queries) error {
 		tn, err := q.TenantBySlug(ctx, "internal")
 		if err != nil {
 			return err
@@ -64,8 +93,7 @@ func newFixture(t *testing.T) fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	addr := strings.TrimPrefix(upstream.URL, "http://")
-	f.targets = targets{f.workload: {addr, "jupyter-token"}}
+	f.targets = targets{f.workload: {socket, "jupyter-token"}}
 	f.proxy = access.New(st, f.targets, slog.New(slog.DiscardHandler), nil)
 	return f
 }
@@ -135,8 +163,8 @@ func TestOpeningAWorkload(t *testing.T) {
 	if strings.Contains(got.Header.Get("Cookie"), "tensora_access") || !strings.Contains(got.Header.Get("Cookie"), "_xsrf=abc") {
 		t.Errorf("the workload got cookies %q; want its own, never the proxy's session", got.Header.Get("Cookie"))
 	}
-	if !strings.HasPrefix(got.Host, "127.0.0.1:") || got.Header.Get("Origin") != "http://"+got.Host {
-		t.Errorf("Host %q, Origin %q; want the loopback address the server expects", got.Host, got.Header.Get("Origin"))
+	if got.Host != "localhost" || got.Header.Get("Origin") != "http://localhost" {
+		t.Errorf("Host %q, Origin %q; want localhost, as the server expects", got.Host, got.Header.Get("Origin"))
 	}
 	kept := map[string]*http.Cookie{}
 	for _, c := range rec.Result().Cookies() {
@@ -167,6 +195,54 @@ func TestSessionsAreForOneWorkload(t *testing.T) {
 	session := rec.Result().Cookies()[0]
 	if rec := f.do("GET", elsewhere, "/", session, nil); rec.Code != http.StatusUnauthorized {
 		t.Errorf("a session at another workload's host: %d; want 401", rec.Code)
+	}
+}
+
+// Jupyter's kernel channels need an upgraded, bidirectional connection through the Unix-socket
+// transport, with the same credential and origin protections as normal HTTP requests.
+func TestKernelChannelUpgrade(t *testing.T) {
+	f := newFixture(t)
+	opened := f.do("GET", f.host(f.workload), "/_tensora/open?ticket="+url.QueryEscape(f.ticket(t)), nil, nil)
+	session := opened.Result().Cookies()[0]
+	server := httptest.NewServer(f.proxy)
+	defer server.Close()
+	conn, err := net.DialTimeout("tcp", strings.TrimPrefix(server.URL, "http://"), 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close() }()
+	if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("GET", "http://"+f.host(f.workload)+"/api/kernels/test/channels", nil)
+	req.AddCookie(session)
+	req.Header.Set("Origin", "http://"+req.Host)
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+	if err := req.Write(conn); err != nil {
+		t.Fatal(err)
+	}
+	reader := bufio.NewReader(conn)
+	resp, err := http.ReadResponse(reader, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusSwitchingProtocols {
+		t.Fatalf("kernel channel upgrade: HTTP %d", resp.StatusCode)
+	}
+	const message = "kernel-message"
+	if _, err := io.WriteString(conn, message); err != nil {
+		t.Fatal(err)
+	}
+	got := make([]byte, len(message))
+	if _, err := io.ReadFull(reader, got); err != nil || string(got) != message {
+		t.Fatalf("kernel channel echo = %q, %v", got, err)
+	}
+	seen := <-f.seen
+	if seen.Header.Get("Authorization") != "token jupyter-token" || strings.Contains(seen.Header.Get("Cookie"), "tensora_access") ||
+		seen.Host != "localhost" || seen.Header.Get("Origin") != "http://localhost" {
+		t.Error("upgraded request didn't preserve the proxy's credential and origin protections")
 	}
 }
 

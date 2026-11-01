@@ -24,7 +24,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -64,23 +63,28 @@ type Options struct {
 	// Private are files no workload may read or write, wherever they are: the control plane's
 	// database (with its -wal, -shm, and -journal files) and its log file.
 	Private []string
+	// Runs holds each workload's run directory: its server's Unix socket, its kernels' sockets, and
+	// its temporary files. Socket paths are short on macOS (104 bytes), so it's a short path, not
+	// inside State: empty means ~/.tensora/run.
+	Runs string
 	// UV is the uv binary; empty means the one on PATH.
 	UV  string
 	Log *slog.Logger
 }
 
 type Driver struct {
-	opts    Options
-	uv      string
-	home    string // the owner's home directory
-	profile string // the sandbox profile, with the rules the driver adds
+	opts      Options
+	uv        string
+	home      string // the owner's home directory
+	runs      string // Options.Runs, resolved
+	profile   string // the sandbox profile, with the rules the driver adds
+	sandboxID string // the profile and directory mappings used by this version of the driver
 
 	mu       sync.Mutex
 	locks    map[uuid.UUID]*sync.Mutex    // one per workload
 	envMu    map[string]*sync.Mutex       // one per environment
 	trees    map[uuid.UUID][]process.Proc // each running workload's processes, as last seen
 	stopping map[uuid.UUID]bool           // workloads being stopped in the background
-	http     *http.Client
 }
 
 // New checks this Mac can run native workloads and prepares the driver's directory.
@@ -111,9 +115,43 @@ func New(opts Options) (*Driver, error) {
 			return nil, fmt.Errorf("macos-native directory: %w", err)
 		}
 	}
-	return &Driver{opts: opts, uv: uv, home: home, profile: profile, locks: map[uuid.UUID]*sync.Mutex{},
+	runs := opts.Runs
+	if runs == "" {
+		runs = filepath.Join(home, ".tensora", "run")
+	}
+	if runs, err = privateDir(runs); err != nil {
+		return nil, err
+	}
+	// The longest socket a workload has is a kernel's: <run>/kernel-<36-character ID>-ipc-<n>.
+	if longest := len(runs) + 1 + runNameLen + len("/kernel-") + 36 + len("-ipc-99"); longest > protocol.MaxSocketPath {
+		return nil, fmt.Errorf("macos-native needs a shorter directory for workloads' sockets than %s: macOS allows %d bytes in a socket's path", runs, protocol.MaxSocketPath+1)
+	}
+	sandboxSum := sha256.Sum256([]byte(profile + "\x00" + resolved(opts.State) + "\x00" + runs))
+	return &Driver{opts: opts, uv: uv, home: home, runs: runs, profile: profile, sandboxID: hex.EncodeToString(sandboxSum[:]),
+		locks: map[uuid.UUID]*sync.Mutex{},
 		envMu: map[string]*sync.Mutex{}, trees: map[uuid.UUID][]process.Proc{}, stopping: map[uuid.UUID]bool{},
-		http: &http.Client{Timeout: healthTimeout}}, nil
+	}, nil
+}
+
+// privateDir makes dir, and each directory it makes on the way, readable by this user only, and
+// checks dir is a real directory of this user's that no one else can use: a socket or temporary
+// file inside it is this user's alone. It returns dir with symlinks resolved, as the sandbox sees it.
+func privateDir(dir string) (string, error) {
+	if !filepath.IsAbs(dir) {
+		return "", fmt.Errorf("macos-native: %s isn't an absolute path", dir)
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("macos-native run directory: %w", err)
+	}
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		return "", fmt.Errorf("macos-native run directory: %w", err)
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !fi.IsDir() || !ok || int(st.Uid) != os.Getuid() || fi.Mode().Perm()&0o077 != 0 {
+		return "", fmt.Errorf("macos-native run directory %s must be a directory (not a symlink) that only you can use: run chmod 700 %s", dir, dir)
+	}
+	return resolved(dir), nil
 }
 
 // credentialStores are where the owner's credentials usually are, relative to their home
@@ -195,14 +233,23 @@ type state struct {
 	Phase   string        `json:"phase"`
 	Code    protocol.Code `json:"code,omitempty"`
 	Proc    process.Proc  `json:"proc"`
-	Port    int           `json:"port"`
+	Run     string        `json:"run"` // its run directory's name, in Options.Runs
 	Token   string        `json:"token"`
 	Runtime string        `json:"runtime"`
+	Sandbox string        `json:"sandbox"` // the profile and directory mappings this attempt started with
 }
+
+// runNameLen is the length of a run directory's name: short, for socket paths.
+const runNameLen = 8
 
 func (d *Driver) dir(id uuid.UUID) string {
 	return filepath.Join(d.opts.Root, "workloads", id.String())
 }
+
+// runDir is a workload's run directory, and socket is its server's socket in it.
+func (d *Driver) runDir(st state) string { return filepath.Join(d.runs, st.Run) }
+
+func (d *Driver) socket(st state) string { return filepath.Join(d.runDir(st), "jupyter.sock") }
 
 func (d *Driver) lock(id uuid.UUID) *sync.Mutex {
 	d.mu.Lock()
@@ -231,6 +278,11 @@ func (d *Driver) readState(id uuid.UUID) (state, bool, error) {
 	var st state
 	if err := json.Unmarshal(raw, &st); err != nil {
 		return state{}, false, fmt.Errorf("workload %s state: %w", id, err)
+	}
+	if st.Run != "" {
+		if _, err := hex.DecodeString(st.Run); err != nil || len(st.Run) != runNameLen {
+			return state{}, false, fmt.Errorf("workload %s state: invalid run directory", id)
+		}
 	}
 	return st, true, nil
 }
@@ -284,7 +336,7 @@ func (d *Driver) Run(_ context.Context, w protocol.Desired) error {
 			// It ran here before, and its data is gone: never hand it a fresh, empty disk.
 			return agent.WithCode(protocol.CodeDiskMissing, fmt.Errorf("workload %s: its data directory is missing", w.ID))
 		}
-		for _, sub := range []string{"data", "home", "tmp", "logs"} {
+		for _, sub := range []string{"data", "home", "logs"} {
 			if err := os.MkdirAll(filepath.Join(d.dir(w.ID), sub), 0o700); err != nil {
 				return err
 			}
@@ -294,17 +346,43 @@ func (d *Driver) Run(_ context.Context, w protocol.Desired) error {
 	if err != nil {
 		return err
 	}
-	next := state{Attempt: w.Attempt, Phase: phasePreparing, Token: token, Runtime: w.Runtime.Ref}
+	next := state{Attempt: w.Attempt, Phase: phasePreparing, Run: st.Run, Token: token, Runtime: w.Runtime.Ref, Sandbox: d.sandboxID}
+	if next.Run == "" {
+		if next.Run, err = d.newRunName(); err != nil {
+			return err
+		}
+	}
 	if err := d.writeState(w.ID, next); err != nil {
+		if st.Run == "" {
+			_ = os.Remove(d.runDir(next)) // only the empty directory this attempt reserved
+		}
 		return err
 	}
 	go d.launch(w, next, lock)
 	return nil
 }
 
+// newRunName reserves a run directory before any environment build starts. Checking for an unused
+// name alone would let two workloads choose the same one while their environments are built.
+func (d *Driver) newRunName() (string, error) {
+	for range 10 {
+		b := make([]byte, runNameLen/2)
+		if _, err := rand.Read(b); err != nil {
+			return "", err
+		}
+		name := hex.EncodeToString(b)
+		if err := os.Mkdir(filepath.Join(d.runs, name), 0o700); err == nil {
+			return name, nil
+		} else if !errors.Is(err, os.ErrExist) {
+			return "", fmt.Errorf("reserve workload run directory: %w", err)
+		}
+	}
+	return "", errors.New("no free run directory name")
+}
+
 // launch builds the environment if needed and starts the server, unless the attempt was stopped
-// or replaced meanwhile. The port is chosen just before the server starts, not before the build,
-// which can take minutes: a port held free that long could be taken by another program.
+// or replaced meanwhile. Each run starts with an empty run directory: its sockets and temporary
+// files are for one run only.
 func (d *Driver) launch(w protocol.Desired, st state, lock []byte) {
 	env, err := d.ensureEnv(w.Runtime.Ref, lock)
 	mu := d.lock(w.ID)
@@ -321,8 +399,9 @@ func (d *Driver) launch(w protocol.Desired, st state, lock []byte) {
 		_ = d.writeState(w.ID, st)
 		return
 	}
-	if st.Port, err = freePort(); err != nil {
-		d.opts.Log.Error("couldn't find a free port for a workload", "workload", w.ID, "err", err)
+	err = d.prepareRun(st)
+	if err != nil {
+		d.opts.Log.Error("couldn't prepare a workload's run directory", "workload", w.ID, "err", err)
 		st.Phase, st.Code = phaseFailed, protocol.CodeDriverProblem
 		_ = d.writeState(w.ID, st)
 		return
@@ -341,30 +420,55 @@ func (d *Driver) launch(w protocol.Desired, st state, lock []byte) {
 	}
 }
 
-// notebook is the JupyterLab server for a workload, under the sandbox. The token goes in through
-// the environment, which other users can't read, not the command line, which they can.
+// prepareRun clears the previous run's sockets and temporary files while keeping the directory
+// reserved. The workload may write inside it, so refuse a symlink rather than following one.
+func (d *Driver) prepareRun(st state) error {
+	run := d.runDir(st)
+	if _, err := privateDir(run); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(run)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if err := os.RemoveAll(filepath.Join(run, entry.Name())); err != nil {
+			return err
+		}
+	}
+	return os.Mkdir(filepath.Join(run, "tmp"), 0o700)
+}
+
+// notebook is the JupyterLab server for a workload, under the sandbox. It listens on a Unix socket
+// in the workload's run directory, and its kernels talk to it over IPC there: the sandbox lets a
+// workload listen on no TCP or UDP port. Cookies ignore ports, so a page in the browser sent to a
+// port a workload listened on would hand it the dashboard's session, or another workload's. The
+// token goes in through the environment, which other users can't read, not the command line,
+// which they can.
 func (d *Driver) notebook(id uuid.UUID, env string, st state) process.Spec {
-	dir := d.dir(id)
-	home, data, tmp := filepath.Join(dir, "home"), filepath.Join(dir, "data"), filepath.Join(dir, "tmp")
+	env = resolved(env)
+	dir, run := d.dir(id), d.runDir(st)
+	home, data := filepath.Join(dir, "home"), filepath.Join(dir, "data")
 	args := []string{
 		"-p", d.profile,
 		// The sandbox matches resolved paths (/var is /private/var), so every path is resolved:
 		// a rule written with a symlinked path would never apply.
 		"-D", "WORKLOAD=" + resolved(dir), "-D", "STATE=" + resolved(d.opts.State), "-D", "ENV=" + resolved(env),
 		"-D", "PYTHONS=" + resolved(filepath.Join(d.opts.Root, "python")),
+		"-D", "RUNS=" + d.runs, "-D", "RUN=" + resolved(run),
 		filepath.Join(env, "bin", "jupyter-lab"),
-		"--no-browser", "--ServerApp.ip=127.0.0.1", "--ServerApp.port=" + strconv.Itoa(st.Port),
-		"--ServerApp.port_retries=0", "--ServerApp.root_dir=" + data, "--ServerApp.allow_remote_access=False",
+		"--no-browser", "--ServerApp.sock=" + d.socket(st), "--ServerApp.sock_mode=0600",
+		"--KernelManager.transport=ipc", "--ServerApp.root_dir=" + data, "--ServerApp.allow_remote_access=False",
 	}
 	return process.Spec{
 		Path: sandboxExec, Args: args, Dir: data,
 		Env: []string{
 			"PATH=" + filepath.Join(env, "bin") + ":/usr/bin:/bin:/usr/sbin:/sbin",
-			"HOME=" + home, "TMPDIR=" + tmp, "LANG=en_US.UTF-8",
+			"HOME=" + home, "TMPDIR=" + filepath.Join(run, "tmp"), "LANG=en_US.UTF-8",
 			"JUPYTER_TOKEN=" + st.Token,
 			"JUPYTER_CONFIG_DIR=" + filepath.Join(home, ".jupyter"),
 			"JUPYTER_DATA_DIR=" + filepath.Join(home, ".local", "share", "jupyter"),
-			"JUPYTER_RUNTIME_DIR=" + filepath.Join(tmp, "jupyter-runtime"),
+			"JUPYTER_RUNTIME_DIR=" + run,
 			"IPYTHONDIR=" + filepath.Join(home, ".ipython"),
 			"MPLCONFIGDIR=" + filepath.Join(home, ".matplotlib"),
 			"PYTHONDONTWRITEBYTECODE=1",
@@ -489,6 +593,9 @@ func (d *Driver) stopInBackground(id uuid.UUID, st state) {
 		defer mu.Unlock()
 		if cur, _, err := d.readState(id); err == nil && cur.Attempt == st.Attempt && cur.Phase == phaseStopping {
 			cur.Phase = phaseStopped
+			if cur.Code == protocol.CodeSandboxChanged {
+				cur.Phase = phaseFailed
+			}
 			_ = d.writeState(id, cur)
 		}
 	}()
@@ -536,11 +643,16 @@ func (d *Driver) Remove(ctx context.Context, id uuid.UUID) error {
 	if !process.StopAll(procs, wait) {
 		return errors.New("its processes are still running")
 	}
+	if known && st.Run != "" {
+		if err := os.RemoveAll(d.runDir(st)); err != nil {
+			return err
+		}
+	}
 	return os.RemoveAll(d.dir(id))
 }
 
 // Statuses reports every workload the driver has, from its state files: a process that's alive and
-// answers on its port is ready; one that exited by itself has failed.
+// answers on its socket is ready; one that exited by itself has failed.
 func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 	entries, err := os.ReadDir(filepath.Join(d.opts.Root, "workloads"))
 	if err != nil {
@@ -552,10 +664,25 @@ func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 		if err != nil || !e.IsDir() {
 			continue
 		}
+		mu := d.lock(id)
+		mu.Lock()
 		st, known, err := d.readState(id)
 		if err != nil || !known {
+			mu.Unlock()
 			continue
 		}
+		// An older sandbox may allow TCP listeners. Stop its processes before reporting a failure;
+		// a new attempt can reuse the saved notebook data under the current sandbox. This also
+		// handles the old TCP state format, which has no run directory or sandbox fingerprint.
+		if (st.Run == "" || st.Sandbox != d.sandboxID) && (st.Phase == phaseRunning || st.Phase == phasePreparing) {
+			d.see(id, st.Proc)
+			st.Phase, st.Code = phaseStopping, protocol.CodeSandboxChanged
+			if err := d.writeState(id, st); err != nil {
+				mu.Unlock()
+				return nil, err
+			}
+		}
+		mu.Unlock()
 		s := protocol.Status{ID: id, Attempt: st.Attempt}
 		switch st.Phase {
 		case phasePreparing:
@@ -576,8 +703,8 @@ func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 			case !alive:
 				process.StopAll(d.forget(id), 0) // its kernels would go on without it
 				s.State, s.Code = protocol.StateFailed, protocol.CodeExited
-			case d.healthy(ctx, st.Port):
-				s.State, s.Access = protocol.StateReady, &protocol.Access{Port: st.Port, Token: st.Token}
+			case d.healthy(ctx, d.socket(st)):
+				s.State, s.Access = protocol.StateReady, &protocol.Access{Socket: d.socket(st), Token: st.Token}
 			default:
 				s.State, s.Code = protocol.StateProgressing, protocol.CodeStarting
 			}
@@ -589,13 +716,19 @@ func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 	return out, nil
 }
 
-// healthy reports whether the server on port answers. Jupyter answers /api without a token.
-func (d *Driver) healthy(ctx context.Context, port int) bool {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:"+strconv.Itoa(port)+"/api", nil)
+// healthy reports whether the server on socket answers. Jupyter answers /api without a token.
+func (d *Driver) healthy(ctx context.Context, socket string) bool {
+	client := &http.Client{Timeout: healthTimeout, Transport: &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+		},
+		DisableKeepAlives: true,
+	}}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/api", nil)
 	if err != nil {
 		return false
 	}
-	resp, err := d.http.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return false
 	}
@@ -613,15 +746,6 @@ func resolved(path string) string {
 		return filepath.Join(resolved(parent), filepath.Base(path))
 	}
 	return path
-}
-
-func freePort() (int, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = l.Close() }()
-	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
 func randomToken() (string, error) {

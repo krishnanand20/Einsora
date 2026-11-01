@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -41,12 +43,12 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// fakeJupyter answers /api on the port it's given, and reports what the sandbox let it do.
+// fakeJupyter answers /api on the Unix socket it's given, and reports what the sandbox let it do.
 func fakeJupyter(args []string) {
-	port := ""
+	sock := ""
 	for _, a := range args {
-		if v, ok := strings.CutPrefix(a, "--ServerApp.port="); ok {
-			port = v
+		if v, ok := strings.CutPrefix(a, "--ServerApp.sock="); ok {
+			sock = v
 		}
 	}
 	if os.Getenv("JUPYTER_TOKEN") == "" {
@@ -63,6 +65,36 @@ func fakeJupyter(args []string) {
 		case q.Has("signal"):
 			pid, _ := strconv.Atoi(q.Get("signal"))
 			err = syscall.Kill(pid, 0)
+		case q.Has("listen-tcp"):
+			var l net.Listener
+			if l, err = net.Listen("tcp", "127.0.0.1:0"); err == nil {
+				_ = l.Close()
+			}
+		case q.Has("listen-implicit"):
+			family := syscall.AF_INET
+			if q.Get("listen-implicit") == "ipv6" {
+				family = syscall.AF_INET6
+			}
+			var fd int
+			if fd, err = syscall.Socket(family, syscall.SOCK_STREAM, 0); err == nil {
+				err = syscall.Listen(fd, 1) // no bind(): macOS chooses a port implicitly
+				_ = syscall.Close(fd)
+			}
+		case q.Has("listen-udp"):
+			var c net.PacketConn
+			if c, err = net.ListenPacket("udp", "127.0.0.1:0"); err == nil {
+				_ = c.Close()
+			}
+		case q.Has("listen-unix"):
+			var l net.Listener
+			if l, err = net.Listen("unix", q.Get("listen-unix")); err == nil {
+				_ = l.Close()
+			}
+		case q.Has("connect"):
+			var c net.Conn
+			if c, err = net.Dial("unix", q.Get("connect")); err == nil {
+				_ = c.Close()
+			}
 		default:
 			_, err = os.ReadFile(q.Get("read"))
 		}
@@ -79,11 +111,28 @@ func fakeJupyter(args []string) {
 		go func() { _ = k.Wait() }()
 		_, _ = fmt.Fprint(w, k.Process.Pid)
 	})
-	l, err := net.Listen("tcp", "127.0.0.1:"+port)
+	l, err := net.Listen("unix", sock)
 	if err != nil {
 		os.Exit(3)
 	}
 	_ = http.Serve(l, mux)
+}
+
+// get asks the workload's server on socket for path, and returns the body.
+func get(t *testing.T, socket, path string) string {
+	t.Helper()
+	client := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+		},
+	}}
+	resp, err := client.Get("http://localhost" + path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	b, _ := io.ReadAll(resp.Body)
+	return string(b)
 }
 
 // newDriver is a driver whose environment for runtimeRef is already built: its jupyter-lab runs
@@ -91,7 +140,13 @@ func fakeJupyter(args []string) {
 func newDriver(t *testing.T, private ...string) (*Driver, string) {
 	t.Helper()
 	state := t.TempDir()
-	d, err := New(Options{Root: filepath.Join(state, "native"), State: state, Private: private, UV: "/usr/bin/false",
+	// Run directories hold sockets, whose paths macOS limits to 104 bytes: t.TempDir's are too long.
+	runs, err := os.MkdirTemp("/tmp", "tr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(runs) })
+	d, err := New(Options{Root: filepath.Join(state, "native"), State: state, Private: private, Runs: runs, UV: "/usr/bin/false",
 		Log: slog.New(slog.DiscardHandler)})
 	if err != nil {
 		t.Fatal(err)
@@ -150,7 +205,7 @@ func TestNotebookLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := status(t, d, w.ID, ready)
-	if s.Attempt != 1 || s.Access == nil || s.Access.Port == 0 || len(s.Access.Token) != 64 {
+	if s.Attempt != 1 || s.Access == nil || !strings.HasSuffix(s.Access.Socket, "/jupyter.sock") || len(s.Access.Token) != 64 {
 		t.Fatalf("ready status = %+v", s)
 	}
 	if err := d.Run(ctx, w); err != nil { // the same attempt again: nothing changes
@@ -201,7 +256,8 @@ func TestRestartAndCrash(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := status(t, d, w.ID, ready)
-	again, err := New(Options{Root: filepath.Join(state, "native"), State: state, UV: "/usr/bin/false", Log: slog.New(slog.DiscardHandler)})
+	again, err := New(Options{Root: filepath.Join(state, "native"), State: state, Runs: d.opts.Runs, UV: "/usr/bin/false",
+		Log: slog.New(slog.DiscardHandler)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,6 +270,137 @@ func TestRestartAndCrash(t *testing.T) {
 		t.Errorf("after a crash: %+v; want failed, exited", crashed)
 	}
 	_ = again.Remove(ctx, w.ID)
+}
+
+// An upgrade must retire servers started under the old TCP-enabled sandbox before capacity is
+// released. Their notebook data stays available for an explicit new attempt.
+func TestLegacyServerIsStoppedAfterUpgrade(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		tcp  bool
+	}{{"legacy TCP state", true}, {"older Unix socket sandbox", false}} {
+		t.Run(tt.name, func(t *testing.T) { checkSandboxUpgrade(t, tt.tcp) })
+	}
+}
+
+func checkSandboxUpgrade(t *testing.T, legacyTCP bool) {
+	t.Helper()
+	d, _ := newDriver(t)
+	ctx := context.Background()
+	w := notebook(1)
+	if err := d.Run(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = d.Remove(ctx, w.ID) })
+	kernel := spawnKernel(t, d, w.ID)
+	st, _, err := d.readState(w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := st.Proc
+	keep := filepath.Join(d.dir(w.ID), "data", "notes.txt")
+	if err := os.WriteFile(keep, []byte("mine"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st.Sandbox = "" // older versions never recorded which sandbox the server used
+	if legacyTCP {
+		st.Run = "" // the old TCP state format had a port instead of a run directory
+	}
+	if err := d.writeState(w.ID, st); err != nil {
+		t.Fatal(err)
+	}
+	failed := status(t, d, w.ID, func(s protocol.Status) bool { return s.State == protocol.StateFailed })
+	if failed.Code != protocol.CodeSandboxChanged || failed.Access != nil {
+		t.Errorf("legacy status = %+v; want a sandbox change without access", failed)
+	}
+	if !gone(server.PID) || !gone(kernel) {
+		t.Error("an old server or kernel survived the upgrade")
+	}
+	w.Attempt++
+	if err := d.Run(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	status(t, d, w.ID, ready)
+	if data, err := os.ReadFile(keep); err != nil || string(data) != "mine" {
+		t.Errorf("notebook data after upgrade = %q, %v", data, err)
+	}
+}
+
+func TestRunDirectoriesAreReservedAndPrivate(t *testing.T) {
+	d, _ := newDriver(t)
+	var wg sync.WaitGroup
+	for range 32 {
+		wg.Go(func() {
+			name, err := d.newRunName()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			run := d.runDir(state{Run: name})
+			info, err := os.Stat(run)
+			if err != nil {
+				t.Errorf("run directory wasn't reserved before the environment build: %v", err)
+				return
+			}
+			if info.Mode().Perm() != 0o700 {
+				t.Errorf("run directory permissions = %o; want 700", info.Mode().Perm())
+			}
+			if err := os.WriteFile(filepath.Join(run, "stale.sock"), nil, 0o600); err != nil {
+				t.Error(err)
+				return
+			}
+			if err := d.prepareRun(state{Run: name}); err != nil {
+				t.Error(err)
+				return
+			}
+			after, err := os.Stat(run)
+			if err != nil || !os.SameFile(info, after) {
+				t.Errorf("preparing the run replaced its reservation: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(run, "stale.sock")); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("preparing the run left a stale socket: %v", err)
+			}
+		})
+	}
+	wg.Wait()
+	if entries, err := os.ReadDir(d.runs); err != nil || len(entries) != 32 {
+		t.Errorf("reserved directories = %d, %v; want 32", len(entries), err)
+	}
+}
+
+func TestUnsafeRunDirectoriesAreRefused(t *testing.T) {
+	d, _ := newDriver(t)
+	shared := filepath.Join(d.runs, "shared")
+	if err := os.Mkdir(shared, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(shared, 0o755); err != nil { //nolint:gosec // deliberately unsafe test directory
+		t.Fatal(err)
+	}
+	link := filepath.Join(d.runs, "symlink")
+	if err := os.Symlink(t.TempDir(), link); err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{"relative", shared, link} {
+		if _, err := privateDir(dir); err == nil {
+			t.Errorf("accepted unsafe run directory %q", dir)
+		}
+	}
+	if err := d.prepareRun(state{Run: "symlink"}); err == nil {
+		t.Error("followed a run directory symlink while preparing a workload")
+	}
+	for _, run := range []string{"..", "../elsewhere", "123456789", "1234567g"} {
+		id := uuid.New()
+		if err := os.MkdirAll(d.dir(id), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.writeState(id, state{Run: run}); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := d.readState(id); err == nil {
+			t.Errorf("accepted run directory %q from saved state", run)
+		}
+	}
 }
 
 // A workload that ran here before and whose data is gone gets no fresh, empty disk.
@@ -265,18 +452,18 @@ func TestSandbox(t *testing.T) {
 	}
 	s := status(t, d, w.ID, ready)
 	defer func() { _ = d.Remove(ctx, w.ID) }()
-	probe := func(op, path string) string {
-		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/probe?%s=%s", s.Access.Port, op, url.QueryEscape(path))) //nolint:gosec // the test's own server
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() { _ = resp.Body.Close() }()
-		var b strings.Builder
-		_, _ = fmt.Fprint(&b, resp.StatusCode)
-		buf := make([]byte, 16)
-		n, _ := resp.Body.Read(buf)
-		return string(buf[:n])
+	probe := func(op, path string) string { return get(t, s.Access.Socket, "/probe?"+op+"="+url.QueryEscape(path)) }
+	// Another workload's run directory, with its server listening.
+	elsewhereRun := filepath.Join(d.runs, "0ther000")
+	if err := os.Mkdir(elsewhereRun, 0o700); err != nil {
+		t.Fatal(err)
 	}
+	theirs, err := net.Listen("unix", filepath.Join(elsewhereRun, "jupyter.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = theirs.Close() }()
+	st, _, _ := d.readState(w.ID)
 	lock, _ := envs.ReadFile("envs/" + runtimeRef + ".txt")
 	_, env := d.envDir(runtimeRef, lock)
 	other := filepath.Join(d.opts.Root, "workloads", uuid.NewString())
@@ -304,6 +491,16 @@ func TestSandbox(t *testing.T) {
 		{"write", filepath.Join(d.dir(w.ID), "logs", "stderr.log"), "false", "wrote its log file directly"},
 		{"signal", strconv.Itoa(os.Getpid()), "false", "signalled a process outside its sandbox"},
 		{"write", filepath.Join(d.dir(w.ID), "home", "notes.txt"), "true", "couldn't write its home directory"},
+		// It listens on no TCP port, which a page in the browser could be sent to, and on Unix
+		// sockets only in its own run directory; it can't reach another workload's server.
+		{"listen-tcp", "", "false", "listened on a TCP port"},
+		{"listen-implicit", "ipv4", "false", "listened on an implicitly bound IPv4 port"},
+		{"listen-implicit", "ipv6", "false", "listened on an implicitly bound IPv6 port"},
+		{"listen-udp", "", "false", "listened on a UDP port"},
+		{"listen-unix", filepath.Join(d.runDir(st), "mine.sock"), "true", "couldn't listen in its run directory"},
+		{"listen-unix", filepath.Join(elsewhereRun, "planted.sock"), "false", "listened in another workload's run directory"},
+		{"connect", filepath.Join(elsewhereRun, "jupyter.sock"), "false", "connected to another workload's server"},
+		{"write", filepath.Join(d.runDir(st), "tmp", "scratch"), "true", "couldn't write its temporary directory"},
 		{"read", filepath.Join(d.dir(w.ID), "state.json"), "true", "couldn't read its own directory"},
 		{"write", filepath.Join(d.dir(w.ID), "data", "notes.txt"), "true", "couldn't write its own data"},
 	} {
@@ -372,13 +569,8 @@ func TestStopReachesKernels(t *testing.T) {
 func spawnKernel(t *testing.T, d *Driver, id uuid.UUID) int {
 	t.Helper()
 	s := status(t, d, id, ready)
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/spawn", s.Access.Port)) //nolint:gosec // the test's own server
+	pid, err := strconv.Atoi(get(t, s.Access.Socket, "/spawn"))
 	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	var pid int
-	if _, err := fmt.Fscan(resp.Body, &pid); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = syscall.Kill(pid, syscall.SIGKILL) })

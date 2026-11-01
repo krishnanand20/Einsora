@@ -14,6 +14,7 @@ type Options struct {
 	Root    string
 	State   string
 	Private []string
+	Runs    string
 	UV      string
 	Log     *slog.Logger
 }

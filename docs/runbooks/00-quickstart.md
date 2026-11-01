@@ -133,9 +133,16 @@ go run ./cmd/tensora dev                            # then `make web-dev`, open 
 ```
 
 Launch a **Notebook** on the Apple Silicon class your Mac's memory holds. The first one builds its Python
-environment, a download of a few hundred MB into `native/envs/` next to the database, so it stays
-provisioning for a few minutes; later ones start in seconds. Once it's running, **Open** on its page opens
+environment, a download of a few hundred MB (about 750 MB on disk, in `native/` next to the database), so it
+stays provisioning for a minute or more, depending on your connection; later ones start in seconds. Once it's running, **Open** on its page opens
 JupyterLab in a new tab at `w-<id>.localhost:8090`, its own site, through the access proxy. Its files are in
 `native/workloads/<id>/data`, and survive stopping and starting it, and restarting `tensora`. Deleting the
 workload deletes them. CPU classes don't run natively on a Mac yet: such a notebook waits, and its timeline says
-why.
+why. A native notebook can't listen on a network port, so web apps started inside it (TensorBoard, Gradio) and
+JupyterLab's debugger don't work yet; this keeps code in a notebook from getting your dashboard session. Its
+sockets and temporary files are in `~/.tensora/run` (`TENSORA_AGENT_RUN_DIR`).
+
+After an upgrade that changes the native sandbox, existing notebooks stop and their timeline asks
+you to restart them to use the updated protections. Their files are kept. This also applies when
+upgrading from the older implementation that used TCP ports. Start the workload again from the
+dashboard; an ordinary `tensora` restart with the same sandbox keeps notebooks running.
