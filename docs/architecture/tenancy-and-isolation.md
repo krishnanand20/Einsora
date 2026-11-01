@@ -82,6 +82,16 @@ checks each machine:
   network access is allowed, the keychain is still reachable through macOS's security service (which asks
   before another program reads an item), and the matrix keeps it to the owner's own workloads. A workload
   that ran before but whose data directory is gone fails instead of starting with an empty one.
+- Native MLX endpoints fetch models into per-workload storage and validate them with the same
+  `tensora_ml.validate` policy before loading weights. Accepted snapshots have a checksum manifest;
+  reused files are revalidated. Serving re-execs offline without the download credentials and loads
+  only that local model with remote code disabled. API requests cannot select another model, an
+  adapter, or a file. The access proxy accepts existing API tokens only, checks their active user,
+  revocation, expiry, tenant, and endpoint state on every request, and strips all browser cookies and
+  the user's credential before forwarding. Bounded bodies, context/output tokens, concurrent request
+  threads, and socket timeouts limit resource use; only one generation runs at a time. Preparing
+  environments is serialized with a child-inherited OS lock and is canceled before the agent releases
+  its machine lock on shutdown.
 - An agent deletes a workload's data only when told to remove that workload. One it has but wasn't told about
   is stopped and kept, so a mistake about which machine it is can't wipe anything. A machine is found by the ID
   saved next to its database, never by its hostname.

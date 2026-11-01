@@ -157,7 +157,7 @@ images:
       - accelerators: [apple]
         server: mlx
         model_format: safetensors
-        ref: mlx-lm # macos-native driver (planned)
+        ref: mlx-lm # macos-native driver: pinned MLX runtime, validated safetensors, private Unix socket
       - accelerators: [nvidia, apple, amd, cpu]
         server: llama.cpp
         model_format: gguf # refused until tensora-ml validate checks GGUF (rule 6)

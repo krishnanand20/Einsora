@@ -13,6 +13,8 @@ dependencies = [
 [project.optional-dependencies]
 # Burn-in needs CUDA PyTorch; install only on GPU nodes / in the burn-in image.
 burnin = ["torch>=2.4"]
+# The local endpoint worker imports MLX only after model validation, on Apple Silicon.
+serve = ["mlx-lm==0.32.2; sys_platform == 'darwin' and platform_machine == 'arm64'"]
 
 [project.scripts]
 tensora-ml = "tensora_ml.cli:main"
@@ -49,7 +51,7 @@ strict = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["boto3.*", "botocore.*", "torch.*"]
+module = ["boto3.*", "botocore.*", "torch.*", "mlx_lm.*", "mlx.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

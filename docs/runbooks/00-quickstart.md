@@ -146,3 +146,38 @@ After an upgrade that changes the native sandbox, existing notebooks stop and th
 you to restart them to use the updated protections. Their files are kept. This also applies when
 upgrading from the older implementation that used TCP ports. Start the workload again from the
 dashboard; an ordinary `tensora` restart with the same sandbox keeps notebooks running.
+
+### Run a model endpoint on your Mac
+
+With the same local-account setup on macOS 14+ and Apple Silicon, launch a **Model endpoint**, choose
+the Apple Silicon class your Mac supports, and supply a safetensors model such as
+[`hf://mlx-community/Qwen2.5-0.5B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit). The first launch installs a separate pinned MLX
+environment. Its timeline shows downloading, validation, and loading. A model must use an MLX-supported
+architecture and code-free safetensors; custom model code, pickle, and GGUF are refused. The model's
+files must fit the workload's memory allocation, and runtime overhead also needs room.
+
+Once it is running, **API connection** on the workload page shows the OpenAI-compatible base URL.
+Alternatively, request it with `POST /v1/workloads/<id>/access`. Create an API token on **API tokens**
+and keep it in `TENSORA_TOKEN`. Use the endpoint URL as `BASE_URL`:
+
+```bash
+curl -s "$BASE_URL/models" -H "Authorization: Bearer $TENSORA_TOKEN"
+curl -s "$BASE_URL/chat/completions" -H "Authorization: Bearer $TENSORA_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"hf://mlx-community/Qwen2.5-0.5B-Instruct-4bit","messages":[{"role":"user","content":"Hello"}],"max_tokens":64}'
+```
+
+Use the exact model ID returned by `/models`. `stream: true` enables SSE; `stream_options:
+{"include_usage": true}` includes token counts. Supported sampling options are `max_tokens`,
+`temperature`, and `top_p`. The endpoint serves text requests for this single model; tools, images,
+alternate models, and adapters are refused. It serializes generation and returns 503 while busy.
+The API accepts up to 1 MiB per request, 8192 prompt-plus-output tokens, and 4096 output tokens.
+
+For private model downloads, start `tensora` with `HF_TOKEN` or the standard explicit AWS credential
+environment variables (and `AWS_ENDPOINT_URL_S3` for another S3-compatible store). Credentials never
+go in `model_uri` or the endpoint URL. They are removed before the model-serving process starts,
+which loads the validated local snapshot offline. Snapshots stay private to each workload; stopping
+or deleting an endpoint removes its model data. Existing API-token expiry, revocation, and account
+disablement apply to every inference request. Response headers identify region, actual compute class,
+and whether a fallback was used. This access path is local to the control plane's machine; remote
+relaying and endpoint-scoped keys are Phase 2.

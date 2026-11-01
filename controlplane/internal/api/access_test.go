@@ -21,7 +21,7 @@ import (
 func TestOpeningAWorkloadGivesAOneTimeURL(t *testing.T) {
 	st := testutil.SeededStore(t)
 	ctx := context.Background()
-	id, machine := uuid.New(), uuid.New()
+	id, machine, endpoint := uuid.New(), uuid.New(), uuid.New()
 	err := st.InTx(ctx, func(q store.Queries) error {
 		tn, err := q.TenantBySlug(ctx, "acme")
 		if err != nil {
@@ -31,8 +31,13 @@ func TestOpeningAWorkloadGivesAOneTimeURL(t *testing.T) {
 			OS: "darwin", Arch: "arm64", CPUs: 8, MemoryMiB: 16384, Sharing: domain.SharingPrivate, CreatedAt: testutil.T0}); err != nil {
 			return err
 		}
-		return q.CreateWorkload(ctx, domain.Workload{ID: id, TenantID: tn.ID, Name: "nb", Kind: domain.KindNotebook,
+		if err := q.CreateWorkload(ctx, domain.Workload{ID: id, TenantID: tn.ID, Name: "nb", Kind: domain.KindNotebook,
 			State: domain.StateRunning, ImageID: "pytorch-notebook", GPUClass: "l40s-48gb", GPUCount: 1, CreatedBy: "t",
+			MachineID: machine, CreatedAt: testutil.T0, UpdatedAt: testutil.T0, Region: domain.RegionLocal}); err != nil {
+			return err
+		}
+		return q.CreateWorkload(ctx, domain.Workload{ID: endpoint, TenantID: tn.ID, Name: "ep", Kind: domain.KindEndpoint,
+			State: domain.StateRunning, ImageID: "openai-endpoint", GPUClass: "l40s-48gb", GPUCount: 1, CreatedBy: "t",
 			MachineID: machine, CreatedAt: testutil.T0, UpdatedAt: testutil.T0, Region: domain.RegionLocal})
 	})
 	if err != nil {
@@ -54,6 +59,14 @@ func TestOpeningAWorkloadGivesAOneTimeURL(t *testing.T) {
 	}
 	if code, body := call(t, h, "POST", path, "globex", ""); code != http.StatusNotFound {
 		t.Errorf("another tenant: %d %v; want 404", code, body)
+	}
+	endpointPath := "/v1/workloads/" + endpoint.String() + "/access"
+	code, body = call(t, h, "POST", endpointPath, "acme", "")
+	if code != http.StatusCreated || body["url"] != "http://w-"+endpoint.String()+".localhost:8090/v1" || body["expires_at"] != nil {
+		t.Errorf("endpoint API access = %d %v; want a base URL without a ticket or expiry", code, body)
+	}
+	if code, _ := call(t, h, "POST", endpointPath, "globex", ""); code != http.StatusNotFound {
+		t.Errorf("another tenant's endpoint access: %d; want 404", code)
 	}
 
 	// Without the access proxy (any backend but agent), there's nothing to open it through.

@@ -305,13 +305,13 @@ func newController(cfg config.Config, log *slog.Logger, st store.Store, cat *cat
 	return func(ctx context.Context) error {
 		defer ctrl.Release(ctx) // only once this machine's agent and the access proxy have stopped too
 		return runAll(ctx, run, runLocalAgent(cfg, log, st, hub, ctrl.Leading()),
-			runAccessProxy(cfg, log, st, hub, ctrl.Leading()))
+			runAccessProxy(cfg, log, st, hub, cat, ctrl.Leading()))
 	}, nil
 }
 
 // runAccessProxy serves workloads' web servers at their own hosts (ADR-0017), once this process's
 // controller leads its region: the agent backend that knows where they listen is the leader's.
-func runAccessProxy(cfg config.Config, log *slog.Logger, st store.Store, hub *agents.Hub, leading <-chan struct{}) func(context.Context) error {
+func runAccessProxy(cfg config.Config, log *slog.Logger, st store.Store, hub *agents.Hub, cat *catalog.Catalog, leading <-chan struct{}) func(context.Context) error {
 	return func(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
@@ -319,7 +319,8 @@ func runAccessProxy(cfg config.Config, log *slog.Logger, st store.Store, hub *ag
 		case <-leading:
 		}
 		log = log.With("component", "access")
-		srv := &http.Server{Addr: cfg.AccessAddr, Handler: access.New(st, hub, log, nil), ReadHeaderTimeout: 10 * time.Second}
+		svc := service.New(st, cat, nil)
+		srv := &http.Server{Addr: cfg.AccessAddr, Handler: access.New(st, hub, log, nil).WithAPITokens(svc), ReadHeaderTimeout: 10 * time.Second}
 		errc := make(chan error, 1)
 		go func() { errc <- srv.ListenAndServe() }()
 		log.Info("access proxy listening", "addr", cfg.AccessAddr)
@@ -372,6 +373,13 @@ func runLocalAgent(cfg config.Config, log *slog.Logger, st store.Store, hub *age
 			if err == nil {
 				log.Info("this machine is registered", "machine", m.Name, "id", m.ID, "owner", cfg.MachineOwner, "region", m.Region)
 				drivers := localDrivers(cfg, idFile, log)
+				defer func() {
+					for _, driver := range drivers {
+						if closer, ok := driver.(interface{ Close() }); ok {
+							closer.Close()
+						}
+					}
+				}()
 				if len(drivers) == 0 {
 					log.Warn("this machine's agent has no drivers it can use, so workloads wait for a machine that can run them; " +
 						"TENSORA_AGENT_DRIVERS=sim simulates them in dev")

@@ -113,7 +113,7 @@ export const api = {
     request<Workload>("GET", workloadPath(id, includeDeleted ? "?include_deleted=true" : "")),
   workloadEvents: (id: string) => request<List<WorkloadEvent>>("GET", workloadPath(id, "/events")),
   exportWorkload,
-  /** A one-time URL that opens a running notebook through the access proxy (ADR-0017). */
+  /** A notebook's one-time link or an endpoint's API base URL (ADR-0017). */
   openWorkload: (id: string) => request<AccessGrant>("POST", workloadPath(id, "/access")),
   createWorkload: (input: CreateWorkload) => request<Workload>("POST", "/v1/workloads", input),
   stopWorkload: (id: string) => request<Workload>("POST", workloadPath(id, "/stop")),

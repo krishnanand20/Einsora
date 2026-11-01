@@ -55,9 +55,14 @@ controller places on it with its drivers (`TENSORA_AGENT_DRIVERS`; empty means e
   talk over IPC, both in a short run directory (`TENSORA_AGENT_RUN_DIR`, `~/.tensora/run` by default; macOS limits
   socket paths to 104 bytes). Its Python environment is built once per machine from a lock file with hashes
   (`internal/agent/drivers/macosnative/envs/`): a download of a few hundred MB, about 750 MB on disk. Notebooks keep
-  running across a `tensora` restart, and the driver finds them again. Endpoints are next (roadmap step 7b).
+  running across a `tensora` restart, and the driver finds them again.
   If an upgrade changes the sandbox, the driver stops older servers and kernels and records a
   `sandbox-changed` failure asking you to restart; notebook data is kept.
+  On macOS 14+, it also runs **MLX model endpoints** from `hf://org/model` or `s3://bucket/prefix`:
+  it fetches only allowed files, validates safetensors and configs, and serves a single model through
+  the access proxy. Endpoint weights stay in that workload's own directory and are removed with it.
+  Model downloads and loading appear in the timeline. The MLX environment is installed separately
+  from notebooks, from a pinned lock with hashes.
 - **`sim`** runs nothing and reports workloads as running, in dev only:
   `TENSORA_CLUSTER_BACKEND=agent TENSORA_AGENT_DRIVERS=sim TENSORA_MACHINE_OWNER=internal go run ./cmd/tensora dev`,
   then launch on `apple-silicon-32gb` (or whichever tier this Mac's memory holds) or a CPU class with `X-Dev-Tenant: internal`.
@@ -88,7 +93,7 @@ your laptop, use `TENSORA_CLUSTER_BACKEND=kubernetes`. It reads `KUBECONFIG`. Ne
 | GET | `/v1/workloads/{id}` | `?include_deleted=true` also finds a deleted workload. A workload shows where it runs once admitted: `region`, `placed_class`, and on agents `machine_id` and `driver`. |
 | POST | `/v1/workloads/{id}/stop` | 202; VMs and notebooks keep their disks |
 | POST | `/v1/workloads/{id}/start` | 202; re-checks quota |
-| POST | `/v1/workloads/{id}/access` | 201 `{url, expires_at}`: a one-time link that opens a running notebook in the browser through the access proxy, valid for 60 seconds ([ADR-0017](../docs/adr/0017-local-workload-access-and-native-drivers.md)). Agent backend only. |
+| POST | `/v1/workloads/{id}/access` | 201 `{url, expires_at}` for a notebook's one-time browser link (60 seconds), or `{url}` for an endpoint's `/v1` API base URL, requiring an API token per request ([ADR-0017](../docs/adr/0017-local-workload-access-and-native-drivers.md)). Agent backend only. |
 | DELETE | `/v1/workloads/{id}` | 202; idempotent |
 | GET | `/v1/workloads/{id}/events` | `{"items": [{id, from?, to, reason, at}]}`, the full timeline, oldest first. A note has `from` equal to `to`. Works after deletion. |
 | GET | `/v1/workloads/{id}/export` | The complete log as a JSON attachment (`tensora.workload-export/v1`): workload, inputs, timeline, usage (with its machine), `output_logs`, and `redactions`, plus the last placement (`last_placed_class`, `last_machine_id`, `last_driver`). Works after deletion. |
@@ -138,3 +143,16 @@ MLX Metal operations without downloading packages. From `controlplane/`:
 TENSORA_TEST_NATIVE_ENV="/absolute/path/to/native/envs/jupyterlab-pytorch-mps-<hash>" \
   go test ./internal/agent/drivers/macosnative -run TestRealNotebook -count=1 -v
 ```
+
+For the real endpoint integration check, install `uv sync --extra serve` in `ml/`, then run from
+`controlplane/`:
+
+```bash
+TENSORA_TEST_NATIVE_ENDPOINT_ENV="$PWD/../ml/.venv" \
+  go test ./internal/agent/drivers/macosnative -run TestRealEndpoint -count=1 -v
+```
+
+It creates a tiny random model, fetches it from a local S3 fixture, and tests safetensors validation,
+MLX Metal, chat completion, and SSE under the sandbox, without downloading model weights. After
+changing Python runtime sources, regenerate `runtime.zip` with `python3 ml/scripts/bundle_native.py`
+from the repository root; the native tests reject stale bundles.

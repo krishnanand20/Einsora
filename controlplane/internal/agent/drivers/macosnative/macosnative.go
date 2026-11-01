@@ -45,6 +45,12 @@ var envs embed.FS
 //go:embed sandbox.sb
 var sandboxProfile []byte
 
+// The bundle is generated from ml/src/tensora_ml, including the single model-policy validator.
+//
+//go:generate python3 ../../../../../ml/scripts/bundle_native.py
+//go:embed runtime.zip
+var nativeRuntime []byte
+
 const (
 	sandboxExec = "/usr/bin/sandbox-exec"
 	// envTimeout bounds building an environment, which downloads packages the first time.
@@ -79,12 +85,17 @@ type Driver struct {
 	runs      string // Options.Runs, resolved
 	profile   string // the sandbox profile, with the rules the driver adds
 	sandboxID string // the profile and directory mappings used by this version of the driver
+	ctx       context.Context
+	cancel    context.CancelFunc
+	buildWG   sync.WaitGroup
+	closed    bool // guarded by mu; no build may begin after Close starts waiting
 
 	mu       sync.Mutex
 	locks    map[uuid.UUID]*sync.Mutex    // one per workload
 	envMu    map[string]*sync.Mutex       // one per environment
 	trees    map[uuid.UUID][]process.Proc // each running workload's processes, as last seen
 	stopping map[uuid.UUID]bool           // workloads being stopped in the background
+	building map[uuid.UUID]string         // workload -> token of its active environment build
 }
 
 // New checks this Mac can run native workloads and prepares the driver's directory.
@@ -127,9 +138,12 @@ func New(opts Options) (*Driver, error) {
 		return nil, fmt.Errorf("macos-native needs a shorter directory for workloads' sockets than %s: macOS allows %d bytes in a socket's path", runs, protocol.MaxSocketPath+1)
 	}
 	sandboxSum := sha256.Sum256([]byte(profile + "\x00" + resolved(opts.State) + "\x00" + runs))
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Driver{opts: opts, uv: uv, home: home, runs: runs, profile: profile, sandboxID: hex.EncodeToString(sandboxSum[:]),
+		ctx: ctx, cancel: cancel,
 		locks: map[uuid.UUID]*sync.Mutex{},
 		envMu: map[string]*sync.Mutex{}, trees: map[uuid.UUID][]process.Proc{}, stopping: map[uuid.UUID]bool{},
+		building: map[uuid.UUID]string{},
 	}, nil
 }
 
@@ -213,6 +227,16 @@ func sbString(s string) (string, error) {
 
 func (d *Driver) Name() string { return domain.DriverMacOSNative }
 
+// Close cancels and joins environment builds before this agent gives up its machine lock. Running
+// workload processes stay alive and are adopted by the next agent.
+func (d *Driver) Close() {
+	d.mu.Lock()
+	d.closed = true
+	d.cancel()
+	d.mu.Unlock()
+	d.buildWG.Wait()
+}
+
 func (d *Driver) Accelerators() []domain.AcceleratorKind {
 	return []domain.AcceleratorKind{domain.AcceleratorApple} // as domain.LookupDriver says
 }
@@ -229,14 +253,17 @@ const (
 // state is what the driver keeps about one workload, so it finds it again after a restart. It's
 // owner-only: it holds the workload's token. The workload can read it but not change it.
 type state struct {
-	Attempt int64         `json:"attempt"`
-	Phase   string        `json:"phase"`
-	Code    protocol.Code `json:"code,omitempty"`
-	Proc    process.Proc  `json:"proc"`
-	Run     string        `json:"run"` // its run directory's name, in Options.Runs
-	Token   string        `json:"token"`
-	Runtime string        `json:"runtime"`
-	Sandbox string        `json:"sandbox"` // the profile and directory mappings this attempt started with
+	Attempt   int64               `json:"attempt"`
+	Phase     string              `json:"phase"`
+	Code      protocol.Code       `json:"code,omitempty"`
+	Proc      process.Proc        `json:"proc"`
+	Run       string              `json:"run"` // its run directory's name, in Options.Runs
+	Token     string              `json:"token"`
+	Runtime   string              `json:"runtime"`
+	Sandbox   string              `json:"sandbox"`        // the profile and directory mappings this attempt started with
+	Kind      domain.WorkloadKind `json:"kind,omitempty"` // empty in older notebook state files
+	ModelURI  string              `json:"model_uri,omitempty"`
+	MemoryMiB int64               `json:"memory_mib,omitempty"`
 }
 
 // runNameLen is the length of a run directory's name: short, for socket paths.
@@ -307,11 +334,16 @@ func (d *Driver) writeState(id uuid.UUID, st state) error {
 	return os.Rename(tmp, filepath.Join(d.dir(id), "state.json"))
 }
 
-// Run starts attempt w.Attempt of a notebook. It returns once the attempt is recorded; building
+// Run starts attempt w.Attempt of a notebook or endpoint. It returns once the attempt is recorded; building
 // the environment and starting the server happen in the background, shown as progressing.
 func (d *Driver) Run(_ context.Context, w protocol.Desired) error {
-	if w.Kind != domain.KindNotebook {
-		return agent.WithCode(protocol.CodeInvalid, fmt.Errorf("macos-native runs notebooks, not %s", w.Kind))
+	if w.Kind != domain.KindNotebook && w.Kind != domain.KindEndpoint {
+		return agent.WithCode(protocol.CodeInvalid, fmt.Errorf("macos-native runs notebooks and endpoints, not %s", w.Kind))
+	}
+	if w.Kind == domain.KindEndpoint && (w.Runtime.Ref != "mlx-lm" || w.Runtime.Server != "mlx" ||
+		w.Runtime.ModelFormat != "safetensors" || w.MemoryMiB <= 0 ||
+		(!strings.HasPrefix(w.ModelURI, "hf://") && !strings.HasPrefix(w.ModelURI, "s3://"))) {
+		return agent.WithCode(protocol.CodeInvalid, errors.New("native endpoints need the MLX safetensors runtime, a model source, and a memory allocation"))
 	}
 	lock, err := envs.ReadFile("envs/" + w.Runtime.Ref + ".txt")
 	if err != nil {
@@ -346,7 +378,8 @@ func (d *Driver) Run(_ context.Context, w protocol.Desired) error {
 	if err != nil {
 		return err
 	}
-	next := state{Attempt: w.Attempt, Phase: phasePreparing, Run: st.Run, Token: token, Runtime: w.Runtime.Ref, Sandbox: d.sandboxID}
+	next := state{Attempt: w.Attempt, Phase: phasePreparing, Run: st.Run, Token: token, Runtime: w.Runtime.Ref, Kind: w.Kind,
+		Sandbox: d.sandboxFingerprint(w.Kind), ModelURI: w.ModelURI, MemoryMiB: w.MemoryMiB}
 	if next.Run == "" {
 		if next.Run, err = d.newRunName(); err != nil {
 			return err
@@ -358,8 +391,32 @@ func (d *Driver) Run(_ context.Context, w protocol.Desired) error {
 		}
 		return err
 	}
-	go d.launch(w, next, lock)
+	d.launchInBackground(w, next, lock)
 	return nil
+}
+
+// A build can outlast a sync, and a control-plane restart can interrupt one. Only one goroutine per
+// attempt rebuilds/resumes its environment; a stopped or replaced attempt can't start a process.
+func (d *Driver) launchInBackground(w protocol.Desired, st state, lock []byte) {
+	d.mu.Lock()
+	if d.closed || d.building[w.ID] == st.Token {
+		d.mu.Unlock()
+		return
+	}
+	d.building[w.ID] = st.Token
+	d.buildWG.Add(1)
+	d.mu.Unlock()
+	go func() {
+		defer d.buildWG.Done()
+		defer func() {
+			d.mu.Lock()
+			if d.building[w.ID] == st.Token {
+				delete(d.building, w.ID)
+			}
+			d.mu.Unlock()
+		}()
+		d.launch(w, st, lock)
+	}()
 }
 
 // newRunName reserves a run directory before any environment build starts. Checking for an unused
@@ -385,11 +442,17 @@ func (d *Driver) newRunName() (string, error) {
 // files are for one run only.
 func (d *Driver) launch(w protocol.Desired, st state, lock []byte) {
 	env, err := d.ensureEnv(w.Runtime.Ref, lock)
+	if d.ctx.Err() != nil {
+		return
+	} // a new agent resumes preparation from the saved intent
 	mu := d.lock(w.ID)
 	mu.Lock()
 	defer mu.Unlock()
+	if d.ctx.Err() != nil {
+		return
+	}
 	current, _, readErr := d.readState(w.ID)
-	if readErr != nil || current.Attempt != st.Attempt || current.Phase != phasePreparing {
+	if readErr != nil || current.Attempt != st.Attempt || current.Token != st.Token || current.Phase != phasePreparing {
 		return // stopped or replaced while the environment was built
 	}
 	if err != nil {
@@ -406,7 +469,11 @@ func (d *Driver) launch(w protocol.Desired, st state, lock []byte) {
 		_ = d.writeState(w.ID, st)
 		return
 	}
-	proc, err := process.Start(d.notebook(w.ID, env, st))
+	spec := d.notebook(w.ID, env, st)
+	if w.Kind == domain.KindEndpoint {
+		spec = d.endpoint(w, env, st)
+	}
+	proc, err := process.Start(spec)
 	if err != nil {
 		d.opts.Log.Error("couldn't start a workload", "workload", w.ID, "err", redact.Secrets(err.Error()))
 		st.Phase, st.Code = phaseFailed, protocol.CodeDriverProblem
@@ -446,6 +513,16 @@ func (d *Driver) prepareRun(st state) error {
 // token goes in through the environment, which other users can't read, not the command line,
 // which they can.
 func (d *Driver) notebook(id uuid.UUID, env string, st state) process.Spec {
+	data := filepath.Join(d.dir(id), "data")
+	return d.command(id, env, st,
+		filepath.Join(resolved(env), "bin", "jupyter-lab"),
+		"--no-browser", "--ServerApp.sock="+d.socket(st), "--ServerApp.sock_mode=0600",
+		"--KernelManager.transport=ipc", "--ServerApp.root_dir="+data, "--ServerApp.allow_remote_access=False")
+}
+
+// command applies the same sandbox, private directories, and minimal environment to every native
+// runtime. Only the endpoint's fetch step gets the operator's model-download credentials.
+func (d *Driver) command(id uuid.UUID, env string, st state, command ...string) process.Spec {
 	env = resolved(env)
 	dir, run := d.dir(id), d.runDir(st)
 	home, data := filepath.Join(dir, "home"), filepath.Join(dir, "data")
@@ -456,12 +533,9 @@ func (d *Driver) notebook(id uuid.UUID, env string, st state) process.Spec {
 		"-D", "WORKLOAD=" + resolved(dir), "-D", "STATE=" + resolved(d.opts.State), "-D", "ENV=" + resolved(env),
 		"-D", "PYTHONS=" + resolved(filepath.Join(d.opts.Root, "python")),
 		"-D", "RUNS=" + d.runs, "-D", "RUN=" + resolved(run),
-		filepath.Join(env, "bin", "jupyter-lab"),
-		"--no-browser", "--ServerApp.sock=" + d.socket(st), "--ServerApp.sock_mode=0600",
-		"--KernelManager.transport=ipc", "--ServerApp.root_dir=" + data, "--ServerApp.allow_remote_access=False",
 	}
 	return process.Spec{
-		Path: sandboxExec, Args: args, Dir: data,
+		Path: sandboxExec, Args: append(args, command...), Dir: data,
 		Env: []string{
 			"PATH=" + filepath.Join(env, "bin") + ":/usr/bin:/bin:/usr/sbin:/sbin",
 			"HOME=" + home, "TMPDIR=" + filepath.Join(run, "tmp"), "LANG=en_US.UTF-8",
@@ -495,6 +569,13 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 	d.mu.Unlock()
 	mu.Lock()
 	defer mu.Unlock()
+	ctx, cancel := context.WithTimeout(d.ctx, envTimeout)
+	defer cancel()
+	buildLock, err := lockEnvironment(ctx, filepath.Join(d.opts.Root, "envs", name+".build.lock"))
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = buildLock.Close() }()
 	marker := filepath.Join(dir, ".tensora-ready")
 	if _, err := os.Stat(marker); err == nil {
 		return dir, nil
@@ -504,8 +585,6 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 	if err := os.WriteFile(lockFile, lock, 0o600); err != nil {
 		return "", err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), envTimeout)
-	defer cancel()
 	uvEnv := []string{"PATH=/usr/bin:/bin:/usr/sbin:/sbin", "HOME=" + d.home,
 		"UV_CACHE_DIR=" + filepath.Join(d.opts.Root, "uv-cache"),
 		"UV_PYTHON_INSTALL_DIR=" + filepath.Join(d.opts.Root, "python"),
@@ -523,8 +602,16 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 	} {
 		cmd := exec.CommandContext(ctx, d.uv, args...) //nolint:gosec // fixed arguments
 		cmd.Env = uvEnv
+		// The uv child retains the flock if Tensora crashes. A recovering process waits until
+		// that child exits before removing or rebuilding the same environment directory.
+		cmd.ExtraFiles = []*os.File{buildLock}
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("uv %s: %w: %s", args[0], err, tail(out))
+		}
+	}
+	if ref == "mlx-lm" {
+		if err := os.WriteFile(filepath.Join(dir, "tensora-runtime.zip"), nativeRuntime, 0o600); err != nil {
+			return "", err
 		}
 	}
 	if err := os.WriteFile(marker, sum[:], 0o600); err != nil {
@@ -535,6 +622,9 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 
 // envDir is where the environment for a runtime's lock lives.
 func (d *Driver) envDir(ref string, lock []byte) (name, dir string) {
+	if ref == "mlx-lm" {
+		lock = append(append([]byte(nil), lock...), nativeRuntime...)
+	}
 	sum := sha256.Sum256(lock)
 	name = ref + "-" + hex.EncodeToString(sum[:6])
 	return name, filepath.Join(d.opts.Root, "envs", name)
@@ -674,7 +764,7 @@ func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 		// An older sandbox may allow TCP listeners. Stop its processes before reporting a failure;
 		// a new attempt can reuse the saved notebook data under the current sandbox. This also
 		// handles the old TCP state format, which has no run directory or sandbox fingerprint.
-		if (st.Run == "" || st.Sandbox != d.sandboxID) && (st.Phase == phaseRunning || st.Phase == phasePreparing) {
+		if (st.Run == "" || st.Sandbox != d.sandboxFingerprint(st.Kind)) && (st.Phase == phaseRunning || st.Phase == phasePreparing) {
 			d.see(id, st.Proc)
 			st.Phase, st.Code = phaseStopping, protocol.CodeSandboxChanged
 			if err := d.writeState(id, st); err != nil {
@@ -687,6 +777,16 @@ func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 		switch st.Phase {
 		case phasePreparing:
 			s.State, s.Code = protocol.StateProgressing, protocol.CodePreparing
+			// No workload process exists until its environment is ready. After a restart, resume
+			// that work from persisted intent instead of remaining in preparing forever.
+			if lock, err := envs.ReadFile("envs/" + st.Runtime + ".txt"); err == nil {
+				kind := st.Kind
+				if kind == "" {
+					kind = domain.KindNotebook
+				}
+				d.launchInBackground(protocol.Desired{ID: id, Attempt: st.Attempt, Kind: kind,
+					ModelURI: st.ModelURI, MemoryMiB: st.MemoryMiB, Runtime: protocol.Runtime{Ref: st.Runtime}}, st, lock)
+			}
 		case phaseFailed:
 			s.State, s.Code = protocol.StateFailed, st.Code
 		case phaseStopping:
@@ -703,10 +803,16 @@ func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 			case !alive:
 				process.StopAll(d.forget(id), 0) // its kernels would go on without it
 				s.State, s.Code = protocol.StateFailed, protocol.CodeExited
+				if st.Kind == domain.KindEndpoint {
+					s.Code = d.endpointCode(st, true)
+				}
 			case d.healthy(ctx, d.socket(st)):
 				s.State, s.Access = protocol.StateReady, &protocol.Access{Socket: d.socket(st), Token: st.Token}
 			default:
 				s.State, s.Code = protocol.StateProgressing, protocol.CodeStarting
+				if st.Kind == domain.KindEndpoint {
+					s.Code = d.endpointCode(st, false)
+				}
 			}
 		default:
 			s.State = protocol.StateFailed

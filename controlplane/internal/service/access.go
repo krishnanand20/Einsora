@@ -15,8 +15,9 @@ import (
 // follow it, too short to be worth stealing.
 const AccessTicketTTL = time.Minute
 
-// OpenWorkload issues a one-time ticket to open a running notebook through the access proxy
-// (ADR-0017). Only the workload's tenant can, as with everything else about it (404 for others).
+// OpenWorkload authorizes access to a running notebook or endpoint through the access proxy.
+// Notebooks get a one-time ticket; endpoints return an empty ticket and expiry because their
+// address needs an API token on every request. Only the workload's tenant can (404 for others).
 // The ticket itself is returned once; only its hash is stored. Who opened it goes in its timeline,
 // like who started or stopped it: opening a notebook is access to its data.
 func (s *Service) OpenWorkload(ctx context.Context, p domain.Principal, id uuid.UUID) (string, time.Time, error) {
@@ -31,12 +32,16 @@ func (s *Service) OpenWorkload(ctx context.Context, p domain.Principal, id uuid.
 		switch {
 		case err != nil:
 			return err
-		case w.Kind != domain.KindNotebook:
-			return domain.Errorf(domain.CodeInvalid, "only notebooks open in the browser so far; endpoints get an address with roadmap step 7b")
+		case w.Kind != domain.KindNotebook && w.Kind != domain.KindEndpoint:
+			return domain.Errorf(domain.CodeInvalid, "only notebooks and endpoints have web access")
 		case w.State != domain.StateRunning:
 			return domain.Errorf(domain.CodeConflict, "it isn't running")
 		case w.MachineID == uuid.Nil:
 			return domain.Errorf(domain.CodeInvalid, "opening workloads that run on Kubernetes isn't available yet")
+		}
+		if w.Kind == domain.KindEndpoint {
+			ticket, expires = "", time.Time{}
+			return Note(ctx, q, w, "endpoint API address requested by "+p.Actor(), now)
 		}
 		if err := q.DeleteExpiredAccessTickets(ctx, now); err != nil {
 			return err

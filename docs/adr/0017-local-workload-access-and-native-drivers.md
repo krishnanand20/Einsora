@@ -63,7 +63,7 @@ SIGTERM to all of them, then SIGKILL to whatever is left, and when the server di
 left is stopped too. A process that leaves the tree on purpose (it starts a new session and its
 parent exits before the driver looks) isn't found; macOS has no cgroups to hold it.
 
-**`macos-native`** builds one environment per runtime (`jupyterlab-pytorch-mps`), from a lock file with
+**`macos-native`** builds one environment per runtime (`jupyterlab-pytorch-mps`, `mlx-lm`), from a lock file with
 hashes embedded in the binary, with `uv` (found on `PATH` for now; downloading it is packaging, step
 11). It installs only wheels (`--no-build`), checked against the lock's hashes, with an environment
 of its own (not the control plane's), since the build runs outside the sandbox. It runs the workload
@@ -98,6 +98,38 @@ fixed `sandbox-changed` reason asking the owner to restart. This includes server
 implementation, which have no fingerprint. Notebook data is kept, and a new attempt uses the updated
 sandbox. An ordinary control-plane restart with the same sandbox adopts the existing processes.
 
+**Native model endpoints (step 7b).** The MLX runtime is pinned separately from notebooks and needs
+macOS 14 or later. The driver embeds a deterministic bundle of `ml/src/tensora_ml`, including the
+same `validate_model_dir` enforcement point used by `tensora-ml validate`; a test refuses a stale
+bundle. Changing the worker changes the endpoint's runtime and sandbox fingerprint.
+
+The worker downloads only allowed files from the workload's `hf://` or `s3://` source into that
+workload's private directory. Hugging Face downloads resolve a commit before fetching files. File
+names are checked before joining paths, advertised sizes are bounded by the allocation's memory,
+and the validator checks the complete downloaded model before any weights are loaded. Only accepted
+files are published, with a SHA-256 manifest. A reused snapshot must match its source, policy, size,
+and every checksum. Models are never shared between workloads or regions.
+
+Download credentials (`HF_TOKEN` or explicit AWS environment credentials) are used only for fetching.
+Before loading, the worker re-execs with those credentials removed and Hub/Transformers offline from
+process startup. MLX loads only the validated local directory with remote code disabled and Metal
+required. The HTTP API exposes only model listing, text completions, and text chat completions,
+including SSE and token usage. It serves exactly one model; requests cannot select other models,
+adapters, files, or custom code. Request bodies, output tokens, context length, concurrent requests,
+and stalled socket reads are bounded; generation is serialized while health checks remain available.
+
+`POST /v1/workloads/{id}/access` returns an endpoint's `/v1` base URL without a ticket or expiry. Each
+inference request must use an existing local API token. The proxy rechecks its user, expiry,
+revocation, tenant, and workload state on every request (404 across tenants), strips all browser
+cookies, and replaces the user's token with the worker's private token. Responses identify their
+region, actual compute class, and fallback status; errors carry a server-generated request ID.
+Endpoint-scoped keys and request failover remain Phase 2.
+
+Environment preparation resumes from saved intent after a control-plane restart. Builds take a
+per-environment OS lock inherited by the `uv` child, so a child surviving a crash cannot race a
+recovered build. Graceful shutdown cancels and joins builds before giving up the machine lock;
+already running workload processes stay alive.
+
 ## Consequences
 
 - Opening a workload never puts a long-lived credential in a URL, and a workload can't act as the user
@@ -113,7 +145,9 @@ sandbox. An ordinary control-plane restart with the same sandbox adopts the exis
   dashboard. A session isn't checked against the user's access again until it ends, so a user
   removed from a tenant keeps an open notebook tab for up to 12 hours, or until it stops. Tickets live
   in the store, so the API and the proxy can run in different processes.
-- Endpoints (step 7b) are reached through the same proxy, with an API token instead of a cookie.
+- Endpoints are reached through the same proxy, with an API token instead of a cookie. They support
+  text chat and text completions with `max_tokens`, `temperature`, `top_p`, and streaming; unsupported
+  options (tools, images, adapters, alternate models) are refused explicitly.
 - `uv` must be installed until packaging (step 11) ships it. The first notebook downloads its
   environment (a download of a few hundred MB, about 750 MB on disk, with PyTorch and MLX) once per machine.
 - Processes outlive a `tensora` restart, and the driver adopts them again. If the state directory is

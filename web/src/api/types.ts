@@ -132,8 +132,8 @@ export interface ApiErrorBody {
   error: { code: string; message: string; request_id?: string };
 }
 
-/** A one-time URL to open a running workload in the browser, at its own host (ADR-0017). */
+/** Notebook links are one-time; endpoint base URLs require an API token on every request. */
 export interface AccessGrant {
   url: string;
-  expires_at: string;
+  expires_at?: string;
 }

@@ -38,12 +38,12 @@ internal/agent/         the node agent: syncs with the control plane and runs wo
   drivers/inventory/    CPUs, memory, and GPUs, per OS behind build tags
   drivers/hostlock/     one agent per machine: an OS lock (flock) on its state directory
   drivers/process/      the process supervisor for native drivers: process groups, log files, start-time checks (Unix)
-  drivers/macosnative/  macos-native (darwin): JupyterLab in a uv environment from a hashed lock, under sandbox-exec
+  drivers/macosnative/  macos-native (darwin): JupyterLab and MLX endpoints in hashed uv environments under sandbox-exec
 internal/metering/      usage accounting: events → metered intervals → hourly usage records (no money)
 internal/devseed/       dev tenants (acme and globex untrusted, internal trusted)
 internal/testutil/      fixtures: real catalog, seeded store, manual clock
 migrations/             goose SQL files embedded into the binary: postgres/ and sqlite/, one file per version in each
-(planned) internal/agent/drivers/    macosnative endpoints (step 7b), docker (step 7c); macosvz, macoscontainer, libvirt (Phase 2)
+(planned) internal/agent/drivers/    docker (step 7c); macosvz, macoscontainer, libvirt (Phase 2)
 (planned) the HTTPS agent transport, enrolment, and agent certificates (Phase 2)
 ```
 

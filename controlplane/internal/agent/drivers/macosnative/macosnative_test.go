@@ -40,6 +40,15 @@ func TestMain(m *testing.M) {
 		time.Sleep(2 * time.Minute)
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "fake-endpoint" {
+		fakeEndpoint(os.Args[2:])
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "fake-env-lock" {
+		_, _ = fmt.Fprintln(os.Stdout, "ready")
+		time.Sleep(2 * time.Minute)
+		return
+	}
 	os.Exit(m.Run())
 }
 
@@ -151,6 +160,7 @@ func newDriver(t *testing.T, private ...string) (*Driver, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(d.Close)
 	lock, _ := envs.ReadFile("envs/" + runtimeRef + ".txt")
 	_, env := d.envDir(runtimeRef, lock)
 	self, _ := os.Executable()

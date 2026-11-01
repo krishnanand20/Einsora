@@ -12,6 +12,30 @@ The ML-specific work behind the platform, shipped as the `tensora-ml` CLI. It ru
 
 All output is JSON. A failed check exits with code 1.
 
+The native macOS driver also runs `tensora_ml.native`: a single validated MLX model on a private Unix
+socket. `local.py` fetches Hugging Face or S3 files into that workload's own storage, validates them,
+and publishes a checksum manifest. The worker restarts offline without fetch credentials before
+loading; it cannot select another model or enable remote code through an API request. MLX and its
+tokenizer dependencies are the optional `serve` extra and import only inside the serving path.
+
+The Go binary embeds these Python sources so it uses the same validator without needing a repository
+checkout at runtime. After changing `ml/src/tensora_ml/*.py`, regenerate the deterministic bundle:
+
+```bash
+python3 ml/scripts/bundle_native.py   # from the repository root
+```
+
+On Apple Silicon, test a real sandboxed endpoint with a tiny randomly generated safetensors model
+and a local S3 fixture (no model downloads):
+
+```bash
+cd ml
+uv sync --extra serve
+cd ../controlplane
+TENSORA_TEST_NATIVE_ENDPOINT_ENV="$PWD/../ml/.venv" \
+  go test ./internal/agent/drivers/macosnative -run TestRealEndpoint -count=1 -v
+```
+
 ## Develop
 
 ```bash

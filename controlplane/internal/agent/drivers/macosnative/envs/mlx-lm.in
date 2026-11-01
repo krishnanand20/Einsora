@@ -1,0 +1,7 @@
+# Native endpoint runtime. Only pinned wheels from mlx-lm.txt are installed.
+# Rebuild from this directory with:
+# MACOSX_DEPLOYMENT_TARGET=14.0 uv pip compile mlx-lm.in --python-version 3.12 --python-platform aarch64-apple-darwin \
+#   --generate-hashes --no-header -o mlx-lm.txt
+mlx-lm==0.32.2
+huggingface-hub
+boto3

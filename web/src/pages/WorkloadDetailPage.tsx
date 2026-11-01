@@ -49,6 +49,9 @@ export function WorkloadDetailPage() {
       }
     },
   });
+  const connection = useMutation({
+    mutationFn: async () => ({ id, grant: await api.openWorkload(id) }),
+  });
 
   if (workload.isPending) return <p>Loading…</p>;
   if (workload.isError) return <p className="error">{workload.error.message}</p>;
@@ -67,6 +70,11 @@ export function WorkloadDetailPage() {
               {open.isPending ? "Opening…" : "Open"}
             </button>
           )}
+          {w.kind === "endpoint" && w.state === "running" && w.machine_id && (
+            <button disabled={connection.isPending} onClick={() => connection.mutate()}>
+              {connection.isPending ? "Loading…" : "API connection"}
+            </button>
+          )}
           <button disabled={download.isPending} onClick={() => download.mutate()}>
             {download.isPending ? "Preparing…" : "Download full log"}
           </button>
@@ -74,6 +82,16 @@ export function WorkloadDetailPage() {
       </div>
       {download.isError && <p className="error">{download.error.message}</p>}
       {open.isError && <p className="error">{open.error.message}</p>}
+      {connection.isError && <p className="error">{connection.error.message}</p>}
+      {connection.data?.id === id && w.kind === "endpoint" && w.state === "running" && (
+        <div>
+          <p>OpenAI-compatible base URL: <code>{connection.data.grant.url}</code></p>
+          <p>
+            Send an API token from <Link to="/tokens">API tokens</Link> as{" "}
+            <code>Authorization: Bearer &lt;token&gt;</code>. Use <code>/models</code> to see the model name.
+          </p>
+        </div>
+      )}
       <p className="muted">
         {w.kind} · <span className={`state state-${w.state}`}>{w.state}</span> · {classShown(w)} · region {w.region} · id{" "}
         {w.id}

@@ -48,6 +48,7 @@ type Server struct {
 	targets Targets
 	log     *slog.Logger
 	now     func() time.Time
+	tokens  TokenResolver
 
 	mu       sync.Mutex
 	sessions map[string]session // by the SHA-256 of the cookie's value
@@ -76,6 +77,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	id := uuid.MustParse(m[1])
 	if r.URL.Path == openPath {
 		s.open(w, r, id)
+		return
+	}
+	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") || strings.HasPrefix(r.URL.Path, "/v1/") {
+		s.endpoint(w, r, id)
 		return
 	}
 	key, sess, ok := s.session(r, id)

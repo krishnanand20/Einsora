@@ -88,7 +88,7 @@ func TestOnlyRunningNotebooksOnAMachineOpen(t *testing.T) {
 	}{
 		{"a notebook still starting", domain.KindNotebook, domain.StateProvisioning, true, domain.CodeConflict},
 		{"a stopped notebook", domain.KindNotebook, domain.StateStopped, true, domain.CodeConflict},
-		{"an endpoint (step 7b)", domain.KindEndpoint, domain.StateRunning, true, domain.CodeInvalid},
+		{"an endpoint still starting", domain.KindEndpoint, domain.StateProvisioning, true, domain.CodeConflict},
 		{"a notebook on Kubernetes", domain.KindNotebook, domain.StateRunning, false, domain.CodeInvalid},
 	}
 	for _, tt := range tests {
@@ -97,6 +97,17 @@ func TestOnlyRunningNotebooksOnAMachineOpen(t *testing.T) {
 			t.Errorf("%s: %v; want %s", tt.name, err, tt.want)
 		}
 	}
+}
+
+func TestEndpointAccessDoesNotIssueABrowserTicket(t *testing.T) {
+	svc, st := setup(t)
+	id := running(t, st, domain.KindEndpoint, domain.StateRunning, true)
+	ticket, expires, err := svc.OpenWorkload(context.Background(), testutil.Acme, id)
+	if err != nil || ticket != "" || !expires.IsZero() {
+		t.Fatalf("endpoint access = %q, %v, %v; want no ticket or expiry", ticket, expires, err)
+	}
+	_, _, err = svc.OpenWorkload(context.Background(), testutil.Globex, id)
+	wantCode(t, err, domain.CodeNotFound)
 }
 
 // Expired tickets are cleared as new ones are made, so the table doesn't grow.

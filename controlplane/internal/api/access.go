@@ -10,13 +10,13 @@ import (
 )
 
 type accessView struct {
-	// URL opens the workload in a browser, once, within a minute (ADR-0017).
-	URL       string    `json:"url"`
-	ExpiresAt time.Time `json:"expires_at"`
+	// URL is a notebook's one-time browser link or an endpoint's API-token-protected base URL.
+	URL       string     `json:"url"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 }
 
-// openWorkload gives the caller a one-time URL to open a running notebook through the access
-// proxy, at the workload's own host, w-<id>.localhost, a different site from the dashboard.
+// openWorkload gives the caller a running notebook's one-time link or an endpoint's base URL,
+// through the access proxy at the workload's own host, separate from the dashboard.
 func (s *Server) openWorkload(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 	id, err := pathID(r)
 	if err != nil {
@@ -31,6 +31,13 @@ func (s *Server) openWorkload(w http.ResponseWriter, r *http.Request, p domain.P
 	}
 	u := url.URL{Scheme: "http", Host: fmt.Sprintf("w-%s.localhost:%d", id, s.accessPort), Path: "/_tensora/open",
 		RawQuery: url.Values{"ticket": {ticket}}.Encode()}
-	writeJSON(w, http.StatusCreated, accessView{URL: u.String(), ExpiresAt: expires})
+	grant := accessView{}
+	if ticket == "" {
+		u.Path, u.RawQuery = "/v1", ""
+	} else {
+		grant.ExpiresAt = &expires
+	}
+	grant.URL = u.String()
+	writeJSON(w, http.StatusCreated, grant)
 	return nil
 }

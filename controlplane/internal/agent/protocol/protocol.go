@@ -153,19 +153,23 @@ func (a Access) LogValue() slog.Value { return slog.GroupValue(slog.String("sock
 type Code string
 
 const (
-	CodeStarting       Code = "starting"
-	CodePreparing      Code = "preparing"         // getting its software ready, which can take minutes the first time
-	CodeDevicesBusy    Code = "devices-busy"      // waiting for another workload to free its GPU
-	CodeExited         Code = "exited"            // it stopped by itself
-	CodeOutOfMemory    Code = "out-of-memory"     //
-	CodeNoDriver       Code = "no-driver"         // the agent doesn't have the driver it was given
-	CodeIsolation      Code = "isolation"         // the driver isolates less strongly than required
-	CodeImage          Code = "image-unavailable" // the image or model couldn't be fetched
-	CodeInvalid        Code = "invalid"           // the agent can't run what it was given
-	CodeDriverProblem  Code = "driver-problem"    // the driver failed; the agent's log has details
-	CodeRemovingFailed Code = "removing-failed"   // removing it failed; retried
-	CodeDiskMissing    Code = "disk-missing"      // a workload that ran here before has no data here now
-	CodeSandboxChanged Code = "sandbox-changed"   // an old native server must stop before using the updated sandbox
+	CodeStarting        Code = "starting"
+	CodePreparing       Code = "preparing"         // getting its software ready, which can take minutes the first time
+	CodeDevicesBusy     Code = "devices-busy"      // waiting for another workload to free its GPU
+	CodeExited          Code = "exited"            // it stopped by itself
+	CodeOutOfMemory     Code = "out-of-memory"     //
+	CodeNoDriver        Code = "no-driver"         // the agent doesn't have the driver it was given
+	CodeIsolation       Code = "isolation"         // the driver isolates less strongly than required
+	CodeImage           Code = "image-unavailable" // the image or model couldn't be fetched
+	CodeInvalid         Code = "invalid"           // the agent can't run what it was given
+	CodeDriverProblem   Code = "driver-problem"    // the driver failed; the agent's log has details
+	CodeRemovingFailed  Code = "removing-failed"   // removing it failed; retried
+	CodeDiskMissing     Code = "disk-missing"      // a workload that ran here before has no data here now
+	CodeSandboxChanged  Code = "sandbox-changed"   // an old native server must stop before using the updated sandbox
+	CodeFetchingModel   Code = "fetching-model"
+	CodeValidatingModel Code = "validating-model"
+	CodeLoadingModel    Code = "loading-model"
+	CodeModelRejected   Code = "model-rejected"
 )
 
 // Reason is the text an owner reads for code. Unknown codes, which a newer or hostile agent could
@@ -198,6 +202,14 @@ func Reason(code Code) string {
 		return "its disk isn't on its machine any more"
 	case CodeSandboxChanged:
 		return "its native sandbox changed; restart the workload to use the updated protections"
+	case CodeFetchingModel:
+		return "downloading its model to its own machine"
+	case CodeValidatingModel:
+		return "checking its model against the code-free model policy"
+	case CodeLoadingModel:
+		return "loading its validated model on its machine's GPU"
+	case CodeModelRejected:
+		return "its model failed the code-free model policy; use valid safetensors weights without custom code"
 	}
 	return "its machine reported a problem"
 }
@@ -216,7 +228,7 @@ func ProgressReason(code Code) string {
 // a known code, which a hostile or buggy agent could send, reads as a problem, never as "starting".
 func FailureReason(code Code) string {
 	switch code {
-	case "", CodeStarting, CodePreparing, CodeDevicesBusy, CodeRemovingFailed:
+	case "", CodeStarting, CodePreparing, CodeDevicesBusy, CodeRemovingFailed, CodeFetchingModel, CodeValidatingModel, CodeLoadingModel:
 		return Reason("unknown")
 	}
 	return Reason(code)

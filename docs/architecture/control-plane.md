@@ -80,6 +80,16 @@ older servers and kernels before reporting a `sandbox-changed` failure; the owne
 workload with its saved notebook data under the new sandbox. Ordinary restarts adopt the existing
 processes when the recorded sandbox fingerprint still matches.
 
+Native MLX endpoints use the same Unix-socket sandbox. Their worker fetches allowed model files into
+private workload storage, runs the shared ML validator, and records a checksum manifest before
+loading the local safetensors model. It then serves one fixed model in an offline process with
+download credentials removed. `/v1/models`, `/v1/completions`, and `/v1/chat/completions` (including
+SSE) are the only endpoint routes. Existing API tokens are checked on every request; browser cookies
+cannot authenticate inference. The proxy scopes lookup by the token's tenant, verifies the endpoint
+is running locally, and adds the worker's own token. An endpoint's access grant contains its `/v1`
+base URL without a ticket or expiry. Responses include request ID, region, actual compute class,
+and fallback status. Endpoint-scoped keys and request failover are Phase 2.
+
 ## Workload lifecycle
 
 Source: `controlplane/internal/domain/state.go`. Keep this diagram in sync with it.
