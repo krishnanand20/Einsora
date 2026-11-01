@@ -32,7 +32,7 @@ func accelerators(ctx context.Context, _ int64) []domain.Accelerator {
 	}
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, path, "--query-gpu=name,memory.total", "--format=csv,noheader,nounits").Output()
+	out, err := exec.CommandContext(ctx, path, "--query-gpu=name,memory.total", "--format=csv,noheader,nounits").Output() //nolint:gosec // nvidia-smi found on PATH, with fixed arguments
 	if err != nil {
 		return nil
 	}

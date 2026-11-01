@@ -103,8 +103,9 @@ lint: lint-cp lint-ml lint-web lint-yaml ## Run all linters
 
 lint-cp:
 	cd $(CP) && test -z "$$(gofmt -l .)" || (gofmt -l . && echo 'run: make fmt' && exit 1)
-	cd $(CP) && go vet ./...
+	cd $(CP) && go vet ./... && GOOS=linux go vet ./...
 	cd $(CP) && $(GOLANGCI_LINT) run
+	cd $(CP) && GOOS=linux $(GOLANGCI_LINT) run # Linux-only files (drivers), even on a Mac
 
 lint-ml:
 	@$(UNHIDE_VENV)
