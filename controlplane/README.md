@@ -5,7 +5,8 @@ The subcommand picks the role:
 
 | Command | Role | Needs | Status |
 |---|---|---|---|
-| `einsora api` | REST API under `/v1` | A store: a SQLite file or Postgres | Built |
+| `einsora up` | **Solo**: everything below in one process, with the dashboard built in, on `127.0.0.1:8080`. Its data (SQLite, this machine's identity, workloads, and `einsora.log`) is in one owner-only directory: `EINSORA_DATA_DIR`, or `~/Library/Application Support/Einsora` on macOS and `~/.local/share/einsora` on Linux. The first time, it asks for the owner account | Nothing: every `EINSORA_*` setting overrides a Solo default | Built |
+| `einsora api` | REST API under `/v1`, and the dashboard when the binary carries it | A store: a SQLite file or Postgres | Built |
 | `einsora controller` | Reconciles workload intent with the runtime. With `EINSORA_CLUSTER_BACKEND=agent`, also runs this machine's agent in-process | A store, plus Kubernetes credentials, or the agent backend | Built |
 | `einsora metering` | Usage accounting: lifecycle events → hourly usage records, for quotas and fairness (no money) | A store | Built |
 | `einsora migrate` | Applies the SQL migrations embedded in the binary | Postgres, or a SQLite file (also migrated whenever it's opened) | Built |
@@ -130,8 +131,9 @@ lifecycle, admission, and usage accounting is in [docs/architecture/control-plan
 ## Build
 
 ```bash
-go build -o bin/einsora ./cmd/einsora          # for this machine
-make -C .. build-all                           # linux/amd64, linux/arm64, darwin/arm64 into bin/
+make -C .. build                               # for this machine, with the dashboard built in: bin/einsora
+go build -o bin/einsora ./cmd/einsora          # the same, without the dashboard (the API works)
+make -C .. build-all                           # linux/amd64, linux/arm64, darwin/arm64 into bin/, with the dashboard
 docker build -t einsora-controlplane .         # Linux container image (Datacenter profile)
 ```
 

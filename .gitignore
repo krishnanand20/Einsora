@@ -25,6 +25,9 @@ docker-state/
 
 # Go
 controlplane/bin/
+# The dashboard built into the binary (make web-embed); only the placeholder is committed
+controlplane/internal/webui/dist/*
+!controlplane/internal/webui/dist/.gitkeep
 *.test
 *.out
 coverage.*

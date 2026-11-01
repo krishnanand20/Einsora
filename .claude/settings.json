@@ -30,7 +30,10 @@
       "Edit(/.claude/skills/add-api-resource/**)",
       "Edit(/.claude/skills/add-platform-component/**)",
       "Bash(python3 -)",
-      "Bash(grep -rn --include='*.md' -iE 'small GPU cloud|multiple regions|Razorpay or Stripe|\\\\.ep\\\\.<domain>|<id>\\\\.ep\\\\.|MIG.*Phase 4|Phase 4.*MIG|\\\\| — \\\\|$|Maps to' .)"
+      "Bash(grep -rn --include='*.md' -iE 'small GPU cloud|multiple regions|Razorpay or Stripe|\\\\.ep\\\\.<domain>|<id>\\\\.ep\\\\.|MIG.*Phase 4|Phase 4.*MIG|\\\\| — \\\\|$|Maps to' .)",
+      "Bash(rmdir site/.wrangler/tmp site/.wrangler)",
+      "Bash(git commit -q -m 'chore\\(site\\): ignore Wrangler'\\\\''s local cache *)",
+      "Bash(git commit -q -m 'chore: fill in the project'\\\\''s contact details and image registry *)"
     ],
     "deny": [
       "Read(**/.env)",

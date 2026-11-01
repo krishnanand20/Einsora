@@ -139,8 +139,18 @@ deploy-check: ## Lint + render charts and validate with kubeconform (no cluster 
 # ---------------------------------------------------------------- cross-platform builds (AGENTS.md rule 11)
 PLATFORMS := linux/amd64 linux/arm64 darwin/arm64
 
-.PHONY: build-all
-build-all: ## Cross-compile einsora for linux/amd64, linux/arm64, darwin/arm64 into controlplane/bin/
+.PHONY: build build-all web-embed catalog
+build: web-embed ## Build einsora for this machine, with its dashboard, into controlplane/bin/einsora
+	cd $(CP) && CGO_ENABLED=0 go build -trimpath -o bin/einsora ./cmd/einsora
+
+web-embed: ## Build the dashboard and copy it into the binary's sources (controlplane/internal/webui/dist)
+	cd $(WEB) && npm run build
+	rsync -a --delete --exclude .gitkeep $(WEB)/dist/ $(CP)/internal/webui/dist/
+
+catalog: ## Copy images/catalog.yaml into the binary's built-in catalog
+	cp images/catalog.yaml $(CP)/internal/catalog/default.yaml
+
+build-all: web-embed ## Cross-compile einsora, with its dashboard, for linux/amd64, linux/arm64, darwin/arm64 into controlplane/bin/
 	cd $(CP) && for p in $(PLATFORMS); do \
 	  os=$${p%/*}; arch=$${p#*/}; \
 	  echo "building einsora for $$os/$$arch"; \

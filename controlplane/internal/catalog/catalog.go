@@ -2,6 +2,7 @@
 package catalog
 
 import (
+	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -134,13 +135,28 @@ type Catalog struct {
 	Images     []Image    `json:"images"`
 }
 
-// Load reads and validates a catalog file. Unknown fields are errors.
+// defaultCatalog is images/catalog.yaml, built into the binary so `einsora up` runs from anywhere.
+// TestDefaultMatchesImages fails when the copy is out of date (make catalog refreshes it).
+//
+//go:embed default.yaml
+var defaultCatalog []byte
+
+// Load reads and validates a catalog file, or the built-in catalog when path is empty. Unknown
+// fields are errors.
 func Load(path string) (*Catalog, error) {
-	// The path comes from operator config (EINSORA_CATALOG_PATH), never from a request.
-	raw, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return nil, fmt.Errorf("read catalog: %w", err)
+	raw, name := defaultCatalog, "(built in)"
+	if path != "" {
+		// The path comes from operator config (EINSORA_CATALOG_PATH), never from a request.
+		var err error
+		if raw, err = os.ReadFile(filepath.Clean(path)); err != nil {
+			return nil, fmt.Errorf("read catalog: %w", err)
+		}
+		name = path
 	}
+	return parse(raw, name)
+}
+
+func parse(raw []byte, path string) (*Catalog, error) {
 	var c Catalog
 	if err := yaml.UnmarshalStrict(raw, &c); err != nil {
 		return nil, fmt.Errorf("parse catalog %s: %w", path, err)

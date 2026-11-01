@@ -40,7 +40,16 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
         with:
           working-directory: controlplane
-      - name: cross-compile (linux/amd64, linux/arm64, darwin/arm64)
+      # The binaries carry the dashboard (make web-embed), so building them builds it too.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: dashboard dependencies
+        working-directory: web
+        run: npm ci
+      - name: cross-compile (linux/amd64, linux/arm64, darwin/arm64), with the dashboard
         working-directory: .
         run: make build-all
 

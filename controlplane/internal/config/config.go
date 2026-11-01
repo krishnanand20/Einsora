@@ -27,6 +27,8 @@ type Config struct {
 	// DatabaseURL selects the store: postgres://… or postgresql://… for Postgres, sqlite:<path> for a
 	// SQLite file (Solo and Lab, ADR-0012), or empty for the in-memory store (dev only).
 	DatabaseURL string
+	// CatalogPath is a catalog file (EINSORA_CATALOG_PATH); empty means the catalog built into the
+	// binary, a copy of images/catalog.yaml.
 	CatalogPath string
 
 	AuthMode        string // dev | oidc
@@ -87,7 +89,7 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		HTTPAddr:              get("HTTP_ADDR", "127.0.0.1:8080"),
 		LogFile:               get("LOG_FILE", ""),
 		DatabaseURL:           get("DATABASE_URL", ""),
-		CatalogPath:           get("CATALOG_PATH", "../images/catalog.yaml"),
+		CatalogPath:           get("CATALOG_PATH", ""), // empty: the catalog built into the binary
 		AuthMode:              get("AUTH_MODE", "dev"),
 		OIDCIssuer:            get("OIDC_ISSUER", ""),
 		OIDCAudience:          get("OIDC_AUDIENCE", "einsora-api"),

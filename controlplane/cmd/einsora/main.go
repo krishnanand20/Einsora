@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -47,6 +46,7 @@ import (
 	"github.com/krishnanand20/einsora/controlplane/internal/store/memstore"
 	"github.com/krishnanand20/einsora/controlplane/internal/store/pgstore"
 	"github.com/krishnanand20/einsora/controlplane/internal/store/sqlitestore"
+	"github.com/krishnanand20/einsora/controlplane/internal/webui"
 )
 
 const usage = `einsora — free, self-hosted GPU cloud
@@ -54,6 +54,11 @@ const usage = `einsora — free, self-hosted GPU cloud
 Usage: einsora <command> [arguments]
 
 Server commands:
+  up [-no-open]
+              run Einsora on this machine (Solo): the API and dashboard on http://127.0.0.1:8080, the
+              controller with this machine's agent, and usage accounting, with the data in one private
+              directory (EINSORA_DATA_DIR, or the usual place on this OS). The first time, it asks
+              for the owner's account. Any EINSORA_* setting overrides its default.
   api         serve the REST API
   controller  reconcile workloads with the runtime (Kubernetes today; node agents planned)
   metering    usage accounting: turn workload events into hourly usage records (no money)
@@ -62,7 +67,8 @@ Server commands:
   seed        create dev tenants and quotas (EINSORA_ENV=dev only)
   setup -email you@example.com [-tenant home] [-password-stdin]
               create the first account, the machine's owner, for EINSORA_AUTH_MODE=local; asks for
-              the password without echoing it (or reads one line from stdin)
+              the password without echoing it (or reads one line from stdin). Without
+              EINSORA_DATABASE_URL, it uses the same database as einsora up
   dev         api + controller + metering in one process with seeded data; uses an in-memory
               store unless EINSORA_DATABASE_URL is set (postgres://… or sqlite:<path>)
 
@@ -95,6 +101,8 @@ func main() {
 		err = runClient(ctx, cmd, args, os.Stdout)
 	case cmd == "setup":
 		err = runSetup(ctx, args, os.Stdin, os.Stdout)
+	case cmd == "up":
+		err = runUp(ctx, args, os.Stdin, os.Stdout)
 	case len(args) > 0:
 		err = fmt.Errorf("%s takes no arguments (see einsora help)", cmd)
 	default:
@@ -148,7 +156,7 @@ func run(ctx context.Context, cmd string) error {
 
 	switch cmd {
 	case "api":
-		return serveAPI(ctx, cfg, log, st, cat)
+		return serveAPI(ctx, cfg, log, st, cat, nil)
 	case "controller":
 		runController, err := newController(cfg, log, st, cat)
 		if err != nil {
@@ -175,7 +183,7 @@ func run(ctx context.Context, cmd string) error {
 		}
 		log.Info("dev stack: seeded tenants acme, globex (untrusted) and internal (trusted); use header X-Dev-Tenant")
 		return runAll(ctx,
-			func(ctx context.Context) error { return serveAPI(ctx, cfg, log, st, cat) },
+			func(ctx context.Context) error { return serveAPI(ctx, cfg, log, st, cat, nil) },
 			runController,
 			func(ctx context.Context) error { return metering.New(st, log, nil).Run(ctx, cfg.MeteringInterval) },
 		)
@@ -184,23 +192,23 @@ func run(ctx context.Context, cmd string) error {
 }
 
 // newLogger writes to stderr and, if EINSORA_LOG_FILE is set, a complete copy to that file
-// (appended, readable by the owner only). Nothing is sampled or dropped.
+// (appended, readable by the owner only). Nothing is sampled or dropped. People read the terminal
+// and programs read files: stderr gets text in development or when it's a terminal (einsora up),
+// and JSON otherwise (a service's journal, Loki); the file always gets JSON.
 func newLogger(cfg config.Config) (*slog.Logger, func(), error) {
-	var out io.Writer = os.Stderr
-	closeFn := func() {}
-	if cfg.LogFile != "" {
-		f, err := openLogFile(cfg.LogFile)
-		if err != nil {
-			return nil, nil, fmt.Errorf("open EINSORA_LOG_FILE: %w", err)
-		}
-		out = io.MultiWriter(os.Stderr, f)
-		closeFn = func() { _ = f.Close() }
-	}
 	opts := &slog.HandlerOptions{Level: cfg.LogLevel}
-	if cfg.Env == "dev" {
-		return slog.New(slog.NewTextHandler(out, opts)), closeFn, nil
+	var console slog.Handler = slog.NewJSONHandler(os.Stderr, opts)
+	if cfg.Env == "dev" || isTerminal(os.Stderr) {
+		console = slog.NewTextHandler(os.Stderr, opts)
 	}
-	return slog.New(slog.NewJSONHandler(out, opts)), closeFn, nil
+	if cfg.LogFile == "" {
+		return slog.New(console), func() {}, nil
+	}
+	f, err := openLogFile(cfg.LogFile)
+	if err != nil {
+		return nil, nil, fmt.Errorf("open EINSORA_LOG_FILE: %w", err)
+	}
+	return slog.New(slog.NewMultiHandler(console, slog.NewJSONHandler(f, opts))), func() { _ = f.Close() }, nil
 }
 
 // openLogFile appends to path, which must be readable by its owner only. It never changes a file's
@@ -601,7 +609,9 @@ func apiServer(cfg config.Config, svc *service.Service, authn auth.Authenticator
 	return s
 }
 
-func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, st store.Store, cat *catalog.Catalog) error {
+// serveAPI serves the API, and the dashboard when this binary carries it, on l (nil: listen on
+// EINSORA_HTTP_ADDR).
+func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, st store.Store, cat *catalog.Catalog, l net.Listener) error {
 	svc := service.New(st, cat, nil)
 	var authn auth.Authenticator
 	switch cfg.AuthMode {
@@ -631,15 +641,21 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, st store
 		authn = auth.Dev{}
 		log.Warn("dev auth enabled: the X-Dev-Tenant header is trusted")
 	}
-	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           apiServer(cfg, svc, authn, log, st).Handler(),
-		ReadHeaderTimeout: 10 * time.Second,
+	handler := apiServer(cfg, svc, authn, log, st).Handler()
+	if files := webui.Files(); webui.Built(files) {
+		handler = withDashboard(handler, webui.Handler(files))
 	}
+	if l == nil {
+		var err error
+		if l, err = listen(cfg.HTTPAddr); err != nil {
+			return err
+		}
+	}
+	srv := &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 	errc := make(chan error, 1)
 	go func() {
-		log.Info("api listening", "addr", cfg.HTTPAddr)
-		errc <- srv.ListenAndServe()
+		log.Info("api listening", "addr", l.Addr().String())
+		errc <- srv.Serve(l)
 	}()
 	select {
 	case err := <-errc:
@@ -649,6 +665,19 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, st store
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
 	}
+}
+
+// withDashboard serves the API's paths from api, and everything else from dashboard: the dashboard
+// and the API share one origin, so the dashboard's session cookie and CSRF header just work.
+func withDashboard(api, dashboard http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := r.URL.Path
+		if p == "/v1" || strings.HasPrefix(p, "/v1/") || p == "/healthz" || p == "/readyz" {
+			api.ServeHTTP(w, r)
+			return
+		}
+		dashboard.ServeHTTP(w, r)
+	})
 }
 
 // runAll runs fns concurrently; when any returns, the rest are cancelled. Returns the first error.

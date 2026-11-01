@@ -27,7 +27,7 @@ the CLI or dashboard and download a complete copy. Only secrets are redacted, an
 
 | Profile | For | Install |
 |---|---|---|
-| **Solo** | One person, one machine | One binary: `einsora up` (planned) |
+| **Solo** | One person, one machine | One binary: `einsora up` (built from source today; packages planned) |
 | **Lab** | Classes, teams, home labs, small companies, with mixed Mac and Linux machines | `einsora up` on one machine and `einsora agent` on the rest (planned) |
 | **Datacenter** | Startups at scale, enterprises, big tech | Kubernetes with KubeVirt, KServe, and the GPU Operator ([deploy/](deploy/), [infra/](infra/)) |
 
@@ -64,9 +64,20 @@ images/         Launch catalog and notebook/VM image definitions
 docs/           Product spec, architecture, ADRs, roadmap, runbooks, playbooks, hardware
 ```
 
-## Try it today (no GPU needed; runs on macOS and Linux)
+## Run it on your machine
 
 Prerequisites: Go 1.27+, [uv](https://docs.astral.sh/uv/), and Node 22+. On a Mac: `brew install go uv node`.
+
+```bash
+make build                      # the einsora binary, with its dashboard built in
+controlplane/bin/einsora up     # asks for your owner account, then opens the dashboard
+```
+
+It keeps everything in one private directory (macOS: `~/Library/Application Support/Einsora`; Linux:
+`~/.local/share/einsora`) and listens on `127.0.0.1` only. Notebooks and model endpoints run on your Mac's
+GPU (Metal) or, on Linux, in Docker with NVIDIA. See the [quickstart](docs/runbooks/00-quickstart.md).
+
+## Develop it (no GPU needed; runs on macOS and Linux)
 
 ```bash
 make doctor     # checks the prerequisites and tells you what to install
@@ -106,7 +117,7 @@ hardware validation is pending.
 
 | | Built | Planned |
 |---|---|---|
-| Control plane | API, lifecycle, quotas, controller, usage accounting, SQLite, Postgres, and in-memory stores, Kubernetes backend, regions, machines, and placement in the data model, timeline and log export, CLI client, local accounts, in-process agent, Mac native and Linux Docker drivers | Networked agents, VM drivers, `einsora up`, choosing a region, fallback placement, sharing, workload output logs, activity log |
+| Control plane | API, lifecycle, quotas, controller, usage accounting, SQLite, Postgres, and in-memory stores, Kubernetes backend, regions, machines, and placement in the data model, timeline and log export, CLI client, local accounts, `einsora up` (Solo, with the dashboard built in), in-process agent, Mac native and Linux Docker drivers | Networked agents, VM drivers, packages and installers, choosing a region, fallback placement, sharing, workload output logs, activity log |
 | ML layer | Model validator (safetensors), ingestion, benchmarking, CUDA burn-in | GGUF validation, Metal burn-in |
 | Dashboard | Workload list, launch form, workload timeline and full-log download | Machines, sharing, usage reports, embedded in the binary |
 | Datacenter | Charts, add-ons, Ansible, runbooks (rendered and linted, not yet run on hardware) | Production validation |

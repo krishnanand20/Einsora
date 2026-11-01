@@ -23,9 +23,9 @@ hero:
 import { Aside, Card, CardGrid, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
 
 <Aside type="caution" title="Early, and built in the open">
-Einsora is **pre-release**. It runs today from source: notebooks and model endpoints on Apple
-Silicon Macs (Metal) and on Linux (Docker with NVIDIA), with the dashboard, API, and complete
-logs. One-command install (`einsora up`), packages, and the rest of the CLI are next. See the
+Einsora is **pre-release**. Built from source, `einsora up` runs it today: notebooks and model
+endpoints on Apple Silicon Macs (Metal) and on Linux (Docker with NVIDIA), with the dashboard, API,
+and complete logs. Packages (Homebrew, an install script) and the rest of the CLI are next. See the
 [roadmap](product/roadmap/) for exactly what's built.
 </Aside>
 
@@ -59,8 +59,8 @@ Code written against your Mac works unchanged against a cluster.
 <TabItem label="Solo">
 
 **One machine.** A single binary with SQLite and a built-in dashboard. Your Mac or Linux PC is the
-whole cloud. Start it with `einsora up` (next on the roadmap); today, run it from source with
-`make dev`. **In progress: this is Phase 1.**
+whole cloud: `make build`, then `einsora up`, which asks for your account and opens the dashboard.
+Packages come next. **In progress: this is Phase 1.**
 
 </TabItem>
 <TabItem label="Lab">
@@ -148,19 +148,18 @@ Read the [architecture overview](architecture/overview/) for the full picture.
 <Tabs>
 <TabItem label="Run from source">
 
-Everything below runs on an Apple Silicon Mac or Linux. `make dev` needs no GPU, Kubernetes, or
-Docker: it uses a fake backend and seeded tenants.
+Everything below runs on an Apple Silicon Mac or Linux.
 
 ```bash
 git clone https://github.com/krishnanand20/Einsora.git && cd Einsora
-make doctor         # checks Go, uv, and Node are installed
-make setup          # installs dev dependencies
-make dev            # API, controller, and usage accounting on :8080
-make web-dev        # the dashboard on :5173, in another terminal
+make doctor                    # checks Go, uv, and Node are installed
+make build                     # the einsora binary, with its dashboard built in
+controlplane/bin/einsora up    # asks for your account, then opens the dashboard
 ```
 
-To run real notebooks and model endpoints on your Mac's GPU, follow the
-[quickstart](runbooks/00-quickstart/).
+It listens on `127.0.0.1` only and keeps its data in one private directory. To work on Einsora
+itself, `make dev` runs it with test data and no GPU, Kubernetes, or Docker. The
+[quickstart](runbooks/00-quickstart/) has the details.
 
 </TabItem>
 <TabItem label="REST API">
@@ -238,7 +237,7 @@ commercially.
 | Phase | What it delivers | Status |
 |---|---|---|
 | **0. Foundations** | Architecture, core platform, ML validator, dashboard, logs and transparency | <span class="status-built">Done</span> |
-| **1. Solo** | One-command install on a Mac or Linux box; notebooks and model endpoints on the local GPU | <span class="status-next">In progress</span>: drivers done, `einsora up` next |
+| **1. Solo** | One-command install on a Mac or Linux box; notebooks and model endpoints on the local GPU | <span class="status-next">In progress</span>: `einsora up` and the drivers done; packages next |
 | **2. Lab** | Mixed Mac and Linux machines; users, invites, quotas; VMs; fallbacks; a relay for remote access | <span class="status-later">Planned</span> |
 | **3. Datacenter** | Kubernetes in production: KubeVirt, KServe, Ceph, Postgres HA, SSO, audit logs | <span class="status-later">Planned</span> |
 | **4. Sharing** | Invite-only and community pools: idle detection, preemption, managed inference, fair share | <span class="status-later">Planned</span> |

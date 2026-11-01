@@ -8,12 +8,13 @@ darwin/arm64** (rule 11): run `make build-all` from the repo root.
 ## Layout and dependency direction
 
 ```
-cmd/einsora/            main: wiring only. Server subcommands: api | controller | metering | migrate | seed | dev
-                        (planned: up | agent | gateway | backup | restore)
+cmd/einsora/            main: wiring only. Server subcommands: up (Solo: everything in one process) | api | controller |
+                        metering | migrate | seed | dev (planned: agent | gateway | backup | restore). up.go: the
+                        data directory per OS, Solo's defaults, and the first-run account
                         client.go: CLI client commands workloads | events | export (planned: logs)
 internal/domain/        types, the state machine, and error codes. Imports nothing internal.
 internal/config/        EINSORA_* env parsing and production guards
-internal/catalog/       loads images/catalog.yaml
+internal/catalog/       loads the catalog: a file, or the copy of images/catalog.yaml built into the binary (make catalog)
 internal/store/         Store/Queries interfaces
   memstore/             in-memory implementation (dev and tests)
   pgstore/              Postgres implementation (pgx), plus Migrate()
@@ -21,6 +22,7 @@ internal/store/         Store/Queries interfaces
   storetest/            conformance suite every implementation must pass
 internal/service/       business operations, tenant-scoped; Transition() is the single path for state changes
 internal/api/           HTTP handlers (stdlib net/http); thin, and calls the service only
+internal/webui/         the dashboard built into the binary (make web-embed copies web/dist), with its security headers
 internal/access/        the access proxy (ADR-0017): opens a running workload at w-<id>.localhost with a one-time ticket
 internal/auth/          authenticators: Local (API tokens and session cookies, with the CSRF check), OIDC (JWT), and Dev (header)
 internal/credential/    argon2id password hashing, and random tokens stored only as SHA-256 hashes

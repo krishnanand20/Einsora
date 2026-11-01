@@ -1,6 +1,8 @@
 # Einsora launch catalog for Solo and Lab installs (and `make dev`): the regions, classes, and images
-# users can choose from. Loaded by the control plane (EINSORA_CATALOG_PATH). The Datacenter profile
-# uses deploy/catalog.yaml instead. Field reference: controlplane/internal/catalog/catalog.go.
+# users can choose from. Built into the einsora binary (`make catalog` copies it to
+# controlplane/internal/catalog/default.yaml; a test fails if the copy is out of date), and
+# EINSORA_CATALOG_PATH can name another file. The Datacenter profile uses deploy/catalog.yaml
+# instead. Field reference: controlplane/internal/catalog/catalog.go.
 # Control plane tests load this file, so `make test-cp` catches mistakes here.
 
 # Locations this installation offers (ADR-0009). The first is the default for workloads that don't

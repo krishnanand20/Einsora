@@ -1,8 +1,7 @@
 # 00: Quickstart (Solo: one Mac or Linux machine)
 
-> **Status: planned (Phase 1).** The install commands below describe the target experience and don't
-> work yet. What works **today** on macOS and Linux is the development stack (see the end of this page).
-> Turn this runbook into a verified one when Phase 1 lands.
+> **Status: `einsora up` works today, built from source** (below). The one-line installs (Homebrew and an
+> install script) arrive with packaging, roadmap step 11. The development stack is at the end of this page.
 
 ## Requirements
 
@@ -12,15 +11,18 @@
 | Linux + NVIDIA | Ubuntu 22.04+ (or similar), NVIDIA driver installed, Docker with the NVIDIA container toolkit, 16 GB RAM | A GPU with 24 GB+ VRAM |
 | Linux, CPU only | Any 64-bit Linux with Docker, 16 GB RAM | — |
 
-## Install (target experience)
+## Install
+
+**Today, from source** (Go, Node, and uv: `make doctor` checks them; `brew install go node uv` on a Mac):
 
 ```bash
-# macOS
-brew install einsora/tap/einsora
-
-# Linux
-curl -fsSL https://get.einsora.example/install.sh | sh
+git clone https://github.com/krishnanand20/Einsora.git && cd Einsora
+make build                      # the einsora binary, with its dashboard built in
+sudo cp controlplane/bin/einsora /usr/local/bin/
 ```
+
+**Planned** (roadmap step 11): `brew install krishnanand20/tap/einsora` on a Mac, and
+`curl -fsSL https://einsora.com/install.sh | sh` on Linux.
 
 ## Start
 
@@ -30,20 +32,25 @@ einsora up
 
 `einsora up` does the following:
 
-- creates its data directory (macOS: `~/Library/Application Support/Einsora`; Linux: `~/.local/share/einsora`)
-- starts the control plane and the local agent in one process, on `127.0.0.1` only
-- asks you to create the first account
-- opens the dashboard
+- creates its data directory, readable by you only (macOS: `~/Library/Application Support/Einsora`; Linux:
+  `~/.local/share/einsora`; `EINSORA_DATA_DIR` picks another): the database, this machine's identity, and
+  workloads' data, plus `einsora.log`, a complete copy of the log
+- starts the API and dashboard, the controller with this machine's agent, and usage accounting in one
+  process, on `127.0.0.1:8080` only (`EINSORA_HTTP_ADDR` picks another)
+- the first time, asks you to create the owner account in the terminal (without a terminal, create it with
+  `einsora setup -email you@example.com`: there's no sign-up page anyone else could use)
+- opens the dashboard in your browser (`einsora up -no-open` doesn't)
+
+Ctrl+C stops it. Notebooks and endpoints that are running keep running, and `einsora up` finds them
+again the next time. Every `EINSORA_*` setting in [.env.example](../../.env.example) still applies.
 
 ## Launch something
 
 1. **Notebook:** Launch → Notebook → "PyTorch + JupyterLab". It uses Metal on a Mac, CUDA on NVIDIA, or CPU.
-2. **Model endpoint:** Launch → Model endpoint. Pick a small model (for example a 0.5B–3B instruct model in GGUF or MLX format). You get an OpenAI-compatible URL:
-
-   ```bash
-   curl -s http://127.0.0.1:<port>/v1/chat/completions -H 'Content-Type: application/json' \
-     -d '{"model":"<name>","messages":[{"role":"user","content":"Hello"}]}'
-   ```
+2. **Model endpoint:** Launch → Model endpoint. Pick a small model in safetensors (on a Mac, an MLX
+   model such as `hf://mlx-community/Qwen2.5-0.5B-Instruct-4bit`; GGUF arrives with roadmap step 10).
+   Its page shows the OpenAI-compatible base URL under **API connection**; call it with an API token
+   (see [Run a model endpoint on your Mac](#run-a-model-endpoint-on-your-mac)).
 
 3. **VM** (Phase 2): Launch → GPU VM.
 

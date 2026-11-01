@@ -39,7 +39,11 @@ func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 		return err
 	}
 
+	// Without a database named, the owner is made in the same place `einsora up` keeps its data.
 	cfg, err := config.Load()
+	if os.Getenv("EINSORA_DATABASE_URL") == "" {
+		cfg, _, err = soloConfig(os.Getenv)
+	}
 	if err != nil {
 		return err
 	}
@@ -74,8 +78,8 @@ func runSetup(ctx context.Context, args []string, stdin io.Reader, stdout io.Wri
 		return err
 	}
 	_, err = fmt.Fprintf(stdout, "Created the owner account %s in tenant %q (trusted).\n"+
-		"Run the server with EINSORA_AUTH_MODE=local, then sign in on the dashboard, or create an API\n"+
-		"token there for the CLI (EINSORA_TOKEN).\n", u.Email, *tenant)
+		"Sign in on the dashboard (einsora up, or a server with EINSORA_AUTH_MODE=local), and create an\n"+
+		"API token there for the CLI (EINSORA_TOKEN).\n", u.Email, *tenant)
 	return err
 }
 

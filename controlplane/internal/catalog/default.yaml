@@ -1,0 +1,175 @@
+# Einsora launch catalog for Solo and Lab installs (and `make dev`): the regions, classes, and images
+# users can choose from. Built into the einsora binary (`make catalog` copies it to
+# controlplane/internal/catalog/default.yaml; a test fails if the copy is out of date), and
+# EINSORA_CATALOG_PATH can name another file. The Datacenter profile uses deploy/catalog.yaml
+# instead. Field reference: controlplane/internal/catalog/catalog.go.
+# Control plane tests load this file, so `make test-cp` catches mistakes here.
+
+# Locations this installation offers (ADR-0009). The first is the default for workloads that don't
+# name one. A Solo install has one region, local. Region IDs are lowercase; location-based IDs, such
+# as in-mum-1 or eu-fra-1, are recommended. An ID can't change once workloads exist in it.
+regions:
+  - id: local
+    display_name: This installation
+
+# What a workload runs on. Each class has an accelerator (nvidia, apple, amd, or cpu) and, optionally,
+# the regions offering it (none listed = every region). NVIDIA classes run on Kubernetes (Datacenter)
+# or, with the node agent, on Linux machines; Apple and CPU classes run on node agents (roadmap
+# steps 6 and 7), so the Kubernetes backend reports no capacity for them.
+gpu_classes:
+  - id: l40s-48gb
+    display_name: NVIDIA L40S 48GB
+    accelerator: nvidia
+    vram_gb: 48
+    # Advertised by the GPU Operator device plugin on nodes in "container" mode.
+    container_resource: nvidia.com/gpu
+    # Advertised by the sandbox device plugin on "vm-passthrough" nodes. Must match
+    # KubeVirt permittedHostDevices (deploy/environments/*.yaml). Verify on a real node:
+    #   kubectl get node <name> -o jsonpath='{.status.allocatable}'
+    vm_device_name: nvidia.com/AD102GL_L40S
+    # GPU Feature Discovery labels that select container-mode nodes with this GPU.
+    node_selector:
+      nvidia.com/gpu.product: NVIDIA-L40S
+    # Device names node agents report (nvidia-smi), for Linux machines running the agent.
+    models: ["NVIDIA L40S"]
+    vcpus_per_gpu: 8
+    memory_gib_per_gpu: 64
+
+  - id: a100-80gb
+    display_name: NVIDIA A100 80GB PCIe
+    accelerator: nvidia
+    vram_gb: 80
+    container_resource: nvidia.com/gpu
+    vm_device_name: nvidia.com/GA100_A100_PCIE_80GB
+    node_selector:
+      nvidia.com/gpu.product: NVIDIA-A100-80GB-PCIe
+    models: ["NVIDIA A100 80GB PCIe"]
+    vcpus_per_gpu: 12
+    memory_gib_per_gpu: 120
+
+  # Consumer card: a normal choice at home (Solo, Lab). In a datacenter, NVIDIA's GeForce driver
+  # licence has historically excluded datacenter deployment, so it's internal-only (trusted
+  # tenants) here. Operators decide for their own deployment. See docs/architecture/gpu-sharing.md.
+  - id: rtx4090-24gb
+    display_name: NVIDIA GeForce RTX 4090 24GB
+    accelerator: nvidia
+    vram_gb: 24
+    container_resource: nvidia.com/gpu
+    vm_device_name: nvidia.com/AD102_GEFORCE_RTX_4090
+    node_selector:
+      nvidia.com/gpu.product: NVIDIA-GeForce-RTX-4090
+    models: ["NVIDIA GeForce RTX 4090"]
+    vcpus_per_gpu: 8
+    memory_gib_per_gpu: 48
+    internal_only: true
+
+  # Apple Silicon: the Mac's GPU (Metal) with its unified memory, sized by memory because that's
+  # what decides which models fit. One unit is the whole GPU of one Mac, which matches the largest
+  # tier its memory holds (a 36 GB Mac is apple-silicon-32gb). A workload gets three quarters of the
+  # tier's memory, since the agent keeps a quarter of the Mac for its owner. Owners only (rule 4):
+  # native macOS execution isn't offered to invited or community users.
+  - id: apple-silicon-16gb
+    display_name: Apple Silicon GPU, 16 GB unified memory
+    accelerator: apple
+    vram_gb: 16
+    vcpus_per_gpu: 4
+    memory_gib_per_gpu: 12
+    internal_only: true
+
+  - id: apple-silicon-32gb
+    display_name: Apple Silicon GPU, 32 GB unified memory
+    accelerator: apple
+    vram_gb: 32
+    vcpus_per_gpu: 6
+    memory_gib_per_gpu: 24
+    internal_only: true
+
+  - id: apple-silicon-64gb
+    display_name: Apple Silicon GPU, 64 GB unified memory
+    accelerator: apple
+    vram_gb: 64
+    vcpus_per_gpu: 8
+    memory_gib_per_gpu: 48
+    internal_only: true
+
+  - id: apple-silicon-128gb
+    display_name: Apple Silicon GPU, 128 GB unified memory
+    accelerator: apple
+    vram_gb: 128
+    vcpus_per_gpu: 10
+    memory_gib_per_gpu: 96
+    internal_only: true
+
+  # CPU-only sizes, for data prep, small models, and opt-in fallback when GPUs are busy (ADR-0010).
+  # gpu_count counts units of this size. CPU inference is roughly 10-50x slower than a GPU.
+  - id: cpu-2c-8g
+    display_name: CPU, 2 vCPUs and 8 GiB
+    accelerator: cpu
+    vram_gb: 0
+    vcpus_per_gpu: 2
+    memory_gib_per_gpu: 8
+
+  - id: cpu-4c-16g
+    display_name: CPU, 4 vCPUs and 16 GiB
+    accelerator: cpu
+    vram_gb: 0
+    vcpus_per_gpu: 4
+    memory_gib_per_gpu: 16
+
+  - id: cpu-16c-64g
+    display_name: CPU, 16 vCPUs and 64 GiB
+    accelerator: cpu
+    vram_gb: 0
+    vcpus_per_gpu: 16
+    memory_gib_per_gpu: 64
+
+# What runs. Each image lists runtimes in order of preference; a workload uses the first one that
+# supports its class's accelerator. A runtime's ref is what the backend runs: on Kubernetes, a CDI
+# DataSource (vm), a container image (notebook), or a KServe ClusterServingRuntime (endpoint); on a
+# node agent, driver_refs maps each supported driver to its own ref (ADR-0019).
+images:
+  - id: ubuntu-24.04-cuda
+    display_name: Ubuntu 24.04 + NVIDIA driver
+    kind: vm
+    root_disk_gib: 100
+    description: A full VM with whole GPUs passed through. Log in over SSH with your key.
+    runtimes:
+      - accelerators: [nvidia]
+        ref: ubuntu-24.04-cuda # CDI DataSource in the images namespace (images/vm/)
+
+  - id: pytorch-notebook
+    display_name: PyTorch + JupyterLab
+    kind: notebook
+    description: JupyterLab with PyTorch, on CUDA, Metal, or CPU. Your work directory persists across restarts.
+    runtimes:
+      - accelerators: [nvidia, cpu]
+        ref: ghcr.io/krishnanand20/einsora-pytorch-notebook:0.1.0 # container image (images/containers/)
+        driver_refs:
+          docker: ghcr.io/krishnanand20/einsora-pytorch-notebook:0.1.0
+          macos-native: jupyterlab-pytorch-mps
+      - accelerators: [apple]
+        ref: jupyterlab-pytorch-mps # pinned native environment (ADR-0017)
+        driver_refs:
+          macos-native: jupyterlab-pytorch-mps
+
+  - id: openai-endpoint
+    display_name: OpenAI-compatible model endpoint
+    kind: endpoint
+    description: Serve a Hugging Face or S3 model behind an OpenAI-compatible API, with vLLM on NVIDIA, MLX on Apple Silicon, or llama.cpp.
+    runtimes:
+      - accelerators: [nvidia]
+        server: vllm
+        model_format: safetensors
+        ref: einsora-vllm # KServe ClusterServingRuntime (deploy/charts/cluster-config)
+        driver_refs:
+          docker: ghcr.io/krishnanand20/einsora-vllm-endpoint:0.1.0
+      - accelerators: [apple]
+        server: mlx
+        model_format: safetensors
+        ref: mlx-lm # pinned MLX runtime, validated safetensors, private Unix socket
+        driver_refs:
+          macos-native: mlx-lm
+      - accelerators: [nvidia, apple, amd, cpu]
+        server: llama.cpp
+        model_format: gguf # refused until einsora-ml validate checks GGUF (rule 6)
+        ref: llama-server # docker and macos-native drivers (planned)
