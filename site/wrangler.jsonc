@@ -1,0 +1,11 @@
+// Cloudflare: serves the built site (dist/) as static files, for a Workers project connected to this
+// repository (build command `npm run build`, deploy command `npx wrangler deploy`). A Pages project
+// doesn't need this file, and skips it.
+{
+	"name": "einsora",
+	"compatibility_date": "2026-10-01",
+	"assets": {
+		"directory": "./dist",
+		"not_found_handling": "404-page"
+	}
+}

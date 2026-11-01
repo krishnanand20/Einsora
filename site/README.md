@@ -21,6 +21,9 @@ repository: every push to `main` publishes it, and pull requests get preview URL
 | Build output directory | `dist` |
 | Environment variable | `NODE_VERSION` = `24` |
 
+A Workers project works too (Workers & Pages → Create → Import a repository): the same root directory
+and build command, with the deploy command `npx wrangler deploy`, which reads `wrangler.jsonc`.
+
 `.github/workflows/site.yml` builds it on every change to the site or the docs, so a broken link fails
 the pull request before it's published.
 
