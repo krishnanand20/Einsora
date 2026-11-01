@@ -71,7 +71,7 @@ images:
     description: JupyterLab with PyTorch and CUDA. Your work directory persists across restarts.
     runtimes:
       - accelerators: [nvidia]
-        ref: ghcr.io/your-org/einsora-pytorch-notebook:0.1.0 # container image (images/containers/)
+        ref: ghcr.io/krishnanand20/einsora-pytorch-notebook:0.1.0 # container image (images/containers/)
 
   - id: openai-endpoint
     display_name: OpenAI-compatible model endpoint

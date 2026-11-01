@@ -16,7 +16,7 @@ func TestDescribeDockerUsesContainerImageAndExactPlacedModels(t *testing.T) {
 	if err := h.describe(&d, w); err != nil {
 		t.Fatal(err)
 	}
-	if d.Runtime.Ref != "ghcr.io/your-org/einsora-vllm-endpoint:0.1.0" || d.Runtime.Server != "vllm" || d.Runtime.ModelFormat != "safetensors" || d.Accelerator != domain.AcceleratorNVIDIA || !slices.Contains(d.DeviceModels, "NVIDIA L40S") {
+	if d.Runtime.Ref != "ghcr.io/krishnanand20/einsora-vllm-endpoint:0.1.0" || d.Runtime.Server != "vllm" || d.Runtime.ModelFormat != "safetensors" || d.Accelerator != domain.AcceleratorNVIDIA || !slices.Contains(d.DeviceModels, "NVIDIA L40S") {
 		t.Fatalf("incorrect Docker desired runtime: %+v", d)
 	}
 	w.Driver = domain.DriverSim
@@ -30,7 +30,7 @@ func TestDescribeDockerUsesContainerImageAndExactPlacedModels(t *testing.T) {
 
 func TestDescribeCPURuntimeForNativeAndDocker(t *testing.T) {
 	h := &Hub{catalog: testutil.Catalog(t)}
-	for driver, ref := range map[string]string{domain.DriverMacOSNative: "jupyterlab-pytorch-mps", domain.DriverDocker: "ghcr.io/your-org/einsora-pytorch-notebook:0.1.0"} {
+	for driver, ref := range map[string]string{domain.DriverMacOSNative: "jupyterlab-pytorch-mps", domain.DriverDocker: "ghcr.io/krishnanand20/einsora-pytorch-notebook:0.1.0"} {
 		w := domain.Workload{ImageID: "pytorch-notebook", PlacedClass: "cpu-2c-8g", GPUCount: 1, Driver: driver}
 		var d protocol.Desired
 		if err := h.describe(&d, w); err != nil {

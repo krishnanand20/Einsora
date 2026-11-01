@@ -2,8 +2,9 @@
 
 ## Reporting a vulnerability
 
-Email **security@einsora.example** (replace with a real address before the first release). Please don't
-open public issues for vulnerabilities. We aim to acknowledge reports within 2 business days.
+Email **[krishnanand.dma@gmail.com](mailto:krishnanand.dma@gmail.com)** with the details and, if you can, steps
+to reproduce. Please don't open public issues for vulnerabilities. We aim to acknowledge reports within 2
+business days.
 
 ## Threat model in one paragraph
 

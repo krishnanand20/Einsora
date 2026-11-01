@@ -2,12 +2,12 @@ domain: einsora.example.com
 env: production
 
 image:
-  repository: ghcr.io/your-org/einsora-controlplane
+  repository: ghcr.io/krishnanand20/einsora-controlplane
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
 webImage:
-  repository: ghcr.io/your-org/einsora-web
+  repository: ghcr.io/krishnanand20/einsora-web
   tag: "0.1.0"
 
 database:

@@ -141,9 +141,9 @@ images:
     description: JupyterLab with PyTorch, on CUDA, Metal, or CPU. Your work directory persists across restarts.
     runtimes:
       - accelerators: [nvidia, cpu]
-        ref: ghcr.io/your-org/einsora-pytorch-notebook:0.1.0 # container image (images/containers/)
+        ref: ghcr.io/krishnanand20/einsora-pytorch-notebook:0.1.0 # container image (images/containers/)
         driver_refs:
-          docker: ghcr.io/your-org/einsora-pytorch-notebook:0.1.0
+          docker: ghcr.io/krishnanand20/einsora-pytorch-notebook:0.1.0
           macos-native: jupyterlab-pytorch-mps
       - accelerators: [apple]
         ref: jupyterlab-pytorch-mps # pinned native environment (ADR-0017)
@@ -160,7 +160,7 @@ images:
         model_format: safetensors
         ref: einsora-vllm # KServe ClusterServingRuntime (deploy/charts/cluster-config)
         driver_refs:
-          docker: ghcr.io/your-org/einsora-vllm-endpoint:0.1.0
+          docker: ghcr.io/krishnanand20/einsora-vllm-endpoint:0.1.0
       - accelerators: [apple]
         server: mlx
         model_format: safetensors

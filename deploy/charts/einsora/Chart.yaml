@@ -4,3 +4,9 @@ description: Einsora control plane (api, controller, metering) and dashboard.
 type: application
 version: 0.1.0
 appVersion: "0.1.0"
+home: https://einsora.com
+sources:
+  - https://github.com/krishnanand20/Einsora
+maintainers:
+  - name: Krishnanand
+    email: krishnanand.dma@gmail.com

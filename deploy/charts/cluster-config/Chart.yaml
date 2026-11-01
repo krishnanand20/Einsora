@@ -5,3 +5,9 @@ description: >-
   KubeVirt/CDI configuration, the einsora-vllm serving runtime, and the einsora-block storage class.
 type: application
 version: 0.1.0
+home: https://einsora.com
+sources:
+  - https://github.com/krishnanand20/Einsora
+maintainers:
+  - name: Krishnanand
+    email: krishnanand.dma@gmail.com

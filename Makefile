@@ -18,7 +18,7 @@ GOLANGCI_LINT ?= golangci-lint
 # CRD schemas (KubeVirt, KServe, Gateway API, cert-manager, ...) from the community catalog.
 CRD_SCHEMAS   := https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
 KUBECONFORM   := kubeconform -strict -summary -ignore-missing-schemas -schema-location default -schema-location '$(CRD_SCHEMAS)'
-IMAGE_REPO    ?= ghcr.io/your-org
+IMAGE_REPO    ?= ghcr.io/krishnanand20
 VERSION       ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
 .PHONY: help

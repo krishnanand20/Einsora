@@ -279,12 +279,12 @@ func TestRuntimeSelectionIncludesDriver(t *testing.T) {
 		accel       domain.AcceleratorKind
 		driver, ref string
 	}{
-		{"pytorch-notebook", domain.AcceleratorCPU, "", "ghcr.io/your-org/einsora-pytorch-notebook:0.1.0"},
-		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverDocker, "ghcr.io/your-org/einsora-pytorch-notebook:0.1.0"},
+		{"pytorch-notebook", domain.AcceleratorCPU, "", "ghcr.io/krishnanand20/einsora-pytorch-notebook:0.1.0"},
+		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverDocker, "ghcr.io/krishnanand20/einsora-pytorch-notebook:0.1.0"},
 		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverMacOSNative, "jupyterlab-pytorch-mps"},
 		{"pytorch-notebook", domain.AcceleratorNVIDIA, domain.DriverMacOSNative, ""},
 		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverMacOSContainer, ""},
-		{"openai-endpoint", domain.AcceleratorNVIDIA, domain.DriverDocker, "ghcr.io/your-org/einsora-vllm-endpoint:0.1.0"},
+		{"openai-endpoint", domain.AcceleratorNVIDIA, domain.DriverDocker, "ghcr.io/krishnanand20/einsora-vllm-endpoint:0.1.0"},
 		{"openai-endpoint", domain.AcceleratorNVIDIA, "", "einsora-vllm"},
 	} {
 		t.Run(tt.image+"/"+string(tt.accel)+"/"+tt.driver, func(t *testing.T) {

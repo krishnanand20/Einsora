@@ -27,7 +27,7 @@ This is the engineering plan. **What** each milestone must deliver is defined in
 - [x] **Rename the GitHub repository:** `github.com/krishnanand20/Einsora` (GitHub redirects the old URLs)
 - [ ] **Clear the name:** a web search found nothing called Einsora (2026-11-01), but get a trademark attorney's view in your main markets (classes 9 and 42) before the first release, mentioning the "Sora" sound ([ADR-0021](adr/0021-rename-to-einsora.md)); then register `einsora.dev` and `einsora.com` (both available on 2026-11-01)
 - [x] **Choose the open-source licence:** MIT, in `LICENSE` ([ADR-0020](adr/0020-name-and-licence.md))
-- [ ] Set the image registry (`ghcr.io/your-org` is a placeholder)
+- [x] Set the image registry: `ghcr.io/krishnanand20`, the repository's own GitHub registry
 
 ## Phase 1: Solo (→ M1) ← *we are here*
 

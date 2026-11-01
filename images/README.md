@@ -45,8 +45,8 @@ Rules for images in user workloads:
 From the repository root, on an already configured Linux Docker host:
 
 ```bash
-docker build -f images/containers/pytorch-notebook/Dockerfile -t ghcr.io/your-org/einsora-pytorch-notebook:0.1.0 .
-docker build -f images/containers/vllm-endpoint/Dockerfile -t ghcr.io/your-org/einsora-vllm-endpoint:0.1.0 .
+docker build -f images/containers/pytorch-notebook/Dockerfile -t ghcr.io/krishnanand20/einsora-pytorch-notebook:0.1.0 .
+docker build -f images/containers/vllm-endpoint/Dockerfile -t ghcr.io/krishnanand20/einsora-vllm-endpoint:0.1.0 .
 ```
 
 These are local tags matching `images/catalog.yaml`, not published images. Change the catalog refs

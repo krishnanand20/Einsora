@@ -235,7 +235,7 @@ access, file persistence across stop/start, and cleanup:
 
 ```bash
 cd controlplane
-EINSORA_TEST_DOCKER_NOTEBOOK_IMAGE=ghcr.io/your-org/einsora-pytorch-notebook:0.1.0 \
+EINSORA_TEST_DOCKER_NOTEBOOK_IMAGE=ghcr.io/krishnanand20/einsora-pytorch-notebook:0.1.0 \
   go test ./internal/agent/drivers/docker -run TestRealDockerNotebook -count=1 -v
 ```
 
