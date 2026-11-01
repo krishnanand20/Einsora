@@ -35,7 +35,7 @@ guests from each other, and be honest that hosts can see guest data. See
 | `infra/` | **Datacenter profile:** Linux server bootstrap (OS, IOMMU/VFIO, k3s, WireGuard) | Ansible, bash |
 | `images/` | Launch catalog (`catalog.yaml`); notebook and VM image definitions | Dockerfile, cloud-init |
 | `docs/` | Product spec, architecture, ADRs, roadmap, runbooks, playbooks, hardware | Markdown |
-| `site/` | The website: landing page, the thinking behind Einsora, the licence, and every doc in this repo, rendered at build time (never copied) | Astro Starlight, published to GitHub Pages |
+| `site/` | The website: landing page, the thinking behind Einsora, the licence, and every doc in this repo, rendered at build time (never copied) | Astro Starlight, published by Cloudflare Pages to einsora.com |
 
 ## Commands
 

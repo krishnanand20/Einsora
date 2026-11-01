@@ -6,12 +6,22 @@ and diagrams. The repository's Markdown is the source; `scripts/sync-docs.mjs` t
 build time.
 
 ```bash
-make site-dev      # from the repository root: http://localhost:4321/Einsora/
+make site-dev      # from the repository root: http://localhost:4321/
 make site          # build into site/dist; fails on a broken link
 ```
 
-It's published to GitHub Pages by `.github/workflows/site.yml` on every push to `main` that touches the
-site or the docs. To publish at the project's own domain, set the repository variables `SITE_URL`
-(for example `https://einsora.com`) and `BASE_PATH` (`/`), and add the domain under Settings → Pages.
+**Hosting:** Cloudflare Pages builds and serves it at **https://einsora.com**, connected to this
+repository: every push to `main` publishes it, and pull requests get preview URLs. Its settings
+(Workers & Pages → the project → Settings → Build):
+
+| Setting | Value |
+|---|---|
+| Root directory | `site` |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Environment variable | `NODE_VERSION` = `24` |
+
+`.github/workflows/site.yml` builds it on every change to the site or the docs, so a broken link fails
+the pull request before it's published.
 
 See [AGENTS.md](AGENTS.md) for the rules.

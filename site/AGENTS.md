@@ -3,14 +3,14 @@
 These rules add to the root [AGENTS.md](../AGENTS.md); read that first.
 
 The project website: a landing page, the thinking behind Einsora, the licence, and every document in
-the repository, rendered with [Astro Starlight](https://starlight.astro.build). Published to GitHub
-Pages by `.github/workflows/site.yml`.
+the repository, rendered with [Astro Starlight](https://starlight.astro.build). Cloudflare Pages publishes it to
+https://einsora.com from `main`; `.github/workflows/site.yml` builds it on every change, as a check.
 
 ## Layout
 
 ```
 site/
-  site.config.mjs          where the site is published (SITE_URL, BASE_PATH) and the repository URL
+  site.config.mjs          where the site is published (https://einsora.com) and the repository URL
   astro.config.mjs         Starlight: title, sidebar, theme
   scripts/sync-docs.mjs    builds pages from the repository's Markdown (run by dev and build)
   src/content/docs/        index.mdx (landing), why.mdx, license.mdx: written here
@@ -38,6 +38,6 @@ site/
 ## Commands
 
 ```bash
-make site-dev      # from the repository root: http://localhost:4321/Einsora/
+make site-dev      # from the repository root: http://localhost:4321/
 make site          # build into site/dist; fails on a broken link
 ```

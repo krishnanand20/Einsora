@@ -1,8 +1,8 @@
 // Where the site is published, shared by the Astro config and the docs sync script.
 //
-// GitHub Pages serves the repository's site at https://krishnanand20.github.io/Einsora/. Once the
-// project's domain is set up, build with SITE_URL=https://einsora.dev and BASE_PATH=/ (the deploy
-// workflow reads both from repository variables).
+// Cloudflare Pages builds and serves the site at https://einsora.com, from this repository: every
+// push to main publishes it, and pull requests get preview URLs. SITE_URL and BASE_PATH override
+// these, for example to publish under a sub-path somewhere else.
 export const repo = 'https://github.com/krishnanand20/Einsora';
-export const site = process.env.SITE_URL || 'https://krishnanand20.github.io';
-export const base = process.env.BASE_PATH || '/Einsora';
+export const site = process.env.SITE_URL || 'https://einsora.com';
+export const base = process.env.BASE_PATH || '/';

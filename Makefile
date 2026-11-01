@@ -60,7 +60,7 @@ setup: doctor ## Install dev dependencies for all components
 site: ## Build the website (site/) into site/dist from the repo's docs; fails on a broken link
 	cd site && npm run build
 
-site-dev: ## Website dev server: http://localhost:4321/Einsora/
+site-dev: ## Website dev server: http://localhost:4321/
 	cd site && npm run dev
 
 # ---------------------------------------------------------------- local dev

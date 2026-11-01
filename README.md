@@ -6,7 +6,7 @@ and **OpenAI-compatible model endpoints** on it. Use it alone, share it with you
 idle machines to others. The same software runs from one laptop to a datacenter, **free for everyone**:
 students, developers, startups, small companies, enterprises, and big tech.
 
-> **Website: [krishnanand20.github.io/Einsora](https://krishnanand20.github.io/Einsora/)**, with every document
+> **Website: [einsora.com](https://einsora.com)**, with every document
 > below, searchable. See the [product definition](docs/product/product-spec.md) for the full picture.
 
 ## What you can run
@@ -115,7 +115,7 @@ The full plan is in the [roadmap](docs/roadmap.md). Your Mac is enough hardware 
 
 ## Docs
 
-All of these are also on the [website](https://krishnanand20.github.io/Einsora/), built from this repository
+All of these are also on the [website](https://einsora.com), built from this repository
 by `site/` (`make site-dev` to preview it).
 
 - [Product definition](docs/product/product-spec.md)
