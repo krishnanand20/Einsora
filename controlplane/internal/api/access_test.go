@@ -2,11 +2,13 @@ package api_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -73,5 +75,53 @@ func TestOpeningAWorkloadGivesAOneTimeURL(t *testing.T) {
 	h = api.New(svc, auth.Dev{}, log, st.Ping).Handler()
 	if code, body := call(t, h, "POST", path, "acme", ""); code != http.StatusBadRequest || errCode(body) != "invalid_request" {
 		t.Errorf("without the proxy: %d %v; want 400", code, body)
+	}
+}
+
+func TestMachinesAPI(t *testing.T) {
+	st := testutil.SeededStore(t)
+	ctx := context.Background()
+	id := uuid.New()
+	err := st.InTx(ctx, func(q store.Queries) error {
+		tn, err := q.TenantBySlug(ctx, "acme")
+		if err != nil {
+			return err
+		}
+		return q.CreateMachine(ctx, domain.Machine{ID: id, TenantID: tn.ID, Name: "studio", Region: domain.RegionLocal,
+			OS: "darwin", Arch: "arm64", CPUs: 12, MemoryMiB: 36 * 1024, Sharing: domain.SharingPrivate,
+			Accelerators: []domain.Accelerator{{Kind: domain.AcceleratorApple, Model: "Apple M3 Pro", Count: 1, MemoryMiB: 36 * 1024}},
+			LastSeenAt:   time.Now(), CreatedAt: testutil.T0})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := api.New(service.New(st, testutil.Catalog(t), nil), auth.Dev{}, slog.New(slog.DiscardHandler), st.Ping).Handler()
+
+	code, list := call(t, h, "GET", "/v1/machines", "acme", "")
+	items, _ := list["items"].([]any)
+	if code != http.StatusOK || len(items) != 1 {
+		t.Fatalf("list: %d %v", code, list)
+	}
+	m := items[0].(map[string]any)
+	if m["name"] != "studio" || m["status"] != "online" || m["region"] != "local" || m["last_seen_at"] == nil ||
+		len(m["accelerators"].([]any)) != 1 {
+		t.Errorf("machine = %v", m)
+	}
+	for _, leaked := range []string{"tenant_id", "TenantID"} {
+		if _, ok := m[leaked]; ok {
+			t.Errorf("response leaks %q", leaked)
+		}
+	}
+	if code, body := call(t, h, "GET", "/v1/machines/"+id.String(), "acme", ""); code != http.StatusOK || body["id"] != id.String() {
+		t.Errorf("get: %d %v", code, body)
+	}
+	if code, list := call(t, h, "GET", "/v1/machines", "globex", ""); code != http.StatusOK || len(list["items"].([]any)) != 0 {
+		t.Errorf("another tenant's list: %d %v; want empty", code, list)
+	}
+	if code, body := call(t, h, "GET", "/v1/machines/"+id.String(), "globex", ""); code != http.StatusNotFound {
+		t.Errorf("another tenant's machine: %d %v; want 404", code, body)
+	}
+	if code, body := call(t, h, "GET", "/v1/machines/not-a-uuid", "acme", ""); code != http.StatusNotFound || !strings.Contains(fmt.Sprint(body), "machine not found") {
+		t.Errorf("a malformed id: %d %v; want 404, machine not found", code, body)
 	}
 }

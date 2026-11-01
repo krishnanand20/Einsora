@@ -89,6 +89,8 @@ your laptop, use `EINSORA_CLUSTER_BACKEND=kubernetes`. It reads `KUBECONFIG`. Ne
 |---|---|---|
 | GET | `/healthz`, `/readyz` | Liveness, and readiness (checks the store) |
 | GET | `/v1/catalog` | Regions, and the classes (with accelerator and regions) and images (with each runtime's accelerators and server) visible to the caller's tenant |
+| GET | `/v1/machines` | `{"items": [...]}`: your machines, with region, system, CPUs, memory, GPUs, sharing, `status` (online if seen in the last 3 minutes), `last_seen_at`, and how many of your workloads hold each. Read-only: machines register through their agent. |
+| GET | `/v1/machines/{id}` | One of your machines; another tenant's is 404 |
 | GET | `/v1/workloads` | `{"items": [...]}`. `?include_deleted=true` adds deleted workloads. |
 | POST | `/v1/workloads` | `{name, kind, image_id, gpu_class, gpu_count, region?, ssh_public_key?, model_uri?}` → 201. `region` defaults to the catalog's first. `kind` is `vm` (GPU VM, needs `ssh_public_key`), `notebook`, or `endpoint` (needs `model_uri`: `s3://` or `hf://`, with no credentials in it). |
 | GET | `/v1/workloads/{id}` | `?include_deleted=true` also finds a deleted workload. A workload shows where it runs once admitted: `region`, `placed_class`, and on agents `machine_id` and `driver`. |

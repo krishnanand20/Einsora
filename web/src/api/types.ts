@@ -137,3 +137,31 @@ export interface AccessGrant {
   url: string;
   expires_at?: string;
 }
+
+/** A GPU (or an Apple Silicon GPU) on a machine, as its agent reported it. Mirrors domain.Accelerator. */
+export interface MachineAccelerator {
+  kind: Accelerator;
+  model: string;
+  count: number;
+  memory_mib: number; // per device; unified memory on Apple Silicon
+}
+
+/**
+ * One of your machines (GET /v1/machines). Mirrors api.machineView. Its status comes from when its
+ * agent was last seen: online if within the last 3 minutes.
+ */
+export interface Machine {
+  id: string;
+  name: string;
+  region: string;
+  os: "darwin" | "linux";
+  arch: "arm64" | "amd64";
+  cpus: number;
+  memory_mib: number;
+  accelerators: MachineAccelerator[];
+  sharing: "private" | "invite" | "community";
+  status: "online" | "offline";
+  last_seen_at?: string;
+  workloads: number; // your workloads holding it now
+  created_at: string;
+}

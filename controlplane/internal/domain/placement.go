@@ -79,6 +79,16 @@ type Machine struct {
 	CreatedAt    time.Time
 }
 
+// MachineSeenWithin is how recently a machine must have been seen to count as online, from the
+// store alone: the agent backend records a heartbeat at most once a minute, and a sync waits up to
+// 20 seconds, so a connected machine is never seen longer ago than that.
+const MachineSeenWithin = 3 * time.Minute
+
+// Online reports whether m was seen recently enough, at now, to count as connected.
+func (m Machine) Online(now time.Time) bool {
+	return !m.LastSeenAt.IsZero() && now.Sub(m.LastSeenAt) < MachineSeenWithin
+}
+
 // Validate checks a machine before it's stored. The error is safe to show its owner.
 func (m Machine) Validate() error {
 	switch {

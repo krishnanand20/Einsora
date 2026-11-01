@@ -47,6 +47,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /readyz", s.readyz)
 
 	mux.Handle("GET /v1/catalog", s.authed(s.getCatalog))
+	mux.Handle("GET /v1/machines", s.authed(s.listMachines))
+	mux.Handle("GET /v1/machines/{id}", s.authed(s.getMachine))
 	mux.Handle("GET /v1/workloads", s.authed(s.listWorkloads))
 	mux.Handle("POST /v1/workloads", s.authed(s.createWorkload))
 	mux.Handle("GET /v1/workloads/{id}", s.authed(s.getWorkload))
@@ -137,7 +139,7 @@ func (s *Server) createWorkload(w http.ResponseWriter, r *http.Request, p domain
 }
 
 func (s *Server) getWorkload(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-	id, err := pathID(r)
+	id, err := pathID(r, "workload")
 	if err != nil {
 		return err
 	}
@@ -174,7 +176,7 @@ func includeDeleted(r *http.Request) (bool, error) {
 // workloadAction adapts stop/start/delete. They return 202: the controller does the work.
 func (s *Server) workloadAction(fn func(context.Context, domain.Principal, uuid.UUID) (domain.Workload, error)) handlerFunc {
 	return func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		id, err := pathID(r)
+		id, err := pathID(r, "workload")
 		if err != nil {
 			return err
 		}
@@ -187,10 +189,11 @@ func (s *Server) workloadAction(fn func(context.Context, domain.Principal, uuid.
 	}
 }
 
-func pathID(r *http.Request) (uuid.UUID, error) {
+// pathID is the {id} in the path. One that isn't an ID is simply not found, like a missing one.
+func pathID(r *http.Request, what string) (uuid.UUID, error) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		return uuid.Nil, domain.Errorf(domain.CodeNotFound, "workload not found")
+		return uuid.Nil, domain.Errorf(domain.CodeNotFound, "%s not found", what)
 	}
 	return id, nil
 }

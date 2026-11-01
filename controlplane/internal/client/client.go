@@ -183,6 +183,39 @@ func (c *Client) ListWorkloads(ctx context.Context, includeDeleted bool) ([]Work
 	return out.Items, err
 }
 
+// Machine is one of the caller's own machines.
+type Machine struct {
+	ID           string        `json:"id"`
+	Name         string        `json:"name"`
+	Region       string        `json:"region"`
+	OS           string        `json:"os"`
+	Arch         string        `json:"arch"`
+	CPUs         int           `json:"cpus"`
+	MemoryMiB    int64         `json:"memory_mib"`
+	Accelerators []Accelerator `json:"accelerators"`
+	Sharing      string        `json:"sharing"`
+	Status       string        `json:"status"`
+	LastSeenAt   *time.Time    `json:"last_seen_at"`
+	Workloads    int           `json:"workloads"`
+}
+
+// Accelerator is a machine's GPU (or Apple Silicon GPU), as its agent reported it.
+type Accelerator struct {
+	Kind      string `json:"kind"`
+	Model     string `json:"model"`
+	Count     int    `json:"count"`
+	MemoryMiB int64  `json:"memory_mib"`
+}
+
+// ListMachines lists the caller's machines.
+func (c *Client) ListMachines(ctx context.Context) ([]Machine, error) {
+	var out struct {
+		Items []Machine `json:"items"`
+	}
+	err := c.getJSON(ctx, "/v1/machines", &out)
+	return out.Items, err
+}
+
 // Events returns a workload's complete timeline, oldest first.
 func (c *Client) Events(ctx context.Context, id string) ([]Event, error) {
 	path, err := workloadPath(id, "/events")

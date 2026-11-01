@@ -18,7 +18,7 @@ type accessView struct {
 // openWorkload gives the caller a running notebook's one-time link or an endpoint's base URL,
 // through the access proxy at the workload's own host, separate from the dashboard.
 func (s *Server) openWorkload(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-	id, err := pathID(r)
+	id, err := pathID(r, "workload")
 	if err != nil {
 		return err
 	}

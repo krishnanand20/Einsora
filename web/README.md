@@ -19,15 +19,14 @@ tenant: `globex` (untrusted), or `internal` (trusted, which also sees internal-o
 
 How it's served:
 
-- **Solo:** embedded in the `einsora` binary and served on localhost (planned).
+- **Solo:** built into the `einsora` binary (`make build`) and served by `einsora up` on localhost.
 - **Datacenter:** the static build is served by nginx (see `Dockerfile`). The Gateway routes `app.<domain>` here and `api.<domain>` to the control plane.
 
 Planned (ADR-0009, 0010, 0013, 0014):
 
-- a machines page showing Macs and Linux boxes with their GPUs, health, and sharing level
-- a machine picker and a fallback opt-in on the launch form
+- a machine picker on the launch form, and a fallback opt-in once the controller can place fallbacks (Phase 2)
 - invites, teams, and admin pages (Phase 2); today there's sign-in, sign-out, and an **API tokens** page for local accounts (it already picks a region, when there's more than one, and offers only classes that can run the image there)
-- the placed class and a fallback badge on each workload
+- a fallback badge on each workload (the placed class, and the machine it runs on, are shown today)
 - sharing settings and host disclosures
 - usage reports in hours (never money)
 - workload output logs, live (ADR-0015, Phase 1), and the team activity log (Phase 2)

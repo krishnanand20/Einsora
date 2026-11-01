@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -128,6 +129,24 @@ func TestPermits(t *testing.T) {
 		code, _ := CodeOf(m.Permits(Workload{TenantID: tt.tenant}, tt.driver))
 		if code != tt.want {
 			t.Errorf("tenant owner=%v, driver %s: code %q, want %q", tt.tenant == owner, tt.driver, code, tt.want)
+		}
+	}
+}
+
+func TestMachineOnline(t *testing.T) {
+	now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	for _, tt := range []struct {
+		name string
+		seen time.Time
+		want bool
+	}{
+		{"never seen", time.Time{}, false},
+		{"seen a minute ago (a heartbeat)", now.Add(-time.Minute), true},
+		{"seen just inside the window", now.Add(-MachineSeenWithin + time.Second), true},
+		{"seen just outside it", now.Add(-MachineSeenWithin), false},
+	} {
+		if got := (Machine{LastSeenAt: tt.seen}).Online(now); got != tt.want {
+			t.Errorf("%s: online = %v; want %v", tt.name, got, tt.want)
 		}
 	}
 }

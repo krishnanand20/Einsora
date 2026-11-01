@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 
 import { api } from "../api/client";
+import { machineName } from "../machines";
 import { canOpen, classShown, describeChange, isSettling } from "../workloads";
 
 /**
@@ -15,6 +16,7 @@ export function WorkloadDetailPage() {
     queryFn: () => api.getWorkload(id, true),
     refetchInterval: (q) => (q.state.data && isSettling(q.state.data.state) ? 2000 : false),
   });
+  const machines = useQuery({ queryKey: ["machines"], queryFn: api.listMachines });
   const events = useQuery({
     queryKey: ["workload-events", id],
     queryFn: () => api.workloadEvents(id),
@@ -93,8 +95,15 @@ export function WorkloadDetailPage() {
         </div>
       )}
       <p className="muted">
-        {w.kind} · <span className={`state state-${w.state}`}>{w.state}</span> · {classShown(w)} · region {w.region} · id{" "}
-        {w.id}
+        {w.kind} · <span className={`state state-${w.state}`}>{w.state}</span> · {classShown(w)} · region {w.region}
+        {w.machine_id && (
+          <>
+            {" "}
+            · on <Link to="/machines">{machineName(machines.data?.items, w.machine_id) ?? "a machine"}</Link>
+            {w.driver && <> with {w.driver}</>}
+          </>
+        )}{" "}
+        · id {w.id}
       </p>
       {w.state === "deleted" && (
         <p className="muted">This workload is deleted. Its timeline and full log stay available here.</p>

@@ -10,11 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/krishnanand20/einsora/controlplane/internal/api"
 	"github.com/krishnanand20/einsora/controlplane/internal/auth"
 	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 	"github.com/krishnanand20/einsora/controlplane/internal/service"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
 	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
@@ -92,5 +96,43 @@ func TestCLIEventsAndExport(t *testing.T) {
 func TestPrintableStripsTerminalEscapes(t *testing.T) {
 	if got := printable("ready\x1b]52;c;ZXZpbA==\x07"); strings.ContainsAny(got, "\x1b\x07") {
 		t.Errorf("printable kept control characters: %q", got)
+	}
+}
+
+// einsora machines lists the caller's own machines through the real API, and only theirs.
+func TestCLIMachines(t *testing.T) {
+	st := testutil.SeededStore(t)
+	svc := service.New(st, testutil.Catalog(t), nil)
+	srv := httptest.NewServer(api.New(svc, auth.Dev{}, slog.New(slog.DiscardHandler), st.Ping).Handler())
+	t.Cleanup(srv.Close)
+	t.Setenv("EINSORA_API_URL", srv.URL)
+	ctx := context.Background()
+	err := st.InTx(ctx, func(q store.Queries) error {
+		tn, err := q.TenantBySlug(ctx, "acme")
+		if err != nil {
+			return err
+		}
+		return q.CreateMachine(ctx, domain.Machine{ID: uuid.New(), TenantID: tn.ID, Name: "studio", Region: domain.RegionLocal,
+			OS: "darwin", Arch: "arm64", CPUs: 12, MemoryMiB: 36 * 1024, Sharing: domain.SharingPrivate,
+			Accelerators: []domain.Accelerator{{Kind: domain.AcceleratorApple, Model: "Apple M3 Pro", Count: 1, MemoryMiB: 36 * 1024}},
+			LastSeenAt:   time.Now(), CreatedAt: testutil.T0})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	t.Setenv("EINSORA_DEV_TENANT", "acme")
+	if err := runClient(ctx, "machines", nil, &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"studio", "online", "darwin/arm64", "36 GiB", "1 × Apple M3 Pro"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output is missing %q:\n%s", want, out.String())
+		}
+	}
+	out.Reset()
+	t.Setenv("EINSORA_DEV_TENANT", "globex")
+	if err := runClient(ctx, "machines", nil, &out); err != nil || strings.Contains(out.String(), "studio") {
+		t.Errorf("another tenant sees: %q, %v", out.String(), err)
 	}
 }

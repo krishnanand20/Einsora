@@ -4,6 +4,7 @@ import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "reac
 import { api, ApiError } from "./api/client";
 import { LaunchPage } from "./pages/LaunchPage";
 import { LoginPage } from "./pages/LoginPage";
+import { MachinesPage } from "./pages/MachinesPage";
 import { TokensPage } from "./pages/TokensPage";
 import { WorkloadDetailPage } from "./pages/WorkloadDetailPage";
 import { WorkloadsPage } from "./pages/WorkloadsPage";
@@ -48,6 +49,7 @@ export function App() {
             Workloads
           </NavLink>
           <NavLink to="/launch">Launch</NavLink>
+          <NavLink to="/machines">Machines</NavLink>
           {local && <NavLink to="/tokens">API tokens</NavLink>}
         </nav>
         {me.data && (
@@ -66,6 +68,7 @@ export function App() {
           <Route path="/" element={<WorkloadsPage />} />
           <Route path="/launch" element={<LaunchPage />} />
           <Route path="/workloads/:id" element={<WorkloadDetailPage />} />
+          <Route path="/machines" element={<MachinesPage />} />
           <Route path="/tokens" element={<TokensPage />} />
         </Routes>
       </main>

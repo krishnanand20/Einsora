@@ -6,6 +6,7 @@ import type {
   CreatedApiToken,
   CreateWorkload,
   List,
+  Machine,
   Me,
   PasswordChanged,
   Workload,
@@ -109,6 +110,7 @@ export const api = {
   revokeToken: (id: string) => request<unknown>("DELETE", `/v1/tokens/${encodeURIComponent(id)}`),
   listWorkloads: (includeDeleted = false) =>
     request<List<Workload>>("GET", includeDeleted ? "/v1/workloads?include_deleted=true" : "/v1/workloads"),
+  listMachines: () => request<List<Machine>>("GET", "/v1/machines"),
   getWorkload: (id: string, includeDeleted = false) =>
     request<Workload>("GET", workloadPath(id, includeDeleted ? "?include_deleted=true" : "")),
   workloadEvents: (id: string) => request<List<WorkloadEvent>>("GET", workloadPath(id, "/events")),

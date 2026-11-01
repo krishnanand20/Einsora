@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 
 func isClientCommand(cmd string) bool {
 	switch cmd {
-	case "workloads", "events", "export":
+	case "workloads", "events", "export", "machines":
 		return true
 	}
 	return false
@@ -44,6 +45,26 @@ func runClient(ctx context.Context, cmd string, args []string, stdout io.Writer)
 		for _, w := range ws {
 			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%d × %s\t%s\t%s\n", printable(w.ID), printable(w.Name), printable(w.Kind),
 				printable(w.State), w.GPUCount, printable(classShown(w)), printable(w.Region), w.UpdatedAt.Format(time.RFC3339))
+		}
+		return tw.Flush()
+
+	case "machines":
+		if len(args) > 0 {
+			return errors.New("usage: einsora machines")
+		}
+		ms, err := c.ListMachines(ctx)
+		if err != nil {
+			return err
+		}
+		tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "NAME\tSTATUS\tREGION\tSYSTEM\tCPUS\tMEMORY\tGPUS\tWORKLOADS\tLAST SEEN")
+		for _, m := range ms {
+			seen := "never"
+			if m.LastSeenAt != nil {
+				seen = m.LastSeenAt.Format(time.RFC3339)
+			}
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s/%s\t%d\t%d GiB\t%s\t%d\t%s\n", printable(m.Name), printable(m.Status),
+				printable(m.Region), printable(m.OS), printable(m.Arch), m.CPUs, m.MemoryMiB/1024, printable(gpus(m)), m.Workloads, seen)
 		}
 		return tw.Flush()
 
@@ -145,6 +166,18 @@ func classShown(w client.Workload) string {
 
 // printable is client.Printable, for the tables printed here.
 func printable(s string) string { return client.Printable(s) }
+
+// gpus describes a machine's GPUs, such as "1 × Apple M3 Pro", or "none".
+func gpus(m client.Machine) string {
+	var parts []string
+	for _, a := range m.Accelerators {
+		parts = append(parts, fmt.Sprintf("%d × %s", a.Count, a.Model))
+	}
+	if len(parts) == 0 {
+		return "none"
+	}
+	return strings.Join(parts, ", ")
+}
 
 // parseWithID accepts flags before or after the workload ID (`export <id> -o f` and `export -o f <id>`).
 func parseWithID(fs *flag.FlagSet, args []string, usage string) (string, error) {

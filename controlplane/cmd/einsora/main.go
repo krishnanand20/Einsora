@@ -74,6 +74,7 @@ Server commands:
 
 Client commands (talk to a running API):
   workloads [-all]      list your workloads (-all includes deleted ones)
+  machines              list your machines: online or not, region, CPUs, memory, GPUs, your workloads on them
   events <id> [-json]   show a workload's complete timeline: every state change and note, when, and why
   export <id> [-o file] [-f]
                         save everything recorded about a workload as one JSON file, readable by

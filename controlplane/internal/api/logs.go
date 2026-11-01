@@ -76,7 +76,7 @@ func toEventViews(events []domain.Event) []eventView {
 }
 
 func (s *Server) workloadEvents(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-	id, err := pathID(r)
+	id, err := pathID(r, "workload")
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,7 @@ func (s *Server) workloadEvents(w http.ResponseWriter, r *http.Request, p domain
 
 // exportWorkload returns everything about one workload as a downloadable JSON file.
 func (s *Server) exportWorkload(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-	id, err := pathID(r)
+	id, err := pathID(r, "workload")
 	if err != nil {
 		return err
 	}

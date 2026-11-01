@@ -218,9 +218,12 @@ nothing and is for development only.
 - IDs are UUIDv7. Runtime object names derive from IDs, never from user input.
 - Workload responses include `region` and, once admitted, `placed_class`, and on agents `machine_id` and `driver`. `gpu_class` is the class requested; the two differ only after an opt-in fallback.
 - Create takes an optional `region`, checked against the catalog's regions (the first is the default). The class must be offered there, and the image must have a runtime for the class's accelerator.
+- `GET /v1/machines` and `GET /v1/machines/{id}` list the caller's own machines: name, region, system, CPUs,
+  memory, GPUs, sharing level, how many of the caller's workloads hold each, and `status` (online if its
+  agent was seen in the last 3 minutes, from the store's `last_seen_at`: the API never asks a machine).
+  Read-only: machines register through their agent. Another tenant's machine is a 404.
 - *Planned:*
   - Create takes `fallback` and `fallback_after`.
-  - A `/v1/machines` resource with machine names (roadmap step 9).
   - `POST` accepts `Idempotency-Key` (the `idempotency_keys` table exists), and every 503 carries `Retry-After`.
 
 ## Failure modes
@@ -250,7 +253,7 @@ nothing and is for development only.
 
 ## Next resources
 
-- **Machines** (agents): the in-process agent registers this machine and reports its inventory (built). Enrolment of other machines and health on the dashboard (Phase 2), the `/v1/machines` API and page (roadmap step 9), and sharing levels (Phase 4).
+- **Machines** (agents): the in-process agent registers this machine and reports its inventory (built). The `/v1/machines` API, `einsora machines`, and the dashboard's Machines page (built). Enrolment of other machines (Phase 2), and sharing levels (Phase 4).
 - **Users, teams, invites**: local accounts and quotas (Phase 2)
 - **Models:** `einsora-ml ingest` validates, then caches per machine or region (Phases 2–3)
 - **Access:** on the control plane's machine, the access proxy opens notebooks and serves endpoints to API tokens (built, ADR-0017). A relay through the control plane to workloads on other machines, and VM SSH (Phase 2).
