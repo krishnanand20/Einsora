@@ -11,14 +11,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/config"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store/memstore"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
+	"github.com/krishnanand20/einsora/controlplane/internal/config"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/store/memstore"
+	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
 func TestLogFileGetsACompleteCopy(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "tensorafi.log")
+	path := filepath.Join(t.TempDir(), "einsora.log")
 	log, closeLog, err := newLogger(config.Config{Env: "production", LogLevel: slog.LevelDebug, LogFile: path})
 	if err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestLogFileMustBePrivateAndSymlinksAreRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, _, err := newLogger(config.Config{Env: "production", LogFile: link}); err == nil {
-		t.Error("a symlinked TENSORAFI_LOG_FILE must be refused")
+		t.Error("a symlinked EINSORA_LOG_FILE must be refused")
 	}
 }
 
@@ -85,12 +85,12 @@ func TestControllerRegionMustBeInTheCatalog(t *testing.T) {
 	}
 }
 
-// tensorafi setup creates the owner once, on the store itself; a second run is refused.
+// einsora setup creates the owner once, on the store itself; a second run is refused.
 func TestSetupCommand(t *testing.T) {
 	dir := t.TempDir()
-	t.Setenv("TENSORAFI_DATABASE_URL", "sqlite:"+filepath.Join(dir, "tensorafi.db"))
-	t.Setenv("TENSORAFI_CATALOG_PATH", testutilCatalogPath(t))
-	t.Setenv("TENSORAFI_AUTH_MODE", "local")
+	t.Setenv("EINSORA_DATABASE_URL", "sqlite:"+filepath.Join(dir, "einsora.db"))
+	t.Setenv("EINSORA_CATALOG_PATH", testutilCatalogPath(t))
+	t.Setenv("EINSORA_AUTH_MODE", "local")
 	ctx := context.Background()
 
 	var out bytes.Buffer
@@ -151,7 +151,7 @@ func TestMachineNameIsASlug(t *testing.T) {
 // This machine's ID is kept next to the SQLite database, written once, owner-only.
 func TestMachineIDFile(t *testing.T) {
 	dir := t.TempDir()
-	path, err := machineIDFile(config.Config{DatabaseURL: "sqlite:" + filepath.Join(dir, "tensorafi.db")})
+	path, err := machineIDFile(config.Config{DatabaseURL: "sqlite:" + filepath.Join(dir, "einsora.db")})
 	if err != nil || path != filepath.Join(dir, "machine-id") {
 		t.Fatalf("machineIDFile = %q, %v", path, err)
 	}

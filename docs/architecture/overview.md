@@ -1,6 +1,6 @@
 # Architecture overview
 
-TensoraFi is a free, self-hosted GPU cloud ([ADR-0011](../adr/0011-free-for-everyone.md)). People install it
+Einsora is a free, self-hosted GPU cloud ([ADR-0011](../adr/0011-free-for-everyone.md)). People install it
 on machines they have, from one Mac to a datacenter, and launch these workloads on them:
 
 | Workload | What the user gets | On a Mac | On Linux + NVIDIA | In a datacenter |
@@ -25,7 +25,7 @@ on machines they have, from one Mac to a datacenter, and launch these workloads 
 ```mermaid
 flowchart LR
   subgraph Solo["Solo: one machine"]
-    up["tensorafi up<br/>control plane + agent + dashboard<br/>SQLite"]
+    up["einsora up<br/>control plane + agent + dashboard<br/>SQLite"]
   end
   subgraph Lab["Lab: a few mixed machines"]
     cp1["control plane<br/>SQLite or Postgres"]
@@ -45,8 +45,8 @@ flowchart LR
   end
 ```
 
-One binary (`tensorafi`) provides the control plane, the agent, and the dashboard in every profile.
-Moving up a profile is a backup and restore (`tensorafi backup`, `tensorafi restore`), not a rebuild.
+One binary (`einsora`) provides the control plane, the agent, and the dashboard in every profile.
+Moving up a profile is a backup and restore (`einsora backup`, `einsora restore`), not a rebuild.
 
 ## Components
 
@@ -56,7 +56,7 @@ Moving up a profile is a backup and restore (`tensorafi backup`, `tensorafi rest
 | OS and virtualization | macOS (Virtualization framework); Linux (KVM) | Ubuntu 24.04, KVM through KubeVirt | `infra/` (Datacenter) |
 | GPU access | Metal on Macs; NVIDIA driver and container toolkit on Linux | NVIDIA GPU Operator | `deploy/platform/gpu-operator` |
 | Runtime | **Node agent** (built; in-process in Solo, ADR-0016) with drivers: `macos-native`, `macos-vz`, `macos-container`, `docker`, `libvirt` (planned) | k3s, KubeVirt, CDI, KServe ([ADR-0001](../adr/0001-kubernetes-kubevirt-gpu-operator.md)) | `controlplane/`, `deploy/` |
-| Model serving | MLX, llama.cpp, vLLM | KServe + `tensorafi-vllm` (CPU variant planned) | `deploy/charts/cluster-config` |
+| Model serving | MLX, llama.cpp, vLLM | KServe + `einsora-vllm` (CPU variant planned) | `deploy/charts/cluster-config` |
 | Store | SQLite, or Postgres for larger Labs | Postgres HA | `controlplane/internal/store` |
 | Networking | Agents dial out over mTLS; a relay for remote access | Cilium, MetalLB, Gateway API, WireGuard ([ADR-0007](../adr/0007-gateway-api-on-cilium.md)) | [networking.md](networking.md) |
 | Storage | Local disk on each machine | Longhorn, then Ceph ([ADR-0005](../adr/0005-storage-longhorn-then-ceph.md)) | [storage.md](storage.md) |
@@ -65,14 +65,14 @@ Moving up a profile is a backup and restore (`tensorafi backup`, `tensorafi rest
 | Logs and transparency | Workload timeline, complete export, request IDs; CLI and dashboard (built). Output logs from agents (planned). | Same, with output logs through Loki (planned) | [logs-and-transparency.md](logs-and-transparency.md) |
 | Admission and placement | Quotas, capacity, region, and opt-in fallbacks ([ADR-0010](../adr/0010-fallbacks-cpu-placement-and-inference-failover.md)); sharing rules ([ADR-0014](../adr/0014-sharing-idle-compute.md)) | Same | [control-plane.md](control-plane.md) |
 | Inference gateway | Built into the control plane (planned) | Regional gateway (planned) | [ADR-0010](../adr/0010-fallbacks-cpu-placement-and-inference-failover.md) |
-| Our code | `tensorafi` (Go): API, controller, agent, usage accounting, dashboard. `tensorafi-ml` (Python). | Same | `controlplane/`, `ml/`, `web/` |
+| Our code | `einsora` (Go): API, controller, agent, usage accounting, dashboard. `einsora-ml` (Python). | Same | `controlplane/`, `ml/`, `web/` |
 
 ## System diagram
 
 ```mermaid
 flowchart TB
   user([User: dashboard · CLI · API])
-  subgraph CP["Control plane: the tensorafi binary"]
+  subgraph CP["Control plane: the einsora binary"]
     api[API + dashboard]
     ctrl[Controller]
     acct[Usage accounting]
@@ -105,14 +105,14 @@ Kubernetes backend. The agent, its drivers, the gateway, regions, and fallbacks 
 ```mermaid
 sequenceDiagram
   actor U as User
-  participant T as tensorafi up (API, controller, agent)
+  participant T as einsora up (API, controller, agent)
   participant S as SQLite
   participant D as macos-native driver
   participant M as Model server (llama.cpp or MLX)
   U->>T: launch endpoint {model: hf://…, accelerator: apple, fallback: [cpu]}
   T->>S: check quota, record workload (pending) + event
   T->>D: start endpoint on this Mac
-  D->>D: download model, run tensorafi-ml validate (GGUF or safetensors only)
+  D->>D: download model, run einsora-ml validate (GGUF or safetensors only)
   D->>M: start server in a sandbox, Metal enabled, memory capped
   M-->>D: healthy
   T->>S: pending → running (+event); usage accounting starts
@@ -146,7 +146,7 @@ sequenceDiagram
     C->>DB: provisioning → running (+event); usage accounting starts
   end
   U->>G: POST /v1/chat/completions (API key)
-  G-->>U: answer + X-TensoraFi-Served-By / X-TensoraFi-Fallback headers
+  G-->>U: answer + X-Einsora-Served-By / X-Einsora-Fallback headers
 ```
 
 ## Request flow: a GPU VM in a datacenter
@@ -163,7 +163,7 @@ sequenceDiagram
   A->>DB: check quota, insert workload (pending) + event
   A-->>U: 201 {state: pending}
   C->>K: apply tenant bundle + VirtualMachine (runStrategy: Always)
-  K->>K: CDI clones the root disk from the DataSource in tensorafi-images
+  K->>K: CDI clones the root disk from the DataSource in einsora-images
   K->>N: schedule virt-launcher; whole GPUs passed through via VFIO
   N-->>K: VM boots; cloud-init installs the user's SSH key
   C->>K: observe VM printableStatus = Running

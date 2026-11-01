@@ -2,17 +2,17 @@
 
 These rules add to the root [AGENTS.md](../AGENTS.md); read that first.
 
-This module is the `tensorafi` binary. It must build and run on **linux/amd64, linux/arm64, and
+This module is the `einsora` binary. It must build and run on **linux/amd64, linux/arm64, and
 darwin/arm64** (rule 11): run `make build-all` from the repo root.
 
 ## Layout and dependency direction
 
 ```
-cmd/tensorafi/            main: wiring only. Server subcommands: api | controller | metering | migrate | seed | dev
+cmd/einsora/            main: wiring only. Server subcommands: api | controller | metering | migrate | seed | dev
                         (planned: up | agent | gateway | backup | restore)
                         client.go: CLI client commands workloads | events | export (planned: logs)
 internal/domain/        types, the state machine, and error codes. Imports nothing internal.
-internal/config/        TENSORAFI_* env parsing and production guards
+internal/config/        EINSORA_* env parsing and production guards
 internal/catalog/       loads images/catalog.yaml
 internal/store/         Store/Queries interfaces
   memstore/             in-memory implementation (dev and tests)
@@ -61,7 +61,7 @@ told); and `domain` imports nothing internal.
 - **Schema change:** add `migrations/postgres/NNNNN_*.sql` and the same change in `migrations/sqlite/NNNNN_*.sql` (`TestDialectsMatch` checks both exist), and update `storetest.SchemaColumns` and `SchemaIndexes` (both stores' tests compare their schema with them). Never edit an applied migration. SQLite tables are `STRICT`, UUIDs are text, and times are fixed-width UTC text, so text order is time order (ADR-0012).
 - **SQLite runs one transaction at a time** (one connection, `BEGIN IMMEDIATE`). That replaces Postgres's row locks, so never hold a transaction open while waiting on something else, never start one inside another, and keep transactions short: another process sharing the file waits at most 15 seconds.
 - **The SQLite file is private:** it and its `-wal`, `-shm`, and `-journal` files must be `0600` regular files, in a directory others can't write to. Paths are resolved to absolute file paths; `:memory:` and `file:` URIs are refused, because SQLite would read them as something other than the file that was checked. Keep `workload_events` append-only (a trigger enforces this).
-- **New cluster kind:** add the builder in `manifests/`, add the GVK to `kube.allowed`, and add the RBAC rule in `deploy/charts/tensorafi/templates/controller.yaml`. `TestBuildersOnlyEmitAllowedKinds` fails if the allowlist is missing an entry.
+- **New cluster kind:** add the builder in `manifests/`, add the GVK to `kube.allowed`, and add the RBAC rule in `deploy/charts/einsora/templates/controller.yaml`. `TestBuildersOnlyEmitAllowedKinds` fails if the allowlist is missing an entry.
 - **Unstructured types:** builders may use only `map[string]any`, `[]any`, `string`, `bool`, `int64`, and `float64`. Quantities are strings (`"64Gi"`, `"2"`). `cluster.CheckJSONTypes` enforces this in tests and in the fake backend.
 - **OS-specific code** (agents and drivers): only in driver packages, behind build tags (`//go:build darwin`, `//go:build linux`), with a stub for other platforms so `make build-all` stays green.
 - **No CGO.** Pick pure-Go dependencies so cross-compiling stays trivial.
@@ -96,7 +96,7 @@ has the full list. Until it lands:
 ## Commands
 
 ```bash
-go run ./cmd/tensorafi dev        # local stack on :8080 (macOS or Linux)
+go run ./cmd/einsora dev        # local stack on :8080 (macOS or Linux)
 go test ./...                   # tests
 go vet ./... && golangci-lint run
 gofmt -l .                      # must print nothing

@@ -1,7 +1,7 @@
 # infra (Datacenter profile)
 
 Takes a freshly installed Ubuntu 24.04 GPU server to a k3s node that's ready for `deploy/`. This is
-the **Datacenter profile** only. Macs and personal Linux machines install the `tensorafi` binary instead
+the **Datacenter profile** only. Macs and personal Linux machines install the `einsora` binary instead
 ([docs/runbooks/00-quickstart.md](../docs/runbooks/00-quickstart.md)).
 
 | Role | Does |

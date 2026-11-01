@@ -1,6 +1,6 @@
 # Runbooks
 
-Step-by-step procedures for installing and operating TensoraFi. These are for **humans**: agents may help
+Step-by-step procedures for installing and operating Einsora. These are for **humans**: agents may help
 draft and review them, but they never execute steps that change hosts, clusters, or a developer's machine.
 
 | Runbook | Profile | When | Status |

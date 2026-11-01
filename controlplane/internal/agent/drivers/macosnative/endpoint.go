@@ -12,10 +12,10 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/process"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/pythonruntime"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/drivers/process"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/drivers/pythonruntime"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 func (d *Driver) sandboxFingerprint(kind domain.WorkloadKind) string {
@@ -32,12 +32,12 @@ func (d *Driver) sandboxFingerprint(kind domain.WorkloadKind) string {
 func (d *Driver) endpoint(w protocol.Desired, env string, st state) process.Spec {
 	env = resolved(env)
 	run := d.runDir(st)
-	spec := d.command(w.ID, env, st, filepath.Join(env, "bin", "python"), "-m", "tensorafi_ml.native",
+	spec := d.command(w.ID, env, st, filepath.Join(env, "bin", "python"), "-m", "einsora_ml.native",
 		"--source", w.ModelURI, "--model-dir", filepath.Join(d.dir(w.ID), "data", "model"),
 		"--socket", d.socket(st), "--status", filepath.Join(run, "status.json"),
 		"--max-bytes", strconv.FormatInt(w.MemoryMiB*1024*1024, 10))
-	spec.Env = append(spec.Env, "PYTHONPATH="+filepath.Join(env, "tensorafi-runtime.zip"),
-		"TENSORAFI_NATIVE_TOKEN="+st.Token, "HF_HOME="+filepath.Join(run, "hf"), "HF_HUB_DISABLE_TELEMETRY=1",
+	spec.Env = append(spec.Env, "PYTHONPATH="+filepath.Join(env, "einsora-runtime.zip"),
+		"EINSORA_NATIVE_TOKEN="+st.Token, "HF_HOME="+filepath.Join(run, "hf"), "HF_HUB_DISABLE_TELEMETRY=1",
 		"AWS_EC2_METADATA_DISABLED=true")
 	for _, key := range []string{"HF_TOKEN", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
 		"AWS_REGION", "AWS_DEFAULT_REGION", "AWS_ENDPOINT_URL", "AWS_ENDPOINT_URL_S3", "HTTP_PROXY", "HTTPS_PROXY",

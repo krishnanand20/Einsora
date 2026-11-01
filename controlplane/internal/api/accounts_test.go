@@ -13,14 +13,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/api"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/auth"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/credential"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store/memstore"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
+	"github.com/krishnanand20/einsora/controlplane/internal/api"
+	"github.com/krishnanand20/einsora/controlplane/internal/auth"
+	"github.com/krishnanand20/einsora/controlplane/internal/credential"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/service"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/store/memstore"
+	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
 const (
@@ -197,7 +197,7 @@ func TestSignInNeedsAPrivateConnection(t *testing.T) {
 		{"this machine", auth.Transport{}, request{remote: "127.0.0.1:5000"}, true, false},
 		{"this machine over IPv6", auth.Transport{}, request{remote: "[::1]:5000"}, true, false},
 		{"plain HTTP, allowed by the operator", auth.Transport{AllowPlainHTTP: true}, request{}, true, false},
-		{"direct HTTPS", auth.Transport{}, request{path: "https://tensorafi.example/v1/auth/login"}, true, true},
+		{"direct HTTPS", auth.Transport{}, request{path: "https://einsora.example/v1/auth/login"}, true, true},
 		{"HTTPS through a trusted proxy", auth.Transport{TrustedProxies: []netip.Prefix{proxy}},
 			request{remote: "10.0.0.5:5000", header: map[string]string{"X-Forwarded-For": "203.0.113.9", "X-Forwarded-Proto": "https"}}, true, true},
 		{"a trusted proxy that doesn't say who for", auth.Transport{TrustedProxies: []netip.Prefix{proxy}},
@@ -255,16 +255,16 @@ func TestSignInNeedsAPrivateConnection(t *testing.T) {
 // plain-HTTP response, another port, or a sibling subdomain, so it's ignored, not trusted.
 func TestOverHTTPSOnlyTheHostCookieCounts(t *testing.T) {
 	h, _ := localServerWith(t, auth.Transport{})
-	secure := signIn(t, h, request{path: "https://tensorafi.example/v1/auth/login"})
+	secure := signIn(t, h, request{path: "https://einsora.example/v1/auth/login"})
 	if secure.Name != auth.SecureSessionCookie {
 		t.Fatalf("cookie over HTTPS = %s", secure.Name)
 	}
 	planted := &http.Cookie{Name: auth.SessionCookie, Value: "planted"}
-	if rec := do(t, h, request{method: "GET", path: "https://tensorafi.example/v1/auth/me", cookies: []*http.Cookie{planted, secure}}); rec.Code != http.StatusOK {
+	if rec := do(t, h, request{method: "GET", path: "https://einsora.example/v1/auth/me", cookies: []*http.Cookie{planted, secure}}); rec.Code != http.StatusOK {
 		t.Errorf("with a planted plain cookie beside the real one: %d; want it ignored", rec.Code)
 	}
 	plain := &http.Cookie{Name: auth.SessionCookie, Value: secure.Value}
-	if rec := do(t, h, request{method: "GET", path: "https://tensorafi.example/v1/auth/me", cookie: plain}); rec.Code != http.StatusUnauthorized {
+	if rec := do(t, h, request{method: "GET", path: "https://einsora.example/v1/auth/me", cookie: plain}); rec.Code != http.StatusUnauthorized {
 		t.Errorf("the session under the plain name over HTTPS: %d; want 401", rec.Code)
 	}
 }
@@ -289,7 +289,7 @@ func TestUnlistedProxyCantSignIn(t *testing.T) {
 	h, _ := localServerWith(t, auth.Transport{})
 	rec := do(t, h, request{method: "POST", path: "/v1/auth/login", body: ownerCreds, csrf: true, remote: "127.0.0.1:5000",
 		header: map[string]string{"X-Forwarded-For": "198.51.100.7", "X-Forwarded-Proto": "https"}})
-	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "TENSORAFI_TRUSTED_PROXIES") {
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "EINSORA_TRUSTED_PROXIES") {
 		t.Errorf("sign-in through an unlisted local proxy: %d %s", rec.Code, rec.Body)
 	}
 }

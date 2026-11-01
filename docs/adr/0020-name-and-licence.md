@@ -1,5 +1,8 @@
 # 0020. Name the product TensoraFi, and license it under MIT
 
+> **Update (ADR-0021):** the product is renamed Einsora, because a US mark TENSORA is registered in
+> the same class. The MIT licence still applies. Read the identifiers below through ADR-0021's table.
+
 - **Status:** Accepted
 - **Date:** 2026-11-01
 - **Deciders:** Krishnanand
@@ -48,10 +51,14 @@ and their notices ship with the binaries (packaging, roadmap step 11).
     before upgrading.
   - The development database's volume must be recreated (`docker compose down -v`), since its
     user and database are named `tensorafi` now.
-- `go install` works once the GitHub repository is renamed to `tensorafi`. GitHub redirects the old
-  URL.
-- Labels use `tensorafi.dev`, which the project must register. A trademark search in the main
-  markets (classes 9 and 42) is still to do before the first release.
+- The repository is `github.com/krishnanand20/TensoraFi`. GitHub matches names case-insensitively,
+  so the lowercase module path (Go's convention) resolves to it, and the old URL redirects.
+- Labels use `tensorafi.dev`, which the project must register (unregistered on 2026-11-01).
+- **Trademark: not yet cleared.** A US mark TENSORA is registered (August 2025, Tensora, Inc.,
+  registrations 7903143 and 7903144), one of them in Class 42, which covers software and cloud
+  services; its goods are geophysical data services. TensoraFi contains that mark, so a trademark
+  attorney should judge the risk of confusion before the first release. If the name has to change
+  again, it's still cheap: nothing is released.
 - MIT has no explicit patent grant. Apache-2.0 has one, and some companies prefer it for
   infrastructure. MIT is shorter, widely understood, and asks the least of anyone who reuses the
   code. A contributor's grant would come only from the licence's implied terms.

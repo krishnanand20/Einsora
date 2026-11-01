@@ -1,4 +1,4 @@
-# web: TensoraFi dashboard
+# web: Einsora dashboard
 
 The dashboard, built with React, Vite, and TanStack Query. Users launch **GPU VMs**, **Jupyter
 notebooks**, and **model endpoints** from a catalog-driven form, watch their state live, and stop,
@@ -19,7 +19,7 @@ tenant: `globex` (untrusted), or `internal` (trusted, which also sees internal-o
 
 How it's served:
 
-- **Solo:** embedded in the `tensorafi` binary and served on localhost (planned).
+- **Solo:** embedded in the `einsora` binary and served on localhost (planned).
 - **Datacenter:** the static build is served by nginx (see `Dockerfile`). The Gateway routes `app.<domain>` here and `api.<domain>` to the control plane.
 
 Planned (ADR-0009, 0010, 0013, 0014):

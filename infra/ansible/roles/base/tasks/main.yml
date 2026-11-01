@@ -38,7 +38,7 @@
 
 - name: Load kernel modules at boot
   ansible.builtin.copy:
-    dest: /etc/modules-load.d/tensorafi.conf
+    dest: /etc/modules-load.d/einsora.conf
     content: |
       overlay
       br_netfilter
@@ -55,7 +55,7 @@
   ansible.posix.sysctl:
     name: "{{ item.key }}"
     value: "{{ item.value }}"
-    sysctl_file: /etc/sysctl.d/90-tensorafi.conf
+    sysctl_file: /etc/sysctl.d/90-einsora.conf
     reload: true
   loop: "{{ sysctls | dict2items }}"
   vars:
@@ -68,7 +68,7 @@
 
 - name: Harden SSH (keys only, no root login)
   ansible.builtin.copy:
-    dest: /etc/ssh/sshd_config.d/90-tensorafi.conf
+    dest: /etc/ssh/sshd_config.d/90-einsora.conf
     content: |
       PasswordAuthentication no
       KbdInteractiveAuthentication no
@@ -78,7 +78,7 @@
 
 - name: Security-only unattended upgrades, never automatic reboots
   ansible.builtin.copy:
-    dest: /etc/apt/apt.conf.d/52tensorafi-unattended
+    dest: /etc/apt/apt.conf.d/52einsora-unattended
     content: |
       Unattended-Upgrade::Allowed-Origins { "${distro_id}:${distro_codename}-security"; };
       Unattended-Upgrade::Automatic-Reboot "false";

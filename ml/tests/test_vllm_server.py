@@ -7,9 +7,9 @@ from typing import Any
 
 import pytest
 
-from tensorafi_ml import vllm_server
-from tensorafi_ml.ingest import ModelRejectedError
-from tensorafi_ml.validate import Report
+from einsora_ml import vllm_server
+from einsora_ml.ingest import ModelRejectedError
+from einsora_ml.validate import Report
 
 
 def test_vllm_command_is_fixed_to_validated_local_safetensors() -> None:
@@ -60,7 +60,7 @@ def test_fetch_credentials_are_removed_before_vllm_import(
     model = arguments(tmp_path, monkeypatch)
     monkeypatch.setenv("HF_TOKEN", "test-fetch-key")
     monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "test-fetch-credential")
-    monkeypatch.setenv("TENSORAFI_NATIVE_TOKEN", "internal-worker-key")
+    monkeypatch.setenv("EINSORA_NATIVE_TOKEN", "internal-worker-key")
     calls: list[str] = []
 
     def fetch(source: str, dest: Path, limit: int, **kwargs: Any) -> dict[str, Any]:
@@ -72,7 +72,7 @@ def test_fetch_credentials_are_removed_before_vllm_import(
         assert calls == ["validated"]
         assert not any(key.startswith("AWS_") for key in env)
         assert "HF_TOKEN" not in env
-        assert "TENSORAFI_NATIVE_TOKEN" not in env
+        assert "EINSORA_NATIVE_TOKEN" not in env
         assert env["VLLM_API_KEY"] == "internal-worker-key"
         assert env["HF_HUB_OFFLINE"] == "1" and env["TRANSFORMERS_OFFLINE"] == "1"
         assert env["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] == "0"

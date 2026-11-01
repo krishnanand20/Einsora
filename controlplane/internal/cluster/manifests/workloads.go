@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 // virtualMachine is a KubeVirt VM with whole GPUs passed through via VFIO. The root disk is
@@ -129,7 +129,7 @@ func notebook(w domain.Workload, c Context, running bool) []cluster.Manifest {
 	}
 }
 
-// inferenceService serves a model with the tensorafi-vllm ClusterServingRuntime, which pins
+// inferenceService serves a model with the einsora-vllm ClusterServingRuntime, which pins
 // --load-format=safetensors and never enables trust_remote_code (AGENTS.md rule 6).
 func inferenceService(w domain.Workload, c Context) cluster.Manifest {
 	lbl := labels(w, c)

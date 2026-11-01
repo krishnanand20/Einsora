@@ -23,7 +23,7 @@ loki:
 singleBinary:
   replicas: 1
   persistence:
-    storageClass: tensorafi-block
+    storageClass: einsora-block
     size: 50Gi
 
 read:

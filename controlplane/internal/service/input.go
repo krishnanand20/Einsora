@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 const maxGPUsPerWorkload = 8

@@ -1,10 +1,10 @@
-# tensorafi-block is the only StorageClass TensoraFi references (TENSORAFI_STORAGE_CLASS), so moving
+# einsora-block is the only StorageClass Einsora references (EINSORA_STORAGE_CLASS), so moving
 # from Longhorn to Ceph changes this file, not the control plane. StorageClass parameters
 # are immutable: switching provisioners means deleting and recreating the class.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: tensorafi-block
+  name: einsora-block
   annotations:
     storageclass.kubernetes.io/is-default-class: "true"
 {{- if eq .Values.storage.provisioner "longhorn" }}

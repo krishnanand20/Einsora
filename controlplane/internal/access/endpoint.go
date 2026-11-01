@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/redact"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/redact"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
 )
 
 // TokenResolver is implemented by the service. Endpoint requests accept API tokens only, never
@@ -97,10 +97,10 @@ func (s *Server) endpoint(w http.ResponseWriter, r *http.Request, id uuid.UUID) 
 			return err
 		}
 		resp.Header.Set("X-Request-ID", requestID)
-		resp.Header.Set("X-TensoraFi-Served-By", "replica")
-		resp.Header.Set("X-TensoraFi-Region", string(workload.Region))
-		resp.Header.Set("X-TensoraFi-Compute-Class", workload.PlacedClass)
-		resp.Header.Set("X-TensoraFi-Fallback", strconv.FormatBool(workload.PlacedClass != workload.GPUClass))
+		resp.Header.Set("X-Einsora-Served-By", "replica")
+		resp.Header.Set("X-Einsora-Region", string(workload.Region))
+		resp.Header.Set("X-Einsora-Compute-Class", workload.PlacedClass)
+		resp.Header.Set("X-Einsora-Fallback", strconv.FormatBool(workload.PlacedClass != workload.GPUClass))
 		resp.Header.Del("Set-Cookie")
 		return nil
 	}

@@ -1,25 +1,25 @@
 # 03: First model endpoint (KServe + vLLM, Datacenter profile)
 
 Prerequisites: the node is in **container** mode ([02, part A](02-gpu-passthrough.md#part-a-container-mode)),
-KServe is installed, and `cluster-config` has created the `tensorafi-vllm` ClusterServingRuntime.
+KServe is installed, and `cluster-config` has created the `einsora-vllm` ClusterServingRuntime.
 
 ```bash
-kubectl get clusterservingruntime tensorafi-vllm
+kubectl get clusterservingruntime einsora-vllm
 kubectl apply -f deploy/examples/vllm-endpoint.yaml
-kubectl -n tensorafi-smoke get isvc qwen -w                         # READY=True in about 2–5 min
-kubectl -n tensorafi-smoke logs deploy/qwen-predictor -c storage-initializer   # model download
-kubectl -n tensorafi-smoke logs deploy/qwen-predictor -f            # vLLM startup
+kubectl -n einsora-smoke get isvc qwen -w                         # READY=True in about 2–5 min
+kubectl -n einsora-smoke logs deploy/qwen-predictor -c storage-initializer   # model download
+kubectl -n einsora-smoke logs deploy/qwen-predictor -f            # vLLM startup
 ```
 
 This runbook calls the endpoint directly, which is fine for a smoke test. Once it exists, user traffic goes
 through the regional **inference gateway** (API keys, token counts, failover; ADR-0010). Repeat
 the test through the gateway once it exists. To test CPU fallback, apply the same InferenceService with
-`runtime: tensorafi-vllm-cpu`, no GPU resources, and a small model.
+`runtime: einsora-vllm-cpu`, no GPU resources, and a small model.
 
 ## Call it
 
 ```bash
-kubectl -n tensorafi-smoke port-forward svc/qwen-predictor 8080:80 &
+kubectl -n einsora-smoke port-forward svc/qwen-predictor 8080:80 &
 curl -s localhost:8080/v1/models | jq
 curl -s localhost:8080/v1/chat/completions -H 'Content-Type: application/json' -d '{
   "model": "qwen",
@@ -31,7 +31,7 @@ curl -s localhost:8080/v1/chat/completions -H 'Content-Type: application/json' -
 ## Benchmark it
 
 ```bash
-cd ml && uv run tensorafi-ml bench http://localhost:8080 --model qwen --requests 64 --concurrency 8
+cd ml && uv run einsora-ml bench http://localhost:8080 --model qwen --requests 64 --concurrency 8
 ```
 
 Record TTFT p50/p95 and tokens/s per GPU class in a table here. These numbers become the

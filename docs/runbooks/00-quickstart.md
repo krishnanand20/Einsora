@@ -16,21 +16,21 @@
 
 ```bash
 # macOS
-brew install tensorafi/tap/tensorafi
+brew install einsora/tap/einsora
 
 # Linux
-curl -fsSL https://get.tensorafi.example/install.sh | sh
+curl -fsSL https://get.einsora.example/install.sh | sh
 ```
 
 ## Start
 
 ```bash
-tensorafi up
+einsora up
 ```
 
-`tensorafi up` does the following:
+`einsora up` does the following:
 
-- creates its data directory (macOS: `~/Library/Application Support/TensoraFi`; Linux: `~/.local/share/tensorafi`)
+- creates its data directory (macOS: `~/Library/Application Support/Einsora`; Linux: `~/.local/share/einsora`)
 - starts the control plane and the local agent in one process, on `127.0.0.1` only
 - asks you to create the first account
 - opens the dashboard
@@ -53,17 +53,17 @@ Every workload keeps a full timeline: each state change, when, why, and by whom.
 the dashboard and click **Download full log** to save everything about it, or use the CLI:
 
 ```bash
-tensorafi events <id>      # the timeline
-tensorafi export <id>      # a complete copy, as JSON
-tensorafi workloads -all   # deleted workloads too: their history stays available
+einsora events <id>      # the timeline
+einsora export <id>      # a complete copy, as JSON
+einsora workloads -all   # deleted workloads too: their history stays available
 ```
 
 If something fails, the error shows a request ID. It points to the exact lines in the log
-(`TENSORAFI_LOG_LEVEL=debug` for more detail). See [logs and transparency](../architecture/logs-and-transparency.md).
+(`EINSORA_LOG_LEVEL=debug` for more detail). See [logs and transparency](../architecture/logs-and-transparency.md).
 
 ## Keep it private
 
-`tensorafi up` listens only on localhost, and your machine is **private** until you choose otherwise.
+`einsora up` listens only on localhost, and your machine is **private** until you choose otherwise.
 To add more machines, or to share with others, see the Lab and sharing sections of the
 [product spec](../product/product-spec.md#how-you-deploy-it).
 
@@ -81,28 +81,28 @@ make web-dev                  # dashboard on :5173
 The CLI's read commands work today against `make dev`:
 
 ```bash
-cd controlplane && go build -o bin/tensorafi ./cmd/tensorafi
-TENSORAFI_DEV_TENANT=acme bin/tensorafi workloads
-TENSORAFI_DEV_TENANT=acme bin/tensorafi events <id>
-TENSORAFI_DEV_TENANT=acme bin/tensorafi export <id>
+cd controlplane && go build -o bin/einsora ./cmd/einsora
+EINSORA_DEV_TENANT=acme bin/einsora workloads
+EINSORA_DEV_TENANT=acme bin/einsora events <id>
+EINSORA_DEV_TENANT=acme bin/einsora export <id>
 ```
 
 To try local accounts (sign-in and API tokens) instead of the dev header, keep the data in a SQLite file:
 
 ```bash
 cd controlplane
-export TENSORAFI_DATABASE_URL=sqlite:$PWD/tensorafi.db TENSORAFI_AUTH_MODE=local
-go run ./cmd/tensorafi setup -email you@example.com   # once: asks for a password (12+ characters)
-go run ./cmd/tensorafi dev                            # then `make web-dev`, open :5173, and sign in
+export EINSORA_DATABASE_URL=sqlite:$PWD/einsora.db EINSORA_AUTH_MODE=local
+go run ./cmd/einsora setup -email you@example.com   # once: asks for a password (12+ characters)
+go run ./cmd/einsora dev                            # then `make web-dev`, open :5173, and sign in
 ```
 
-On the dashboard's **API tokens** page, create a token for the CLI and set `TENSORAFI_TOKEN` to it. Forgot the
-password? `go run ./cmd/tensorafi setup -reset-password -email you@example.com` sets a new one.
+On the dashboard's **API tokens** page, create a token for the CLI and set `EINSORA_TOKEN` to it. Forgot the
+password? `go run ./cmd/einsora setup -reset-password -email you@example.com` sets a new one.
 
 Sign-in works over HTTPS or from this machine. To sign in from another machine, put an HTTPS reverse proxy in
 front (Caddy, nginx, cloudflared, or Tailscale Serve, sending `X-Forwarded-For` and `X-Forwarded-Proto`)
-and list its address in `TENSORAFI_TRUSTED_PROXIES`, even when it runs on this machine. Only on a network you
-trust, `TENSORAFI_INSECURE_HTTP=true` allows plain HTTP instead.
+and list its address in `EINSORA_TRUSTED_PROXIES`, even when it runs on this machine. Only on a network you
+trust, `EINSORA_INSECURE_HTTP=true` allows plain HTTP instead.
 
 To try the node agent on this machine ([ADR-0016](../adr/0016-agent-protocol-and-machine-placement.md)) without
 running anything, use the agent backend with the `sim` driver. It only pretends to run workloads, but
@@ -111,11 +111,11 @@ and the timeline says so.
 
 ```bash
 cd controlplane
-TENSORAFI_CLUSTER_BACKEND=agent TENSORAFI_AGENT_DRIVERS=sim TENSORAFI_MACHINE_OWNER=internal go run ./cmd/tensorafi dev
+EINSORA_CLUSTER_BACKEND=agent EINSORA_AGENT_DRIVERS=sim EINSORA_MACHINE_OWNER=internal go run ./cmd/einsora dev
 # in another terminal: a notebook on this Mac's GPU (use the tier its memory holds, or a CPU class such as cpu-2c-8g)
 curl -s -X POST -H 'X-Dev-Tenant: internal' localhost:8080/v1/workloads \
   -d '{"name":"nb","kind":"notebook","image_id":"pytorch-notebook","gpu_class":"apple-silicon-32gb","gpu_count":1}'
-TENSORAFI_DEV_TENANT=internal go run ./cmd/tensorafi events <id>   # admitted: 1 × apple-silicon-32gb on <this machine> with sim
+EINSORA_DEV_TENANT=internal go run ./cmd/einsora events <id>   # admitted: 1 × apple-silicon-32gb on <this machine> with sim
 ```
 
 ### Run a real notebook on your Mac
@@ -127,16 +127,16 @@ sandbox ([ADR-0017](../adr/0017-local-workload-access-and-native-drivers.md)). I
 ```bash
 brew install uv
 cd controlplane
-export TENSORAFI_DATABASE_URL=sqlite:$PWD/tensorafi.db TENSORAFI_AUTH_MODE=local TENSORAFI_CLUSTER_BACKEND=agent
-go run ./cmd/tensorafi setup -email you@example.com   # once, if you haven't
-go run ./cmd/tensorafi dev                            # then `make web-dev`, open :5173, and sign in
+export EINSORA_DATABASE_URL=sqlite:$PWD/einsora.db EINSORA_AUTH_MODE=local EINSORA_CLUSTER_BACKEND=agent
+go run ./cmd/einsora setup -email you@example.com   # once, if you haven't
+go run ./cmd/einsora dev                            # then `make web-dev`, open :5173, and sign in
 ```
 
 Launch a **Notebook** on the Apple Silicon class your Mac's memory holds. The first one builds its Python
 environment, a download of a few hundred MB (about 750 MB on disk, in `native/` next to the database), so it
 stays provisioning for a minute or more, depending on your connection; later ones start in seconds. Once it's running, **Open** on its page opens
 JupyterLab in a new tab at `w-<id>.localhost:8090`, its own site, through the access proxy. Its files are in
-`native/workloads/<id>/data`, and survive stopping and starting it, and restarting `tensorafi`. Deleting the
+`native/workloads/<id>/data`, and survive stopping and starting it, and restarting `einsora`. Deleting the
 workload deletes them. You can also explicitly choose a CPU class: the native driver uses the same
 pinned environment and supports normal CPU PyTorch operations. Native code can still use Metal, so
 the controller and agent reserve the Apple GPU exclusively while that CPU notebook runs; the
@@ -144,12 +144,12 @@ admission timeline says so. CPU-native notebooks and GPU workloads wait for each
 there is spare CPU and memory. Usage remains on the requested CPU class. CPU endpoints still await
 GGUF validation and llama.cpp. A native notebook can't listen on a network port, so web apps started inside it (TensorBoard, Gradio) and
 JupyterLab's debugger don't work yet; this keeps code in a notebook from getting your dashboard session. Its
-sockets and temporary files are in `~/.tensorafi/run` (`TENSORAFI_AGENT_RUN_DIR`).
+sockets and temporary files are in `~/.einsora/run` (`EINSORA_AGENT_RUN_DIR`).
 
 After an upgrade that changes the native sandbox, existing notebooks stop and their timeline asks
 you to restart them to use the updated protections. Their files are kept. This also applies when
 upgrading from the older implementation that used TCP ports. Start the workload again from the
-dashboard; an ordinary `tensorafi` restart with the same sandbox keeps notebooks running.
+dashboard; an ordinary `einsora` restart with the same sandbox keeps notebooks running.
 
 ### Run a model endpoint on your Mac
 
@@ -162,11 +162,11 @@ files must fit the workload's memory allocation, and runtime overhead also needs
 
 Once it is running, **API connection** on the workload page shows the OpenAI-compatible base URL.
 Alternatively, request it with `POST /v1/workloads/<id>/access`. Create an API token on **API tokens**
-and keep it in `TENSORAFI_TOKEN`. Use the endpoint URL as `BASE_URL`:
+and keep it in `EINSORA_TOKEN`. Use the endpoint URL as `BASE_URL`:
 
 ```bash
-curl -s "$BASE_URL/models" -H "Authorization: Bearer $TENSORAFI_TOKEN"
-curl -s "$BASE_URL/chat/completions" -H "Authorization: Bearer $TENSORAFI_TOKEN" \
+curl -s "$BASE_URL/models" -H "Authorization: Bearer $EINSORA_TOKEN"
+curl -s "$BASE_URL/chat/completions" -H "Authorization: Bearer $EINSORA_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"model":"hf://mlx-community/Qwen2.5-0.5B-Instruct-4bit","messages":[{"role":"user","content":"Hello"}],"max_tokens":64}'
 ```
@@ -177,7 +177,7 @@ Use the exact model ID returned by `/models`. `stream: true` enables SSE; `strea
 alternate models, and adapters are refused. It serializes generation and returns 503 while busy.
 The API accepts up to 1 MiB per request, 8192 prompt-plus-output tokens, and 4096 output tokens.
 
-For private model downloads, start `tensorafi` with `HF_TOKEN` or the standard explicit AWS credential
+For private model downloads, start `einsora` with `HF_TOKEN` or the standard explicit AWS credential
 environment variables (and `AWS_ENDPOINT_URL_S3` for another S3-compatible store). Credentials never
 go in `model_uri` or the endpoint URL. They are removed before the model-serving process starts,
 which loads the validated local snapshot offline. Snapshots stay private to each workload; stopping
@@ -193,9 +193,9 @@ endpoints on NVIDIA ([ADR-0018](../adr/0018-linux-docker-driver.md)). Linux/CUDA
 is pending; the daemon-backed notebook test below is opt-in.
 
 Use an already configured local **rootful Docker Engine**, without `userns-remap`, accepting Engine
-API 1.41–1.47 and enforcing CPU, memory, swap, and PID cgroup limits. The user running `tensorafi`
+API 1.41–1.47 and enforcing CPU, memory, swap, and PID cgroup limits. The user running `einsora`
 needs access to its Unix socket. NVIDIA also needs the NVIDIA container runtime and `nvidia-smi`
-physical GPU discovery. TensoraFi reports an unavailable driver if these daemon requirements fail;
+physical GPU discovery. Einsora reports an unavailable driver if these daemon requirements fail;
 it does not install or reconfigure Docker or the host. Rootless and remote daemons aren't supported.
 
 Build the [local pinned notebook and endpoint images](../../images/README.md#build-linux-solo-images)
@@ -203,10 +203,10 @@ first. Then, from the repository root:
 
 ```bash
 cd controlplane
-export TENSORAFI_DATABASE_URL=sqlite:$PWD/tensorafi.db TENSORAFI_AUTH_MODE=local TENSORAFI_CLUSTER_BACKEND=agent
-export TENSORAFI_AGENT_DRIVERS=docker
-go run ./cmd/tensorafi setup -email you@example.com   # once
-go run ./cmd/tensorafi dev                            # then `make web-dev` from the repo root
+export EINSORA_DATABASE_URL=sqlite:$PWD/einsora.db EINSORA_AUTH_MODE=local EINSORA_CLUSTER_BACKEND=agent
+export EINSORA_AGENT_DRIVERS=docker
+go run ./cmd/einsora setup -email you@example.com   # once
+go run ./cmd/einsora dev                            # then `make web-dev` from the repo root
 ```
 
 Sign in as the owner and launch a notebook on an available **CPU** class or a class matching the
@@ -218,13 +218,13 @@ CPU endpoints remain blocked until step 10.
 
 Each workload has a non-root container, resource limits, private directories and network, and no
 published ports. Notebook **Open** and the endpoint API use the existing access proxy and private
-Unix socket. `TENSORAFI_DOCKER_SOCKET` selects an absolute local socket path (default
+Unix socket. `EINSORA_DOCKER_SOCKET` selects an absolute local socket path (default
 `/var/run/docker.sock`). State and notebook files live in `docker-state/` next to the database.
-The default socket directory is `docker-state/run/`; set `TENSORAFI_AGENT_RUN_DIR` to a shorter,
+The default socket directory is `docker-state/run/`; set `EINSORA_AGENT_RUN_DIR` to a shorter,
 private persistent path if the default exceeds the socket path limit.
 
 Stopping keeps notebook files; deletion removes them. Endpoints' files are removed on stop by the
-controller's explicit removal intent. Running containers survive a TensoraFi restart and are adopted
+controller's explicit removal intent. Running containers survive a Einsora restart and are adopted
 again; interrupted preparation and cleanup resume. Changed worker policies stop old endpoints and
 ask for a restart. Lost saved notebook disks fail rather than creating empty replacements.
 These containers are only for the owner's own workloads: runc shares the host kernel and outbound
@@ -235,7 +235,7 @@ access, file persistence across stop/start, and cleanup:
 
 ```bash
 cd controlplane
-TENSORAFI_TEST_DOCKER_NOTEBOOK_IMAGE=ghcr.io/your-org/tensorafi-pytorch-notebook:0.1.0 \
+EINSORA_TEST_DOCKER_NOTEBOOK_IMAGE=ghcr.io/your-org/einsora-pytorch-notebook:0.1.0 \
   go test ./internal/agent/drivers/docker -run TestRealDockerNotebook -count=1 -v
 ```
 
@@ -248,6 +248,6 @@ checks real sandboxed kernels over IPC on both CPU and Metal, without downloadin
 
 ```bash
 cd controlplane
-TENSORAFI_TEST_NATIVE_ENV=/absolute/path/to/native/envs/jupyterlab-pytorch-mps-<hash> \
+EINSORA_TEST_NATIVE_ENV=/absolute/path/to/native/envs/jupyterlab-pytorch-mps-<hash> \
   go test ./internal/agent/drivers/macosnative -run TestRealNotebook -count=1 -v
 ```

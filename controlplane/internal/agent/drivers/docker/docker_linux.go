@@ -18,7 +18,7 @@ func New(opts Options) (*Driver, error) {
 		socket = "/var/run/docker.sock"
 	}
 	if !filepath.IsAbs(socket) {
-		return nil, fmt.Errorf("TENSORAFI_DOCKER_SOCKET must be an absolute local Unix socket path")
+		return nil, fmt.Errorf("EINSORA_DOCKER_SOCKET must be an absolute local Unix socket path")
 	}
 	e := localEngine(socket)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

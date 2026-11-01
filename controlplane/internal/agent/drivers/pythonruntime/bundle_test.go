@@ -15,7 +15,7 @@ func TestBundleMatchesMLSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := filepath.Join("..", "..", "..", "..", "..", "ml", "src")
-	files, err := filepath.Glob(filepath.Join(source, "tensorafi_ml", "*.py"))
+	files, err := filepath.Glob(filepath.Join(source, "einsora_ml", "*.py"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/catalog"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/catalog"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 // Context is everything a builder needs beyond the workload itself.

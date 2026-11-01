@@ -1,7 +1,7 @@
 [project]
-name = "tensorafi-ml"
+name = "einsora-ml"
 version = "0.1.0"
-description = "TensoraFi ML layer: model ingestion and validation, endpoint benchmarking, GPU burn-in."
+description = "Einsora ML layer: model ingestion and validation, endpoint benchmarking, GPU burn-in."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -19,7 +19,7 @@ burnin = ["torch>=2.4"]
 serve = ["mlx-lm==0.32.2; sys_platform == 'darwin' and platform_machine == 'arm64'"]
 
 [project.scripts]
-tensorafi-ml = "tensorafi_ml.cli:main"
+einsora-ml = "einsora_ml.cli:main"
 
 [dependency-groups]
 dev = [
@@ -34,7 +34,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/tensorafi_ml"]
+packages = ["src/einsora_ml"]
 
 [tool.ruff]
 line-length = 100

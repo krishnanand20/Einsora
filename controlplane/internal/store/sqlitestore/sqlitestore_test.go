@@ -13,16 +13,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/pressly/goose/v3"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store/storetest"
-	"github.com/krishnanand20/tensorafi/controlplane/migrations"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/store/storetest"
+	"github.com/krishnanand20/einsora/controlplane/migrations"
 )
 
 // SQLite needs no server, so the conformance suite runs on every `go test`.
 func TestConformance(t *testing.T) {
 	storetest.Run(t, func(t *testing.T) store.Store {
-		st, err := Open(context.Background(), filepath.Join(t.TempDir(), "tensorafi.db"))
+		st, err := Open(context.Background(), filepath.Join(t.TempDir(), "einsora.db"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -33,11 +33,11 @@ func TestConformance(t *testing.T) {
 
 func TestMigrateIsIdempotentAndPathsMayHaveSpaces(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "my data", "tensorafi.db")
+	path := filepath.Join(t.TempDir(), "my data", "einsora.db")
 	if _, err := Migrate(ctx, path); err == nil {
 		t.Fatal("a missing directory must be an error, not a silent new location")
 	}
-	path = filepath.Join(t.TempDir(), "tensorafi data.db")
+	path = filepath.Join(t.TempDir(), "einsora data.db")
 	if n, err := Migrate(ctx, path); err != nil || n == 0 {
 		t.Fatalf("first migrate: %d, %v", n, err)
 	}
@@ -52,7 +52,7 @@ func TestMigrateIsIdempotentAndPathsMayHaveSpaces(t *testing.T) {
 // The schema enforces what Postgres enforces: slug format, append-only events, foreign keys.
 func TestSchemaConstraints(t *testing.T) {
 	ctx := context.Background()
-	st, err := Open(ctx, filepath.Join(t.TempDir(), "tensorafi.db"))
+	st, err := Open(ctx, filepath.Join(t.TempDir(), "einsora.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestSchemaConstraints(t *testing.T) {
 // exceed the quota and must never fail with "database is locked".
 func TestConcurrentCreatesNeverExceedQuota(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "tensorafi.db")
+	path := filepath.Join(t.TempDir(), "einsora.db")
 	a, err := Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)
@@ -176,7 +176,7 @@ func TestConcurrentCreatesNeverExceedQuota(t *testing.T) {
 // The database holds everything about every workload, so it's readable by its owner only.
 func TestDatabaseFileIsPrivate(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "tensorafi.db")
+	path := filepath.Join(t.TempDir(), "einsora.db")
 	st, err := Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)
@@ -202,7 +202,7 @@ func TestDatabaseFileIsPrivate(t *testing.T) {
 
 func TestSchemaMatchesPostgres(t *testing.T) {
 	ctx := context.Background()
-	st, err := Open(ctx, filepath.Join(t.TempDir(), "tensorafi.db"))
+	st, err := Open(ctx, filepath.Join(t.TempDir(), "einsora.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,12 +259,12 @@ func TestOnlyPlainFilePathsAreAccepted(t *testing.T) {
 	}
 
 	// A relative path is resolved once, so the check and SQLite use the same file.
-	st, err := Open(ctx, "tensorafi.db")
+	st, err := Open(ctx, "einsora.db")
 	if err != nil {
 		t.Fatal(err)
 	}
 	st.Close()
-	if info, err := os.Stat(filepath.Join(dir, "tensorafi.db")); err != nil || info.Mode().Perm() != 0o600 {
+	if info, err := os.Stat(filepath.Join(dir, "einsora.db")); err != nil || info.Mode().Perm() != 0o600 {
 		t.Errorf("relative path: %v, %v", info, err)
 	}
 }
@@ -279,12 +279,12 @@ func TestUnsafeFilesAndDirectoriesAreRefused(t *testing.T) {
 	if err := os.Chmod(shared, 0o777); err != nil { //nolint:gosec // the test needs a directory others can write
 		t.Fatal(err)
 	}
-	if _, err := Open(ctx, filepath.Join(shared, "tensorafi.db")); err == nil || !strings.Contains(err.Error(), "chmod go-w") {
+	if _, err := Open(ctx, filepath.Join(shared, "einsora.db")); err == nil || !strings.Contains(err.Error(), "chmod go-w") {
 		t.Errorf("database in a directory others can write: %v", err)
 	}
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "tensorafi.db")
+	path := filepath.Join(dir, "einsora.db")
 	st, err := Open(ctx, path)
 	if err != nil {
 		t.Fatal(err)
@@ -296,7 +296,7 @@ func TestUnsafeFilesAndDirectoriesAreRefused(t *testing.T) {
 	if err := os.Chmod(path+"-wal", 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Open(ctx, path); err == nil || !strings.Contains(err.Error(), "tensorafi.db-wal") {
+	if _, err := Open(ctx, path); err == nil || !strings.Contains(err.Error(), "einsora.db-wal") {
 		t.Errorf("a sidecar others can read must be refused and named: %v", err)
 	}
 	if err := os.Remove(path + "-wal"); err != nil {
@@ -317,7 +317,7 @@ func TestUnsafeFilesAndDirectoriesAreRefused(t *testing.T) {
 func TestConcurrentFirstOpens(t *testing.T) {
 	ctx := context.Background()
 	for range 3 {
-		path := filepath.Join(t.TempDir(), "tensorafi.db")
+		path := filepath.Join(t.TempDir(), "einsora.db")
 		var wg sync.WaitGroup
 		errs := make(chan error, 4)
 		for range 4 {
@@ -344,7 +344,7 @@ func TestConcurrentFirstOpens(t *testing.T) {
 // Upgrading a database with data, from version 1 through the 00002 gap to the latest.
 func TestUpgradeRepairsPlacement(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "tensorafi.db")
+	path := filepath.Join(t.TempDir(), "einsora.db")
 	abs, checked, err := prepare(path)
 	if err != nil {
 		t.Fatal(err)

@@ -10,12 +10,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/api"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/auth"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
+	"github.com/krishnanand20/einsora/controlplane/internal/api"
+	"github.com/krishnanand20/einsora/controlplane/internal/auth"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/service"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
 func TestOpeningAWorkloadGivesAOneTimeURL(t *testing.T) {
@@ -53,7 +53,7 @@ func TestOpeningAWorkloadGivesAOneTimeURL(t *testing.T) {
 		t.Fatalf("open: %d %v", code, body)
 	}
 	u, err := url.Parse(body["url"].(string))
-	if err != nil || u.Scheme != "http" || u.Host != "w-"+id.String()+".localhost:8090" || u.Path != "/_tensorafi/open" ||
+	if err != nil || u.Scheme != "http" || u.Host != "w-"+id.String()+".localhost:8090" || u.Path != "/_einsora/open" ||
 		!strings.HasPrefix(u.Query().Get("ticket"), "tat_") || body["expires_at"] == nil {
 		t.Errorf("url = %v (%v); want a one-time link at the workload's own host", body["url"], err)
 	}

@@ -13,17 +13,17 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 const (
-	instanceLabel   = "tensorafi.dev/agent-instance"
-	workloadLabel   = "tensorafi.dev/workload-id"
-	attemptLabel    = "tensorafi.dev/attempt"
-	specLabel       = "tensorafi.dev/spec-sha256"
-	runLabel        = "tensorafi.dev/run-id"
-	containerSocket = "/run/tensorafi/server.sock"
+	instanceLabel   = "einsora.dev/agent-instance"
+	workloadLabel   = "einsora.dev/workload-id"
+	attemptLabel    = "einsora.dev/attempt"
+	specLabel       = "einsora.dev/spec-sha256"
+	runLabel        = "einsora.dev/run-id"
+	containerSocket = "/run/einsora/server.sock"
 )
 
 // Device is one physical GPU. IDs are stable NVIDIA UUIDs, never ordinal positions that can change
@@ -132,7 +132,7 @@ func labels(instance string, w protocol.Desired) map[string]string {
 // data. The runtime is addressed by its resolved image ID, preventing a mutable tag changing mid-run.
 func buildContainer(instance, imageID, dir, run, bundle, network, user, token string, w protocol.Desired, deviceIDs, credentials []string) containerConfig {
 	mem := w.MemoryMiB * 1024 * 1024
-	home := "/home/tensorafi"
+	home := "/home/einsora"
 	config := containerConfig{
 		Image: imageID, User: user, WorkingDir: "/work", Labels: labels(instance, w),
 		Env: []string{"HOME=" + home, "TMPDIR=/tmp", "XDG_CACHE_HOME=" + home + "/.cache",
@@ -145,7 +145,7 @@ func buildContainer(instance, imageID, dir, run, bundle, network, user, token st
 			Mounts: []mount{
 				{Type: "bind", Source: filepath.Join(dir, "data"), Target: "/work"},
 				{Type: "bind", Source: filepath.Join(dir, "home"), Target: home},
-				{Type: "bind", Source: run, Target: "/run/tensorafi"},
+				{Type: "bind", Source: run, Target: "/run/einsora"},
 			}},
 	}
 	config.Labels[runLabel] = filepath.Base(run)
@@ -159,14 +159,14 @@ func buildContainer(instance, imageID, dir, run, bundle, network, user, token st
 		config.Entrypoint = []string{"jupyter", "lab"}
 		config.Cmd = []string{"--no-browser", "--ServerApp.sock=" + containerSocket, "--ServerApp.sock_mode=0600",
 			"--ServerApp.root_dir=/work", "--ServerApp.allow_remote_access=False", "--KernelManager.transport=ipc"}
-		config.Env = append(config.Env, "JUPYTER_TOKEN="+token, "JUPYTER_RUNTIME_DIR=/run/tensorafi",
+		config.Env = append(config.Env, "JUPYTER_TOKEN="+token, "JUPYTER_RUNTIME_DIR=/run/einsora",
 			"JUPYTER_CONFIG_DIR="+home+"/.jupyter", "IPYTHONDIR="+home+"/.ipython")
 	} else {
-		config.HostConfig.Mounts = append(config.HostConfig.Mounts, mount{Type: "bind", Source: bundle, Target: "/opt/tensorafi/runtime.zip", ReadOnly: true})
-		config.Entrypoint = []string{"python3", "-m", "tensorafi_ml.vllm_server"}
+		config.HostConfig.Mounts = append(config.HostConfig.Mounts, mount{Type: "bind", Source: bundle, Target: "/opt/einsora/runtime.zip", ReadOnly: true})
+		config.Entrypoint = []string{"python3", "-m", "einsora_ml.vllm_server"}
 		config.Cmd = []string{"--source", w.ModelURI, "--model-dir", "/work/model", "--socket", containerSocket,
-			"--status", "/run/tensorafi/status.json", "--max-bytes", strconv.FormatInt(mem, 10), "--devices", strconv.Itoa(len(deviceIDs))}
-		config.Env = append(config.Env, "PYTHONPATH=/opt/tensorafi/runtime.zip", "TENSORAFI_NATIVE_TOKEN="+token,
+			"--status", "/run/einsora/status.json", "--max-bytes", strconv.FormatInt(mem, 10), "--devices", strconv.Itoa(len(deviceIDs))}
+		config.Env = append(config.Env, "PYTHONPATH=/opt/einsora/runtime.zip", "EINSORA_NATIVE_TOKEN="+token,
 			"HF_HOME="+home+"/.cache/huggingface", "AWS_EC2_METADATA_DISABLED=true",
 			"VLLM_CACHE_ROOT="+home+"/.cache/vllm", "CUDA_CACHE_PATH="+home+"/.cache/cuda", "VLLM_NO_USAGE_STATS=1", "DO_NOT_TRACK=1")
 		config.Env = append(config.Env, credentials...)

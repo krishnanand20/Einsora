@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
 )
 
 // Transition is the only way a workload changes state (AGENTS.md rule 7). It validates

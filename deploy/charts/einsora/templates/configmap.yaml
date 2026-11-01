@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: tensorafi-catalog
+  name: einsora-catalog
   labels:
-    {{- include "tensorafi.labels" . | nindent 4 }}
+    {{- include "einsora.labels" . | nindent 4 }}
 data:
   catalog.yaml: |
     {{- required "catalog is required: pass --set-file catalog=deploy/catalog.yaml" .Values.catalog | nindent 4 }}

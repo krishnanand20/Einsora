@@ -12,11 +12,11 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
-// Detect reports this machine's hardware, and what TensoraFi may use of it: all but a quarter of its
+// Detect reports this machine's hardware, and what Einsora may use of it: all but a quarter of its
 // CPUs (at least one kept) and three quarters of its memory. The rest stays the owner's (ADR-0013).
 func Detect(ctx context.Context) (protocol.Inventory, error) {
 	mem, err := memoryMiB()

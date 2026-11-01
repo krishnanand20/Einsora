@@ -1,17 +1,17 @@
 # Control plane
 
-One Go binary (`controlplane/`), `tensorafi`, whose subcommand picks the role.
+One Go binary (`controlplane/`), `einsora`, whose subcommand picks the role.
 
 | Command | Role | Used in | Status |
 |---|---|---|---|
-| `tensorafi up` | API, controller, usage accounting, in-process agent, and dashboard in one process, using SQLite | Solo | Planned (Phase 1) |
-| `tensorafi api` | Authn/z, validation, quota checks, recording intent | Lab, Datacenter | Built |
-| `tensorafi controller` | Admission, placement, running and observing workloads through a backend, lifecycle transitions; with the agent backend, also this machine's in-process agent | Lab; Datacenter (one per region) | Built (fake, Kubernetes, and agent backends) |
-| `tensorafi metering` | Usage accounting: turns lifecycle events into hourly usage records (no money, ADR-0011) | Lab, Datacenter | Built |
-| `tensorafi agent` | Node agent on other machines, joining over the network (ADR-0013, ADR-0016) | Lab | Planned (Phase 2). The agent itself is built and runs in-process (below). |
-| `tensorafi migrate` | Applies the embedded SQL migrations | Lab (Postgres), Datacenter | Built |
-| `tensorafi dev` | Development all-in-one: in-memory store (or SQLite or Postgres via `TENSORAFI_DATABASE_URL`), fake backend (or the agent backend with `TENSORAFI_CLUSTER_BACKEND=agent`), seeded users | Development | Built; runs on macOS and Linux |
-| `tensorafi workloads [-all]`, `events <id>`, `export <id>` | CLI client for a running API: list, full timeline, complete log export ([logs](logs-and-transparency.md)) | Every profile | Built (launch, stop, and `logs --follow` planned) |
+| `einsora up` | API, controller, usage accounting, in-process agent, and dashboard in one process, using SQLite | Solo | Planned (Phase 1) |
+| `einsora api` | Authn/z, validation, quota checks, recording intent | Lab, Datacenter | Built |
+| `einsora controller` | Admission, placement, running and observing workloads through a backend, lifecycle transitions; with the agent backend, also this machine's in-process agent | Lab; Datacenter (one per region) | Built (fake, Kubernetes, and agent backends) |
+| `einsora metering` | Usage accounting: turns lifecycle events into hourly usage records (no money, ADR-0011) | Lab, Datacenter | Built |
+| `einsora agent` | Node agent on other machines, joining over the network (ADR-0013, ADR-0016) | Lab | Planned (Phase 2). The agent itself is built and runs in-process (below). |
+| `einsora migrate` | Applies the embedded SQL migrations | Lab (Postgres), Datacenter | Built |
+| `einsora dev` | Development all-in-one: in-memory store (or SQLite or Postgres via `EINSORA_DATABASE_URL`), fake backend (or the agent backend with `EINSORA_CLUSTER_BACKEND=agent`), seeded users | Development | Built; runs on macOS and Linux |
+| `einsora workloads [-all]`, `events <id>`, `export <id>` | CLI client for a running API: list, full timeline, complete log export ([logs](logs-and-transparency.md)) | Every profile | Built (launch, stop, and `logs --follow` planned) |
 
 ## Sources of truth ([ADR-0008](../adr/0008-postgres-intent-kubernetes-runtime.md), [ADR-0012](../adr/0012-deployment-profiles.md))
 
@@ -27,7 +27,7 @@ class, image, and runtime, and on agents its machine and driver; each backend tu
 
 | Backend | Talks to | Capacity | Status |
 |---|---|---|---|
-| `fake` | Nothing (in memory) | Units per class (`TENSORAFI_FAKE_CAPACITY`) | Built; used by `tensorafi dev` and tests |
+| `fake` | Nothing (in memory) | Units per class (`EINSORA_FAKE_CAPACITY`) | Built; used by `einsora dev` and tests |
 | `kubernetes` | A Kubernetes cluster, through server-side apply and an allowlist of kinds; builds manifests from specs | Units per class over Ready nodes; Kubernetes picks the node | Built |
 | `agent` (`internal/cluster/agents`) | Node agents, which sync with it (below) | The machines connected now: devices per class, usable CPUs and memory, drivers; the controller picks the machine | Built, with the in-process agent (Solo). Agents joining over the network: Phase 2. |
 
@@ -43,7 +43,7 @@ anything:
 
 `Run`, `Park`, and `Delete` only wake the machine's agent. A machine that hasn't synced for 45 seconds is offline:
 it isn't offered for placement, and its workloads' status reads as unknown. In Solo the agent runs in the
-controller's process, on this machine, owned by the tenant `TENSORAFI_MACHINE_OWNER`. Over the network (Phase 2) the
+controller's process, on this machine, owned by the tenant `EINSORA_MACHINE_OWNER`. Over the network (Phase 2) the
 same call is `POST /agent/v1/sync` over HTTPS with mutual TLS.
 
 ### Opening workloads: the access proxy
@@ -52,15 +52,15 @@ Source: `controlplane/internal/access`, [ADR-0017](../adr/0017-local-workload-ac
 running notebook is a web server on a Unix socket on its machine, with its own token: native workloads listen on no
 TCP or UDP port (below). The browser reaches it
 through the access proxy, which runs beside the agent backend in the controller's process, on
-`TENSORAFI_ACCESS_ADDR` (`127.0.0.1:8090`; loopback only):
+`EINSORA_ACCESS_ADDR` (`127.0.0.1:8090`; loopback only):
 
 1. The dashboard calls `POST /v1/workloads/{id}/access`. The API checks the workload is the caller's tenant's, a
    running notebook, and placed on a machine, and stores a one-time ticket (its SHA-256 only, valid for 60
    seconds), and notes in its timeline who asked to open it. It returns
-   `http://w-<id>.localhost:8090/_tensorafi/open?ticket=…`. The API never talks to the runtime (rule 1): it only
+   `http://w-<id>.localhost:8090/_einsora/open?ticket=…`. The API never talks to the runtime (rule 1): it only
    stores the ticket.
 2. The proxy takes the ticket once, at that workload's host only, and sets a cookie for that host
-   (`tensorafi_access`, HttpOnly, SameSite=Strict), backed by a session in memory. A session lasts 12 hours, or
+   (`einsora_access`, HttpOnly, SameSite=Strict), backed by a session in memory. A session lasts 12 hours, or
    until the workload stops: it's bound to the server it opened, and the next run has a new token.
 3. Each request is forwarded to the socket and token the agent last reported for a ready workload
    (`Hub.Target`), with `Authorization: token …` added, `Host` and `Origin` rewritten to `localhost`, and the
@@ -73,7 +73,7 @@ of the same host is same-site. The notebook's token stays in the agent backend's
 agent in its own process; it's never stored, logged, exported, or in a URL. Native workloads can't listen on a
 TCP or UDP port at all: cookies ignore ports, so a workload listening on one could be handed the browser's cookies
 for its host, the dashboard's session included. JupyterLab listens on a Unix socket in the workload's run
-directory (`TENSORAFI_AGENT_RUN_DIR`, `~/.tensorafi/run` by default: macOS limits socket paths to 104 bytes), and its
+directory (`EINSORA_AGENT_RUN_DIR`, `~/.einsora/run` by default: macOS limits socket paths to 104 bytes), and its
 kernels talk to it over IPC there ([tenancy and isolation](tenancy-and-isolation.md#open-risks)).
 The sandbox denies both explicit IP binds and implicitly bound listeners. A sandbox change stops
 older servers and kernels before reporting a `sandbox-changed` failure; the owner can restart the
@@ -163,7 +163,7 @@ vocabulary, never from raw runtime messages, and `service.CleanReason` cleans ev
 - **Agents check too:** an agent refuses a driver it doesn't have, weak isolation for a workload that needs strong, a notebook or VM asked to move to another driver, and starting a workload while any other is still active on the GPU it needs. It deletes data only for a workload listed for removal; one it wasn't told about is stopped and kept.
 - **Attempts:** each admission is a new attempt (`workloads.attempt`). An agent starts an attempt at most once, so a workload that failed or stopped by itself isn't restarted until it's started again, and drivers report which attempt a status is about. A workload still running another attempt is stopped first (keeping its data), and its GPU counts as taken until it has; attempts are compared for equality, so a restored database's lower count still runs. A status answers the controller only for the attempt and mode (run, park, or remove) the store expects, and only once the agent has applied them; before that, even no status at all reads as still in progress.
 - **Native CPU on Macs:** CPU notebooks use the pinned native Jupyter environment. Owner code can still use Metal, so controller placement and the agent reserve the Apple GPU exclusively while one is active, including preparing or stopping. Its admission reason explains this; usage stays on its CPU class. CPU endpoints await GGUF validation.
-- **Machine identity:** the in-process agent's machine is found by the ID saved in `machine-id` next to the SQLite database (or in `TENSORAFI_AGENT_STATE_DIR`), never by hostname, so renaming the Mac changes only its label. Its owner and region never change.
+- **Machine identity:** the in-process agent's machine is found by the ID saved in `machine-id` next to the SQLite database (or in `EINSORA_AGENT_STATE_DIR`), never by hostname, so renaming the Mac changes only its label. Its owner and region never change.
 - **After a restart**, the agent backend reports that it's settling until every machine in its region has reconnected (at most 45 seconds), and the controller admits nothing meanwhile. An unknown status decides nothing, not even the provisioning timeout; a machine that stays away is reported failed after 10 minutes.
 - **The agent backend runs with SQLite** (Solo) until agents join over the network (Phase 2): with Postgres, controllers on several hosts could share a region while each sees only its own machine.
 - **Agents keep syncing while they work:** applying runs beside the sync loop, and each driver call has a time limit, so a long image pull never makes a busy machine look offline. Anything worth reporting (a desired state applied, a workload's status changing, checked every 2 seconds) cuts the waiting sync short, so the controller hears it at once rather than when the long poll ends. A report that doesn't fit the machine is refused: the machine isn't offered for placement until a good one arrives, but it still gets its desired state.
@@ -173,7 +173,7 @@ vocabulary, never from raw runtime messages, and `service.CleanReason` cleans ev
 
 ## Reconcile loop
 
-`Controller.ReconcileOnce` runs every `TENSORAFI_CONTROLLER_INTERVAL`:
+`Controller.ReconcileOnce` runs every `EINSORA_CONTROLLER_INTERVAL`:
 
 | Step | Picks up | Does |
 |---|---|---|
@@ -190,7 +190,7 @@ vocabulary, never from raw runtime messages, and `service.CleanReason` cleans ev
 |---|---|---|
 | vm | `VirtualMachine`, with its root disk cloned from a DataSource | `runStrategy: Halted`, disk kept |
 | notebook | `StatefulSet` + `Service`, with a 50Gi PVC | `replicas: 0`, PVC kept |
-| endpoint | `InferenceService` using the `tensorafi-vllm` runtime | Deleted |
+| endpoint | `InferenceService` using the `einsora-vllm` runtime | Deleted |
 
 Every tenant also gets a namespace bundle: PSA baseline, a GPU `ResourceQuota`, a default-deny NetworkPolicy, Gateway ingress, and image-clone RBAC.
 
@@ -234,7 +234,7 @@ nothing and is for development only.
 | A GPU class or image removed from the catalog | Waiting workloads fail with `can't start: … is no longer offered by this installation` | *Known gap:* a running or stopping workload of that class can't be parked, because releasing it rebuilds its objects from the catalog. Its timeline says so, and the operator has to restore the entry. Planned: release from what the runtime already has. |
 | Agent offline (laptop closed, machine asleep) | It isn't offered for placement. Its workloads' status reads as unknown, noted once in their timelines (`its machine is offline; waiting for it to reconnect`). After 10 minutes offline, a provisioning or running workload fails (`its machine has been offline for over 10m0s`) and a stopping one is stopped, so neither stays accounted or holds quota; the machine stops them when it returns. VMs and notebooks that ran there wait for it (`waiting for its machine to come online: its disk is there`). | Built |
 | A running workload stops by itself (shut down from inside, or by its runtime) | It fails: `it stopped by itself` | Built |
-| `tensorafi` restarts while native workloads run | Their processes keep running in their own process groups; `macos-native` finds them again from each workload's state file (process ID and start time, so a reused process ID is never mistaken for one). Access-proxy sessions are in memory, so open tabs need opening again from the dashboard. | Built |
+| `einsora` restarts while native workloads run | Their processes keep running in their own process groups; `macos-native` finds them again from each workload's state file (process ID and start time, so a reused process ID is never mistaken for one). Access-proxy sessions are in memory, so open tabs need opening again from the dashboard. | Built |
 | Node or machine lost | Its workloads go to `failed` | |
 | One region down | Only that region is affected | ADR-0009 |
 | GPU busy | `queued`, or placed on an opted-in fallback | ADR-0010 |
@@ -242,9 +242,9 @@ nothing and is for development only.
 
 ## Regions and fallback placement
 
-*Built:* every workload, machine, and usage record has a `region`; create takes one; each controller reconciles one region (`TENSORAFI_REGION`) and never sees, counts, or admits another's workloads. Workloads record `placed_class` and `machine_id` at admission, in the same transaction as the move to provisioning; capacity is counted per region by placed class (or by requested class for a workload holding GPUs without a recorded placement, so it's never under-counted), and usage is accounted by placed class. A machine hosts only workloads in its own region, and only its owner's unless it's in a community pool (`Machine.CanHost`). *Planned:* fallback placement (roadmap).
+*Built:* every workload, machine, and usage record has a `region`; create takes one; each controller reconciles one region (`EINSORA_REGION`) and never sees, counts, or admits another's workloads. Workloads record `placed_class` and `machine_id` at admission, in the same transaction as the move to provisioning; capacity is counted per region by placed class (or by requested class for a workload holding GPUs without a recorded placement, so it's never under-counted), and usage is accounted by placed class. A machine hosts only workloads in its own region, and only its owner's unless it's in a community pool (`Machine.CanHost`). *Planned:* fallback placement (roadmap).
 
-- **Regions** ([ADR-0009](../adr/0009-regions-global-control-plane-regional-cells.md)): every workload gets an immutable `region`, and Solo has one region, `local`. In a datacenter, one controller runs per region (`TENSORAFI_REGION`).
+- **Regions** ([ADR-0009](../adr/0009-regions-global-control-plane-regional-cells.md)): every workload gets an immutable `region`, and Solo has one region, `local`. In a datacenter, one controller runs per region (`EINSORA_REGION`).
 - **Fallback placement** ([ADR-0010](../adr/0010-fallbacks-cpu-placement-and-inference-failover.md)): `fallback` is an ordered list of other classes or `cpu`, tried after `fallback_after`. The workload records the requested class (`gpu_class`) and `placed_class`. Freed GPUs go to requested-class waiters first. Placement happens in one place, the controller's `place` step.
 - **Inference failover** happens per request in the inference gateway, not in the controller.
 
@@ -252,7 +252,7 @@ nothing and is for development only.
 
 - **Machines** (agents): the in-process agent registers this machine and reports its inventory (built). Enrolment of other machines and health on the dashboard (Phase 2), the `/v1/machines` API and page (roadmap step 9), and sharing levels (Phase 4).
 - **Users, teams, invites**: local accounts and quotas (Phase 2)
-- **Models:** `tensorafi-ml ingest` validates, then caches per machine or region (Phases 2–3)
+- **Models:** `einsora-ml ingest` validates, then caches per machine or region (Phases 2–3)
 - **Access:** on the control plane's machine, the access proxy opens notebooks and serves endpoints to API tokens (built, ADR-0017). A relay through the control plane to workloads on other machines, and VM SSH (Phase 2).
 - **Usage API:** `GET /v1/usage`, for reports and fairness, never money (Phase 2)
 - **Logs** ([ADR-0015](../adr/0015-logs-and-transparency.md)): `GET /v1/workloads/{id}/logs` for workload output (Phase 1), and the per-tenant activity log (Phase 2)

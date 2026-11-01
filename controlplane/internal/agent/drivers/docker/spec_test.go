@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 func TestContainerSpecHasOnlyPrivateMountsAndEnforcesLimits(t *testing.T) {
@@ -98,14 +98,14 @@ func TestEndpointSpecKeepsPolicyReadOnlyAndCredentialsOutOfArguments(t *testing.
 	w.Kind, w.Accelerator, w.Devices = domain.KindEndpoint, domain.AcceleratorNVIDIA, 1
 	w.Runtime.Server, w.Runtime.ModelFormat, w.ModelURI = "vllm", "safetensors", "hf://org/model"
 	c := buildContainer("instance", "image", "/state/workload", "/run/own", "/state/runtime.zip", "network", "1000:1000", "internal-key", w, []string{"gpu"}, []string{"HF_TOKEN=fetch-key"})
-	if c.Entrypoint[len(c.Entrypoint)-1] != "tensorafi_ml.vllm_server" {
+	if c.Entrypoint[len(c.Entrypoint)-1] != "einsora_ml.vllm_server" {
 		t.Fatal("endpoint bypassed model-policy worker")
 	}
 	if strings.Contains(strings.Join(c.Cmd, " "), "internal-key") || strings.Contains(strings.Join(c.Cmd, " "), "fetch-key") {
 		t.Fatal("credentials leaked to process arguments")
 	}
 	policy := c.HostConfig.Mounts[len(c.HostConfig.Mounts)-1]
-	if policy.Target != "/opt/tensorafi/runtime.zip" || !policy.ReadOnly {
+	if policy.Target != "/opt/einsora/runtime.zip" || !policy.ReadOnly {
 		t.Fatal("endpoint can overwrite the shared model policy")
 	}
 	if !slices.Contains(c.Env, "HF_TOKEN=fetch-key") {

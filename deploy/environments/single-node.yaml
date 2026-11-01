@@ -6,8 +6,8 @@
 # listed in deploy/catalog.yaml, and it can't change once workloads exist in it.
 region: dc-1
 
-domain: tensorafi.example.com
-acmeEmail: ops@tensorafi.example.com
+domain: einsora.example.com
+acmeEmail: ops@einsora.example.com
 
 # Node IP of the k3s server. Cilium replaces kube-proxy and must reach the API directly.
 apiServerHost: 10.0.10.11
@@ -38,7 +38,7 @@ features:
   kserve: true
   keycloak: false
   observability: true
-  tensorafi: false # enable once the Kubernetes backend is validated (Phase 3)
+  einsora: false # enable once the Kubernetes backend is validated (Phase 3)
 
-tensorafi:
+einsora:
   version: "0.1.0"

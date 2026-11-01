@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 type listedContainer struct {

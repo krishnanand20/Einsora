@@ -1,10 +1,10 @@
 # Datacenter profile launch catalog: what users of a Kubernetes deployment can choose from. Passed to
-# the tensorafi chart by helmfile (--set-file catalog=...). Field reference:
+# the einsora chart by helmfile (--set-file catalog=...). Field reference:
 # controlplane/internal/catalog/catalog.go. Solo and Lab installs use images/catalog.yaml instead.
 #
 # It lists only what the Kubernetes backend can run: NVIDIA classes with their device-plugin
 # resource names. Apple Silicon classes need node agents, and CPU classes arrive with CPU worker
-# nodes and the tensorafi-vllm-cpu runtime (ADR-0010). Control plane tests load this file too.
+# nodes and the einsora-vllm-cpu runtime (ADR-0010). Control plane tests load this file too.
 
 # Every region of this deployment (ADR-0009); the first is the default. Each environment file's
 # `region` must be listed here, and a region ID can't change once workloads exist in it.
@@ -71,7 +71,7 @@ images:
     description: JupyterLab with PyTorch and CUDA. Your work directory persists across restarts.
     runtimes:
       - accelerators: [nvidia]
-        ref: ghcr.io/your-org/tensorafi-pytorch-notebook:0.1.0 # container image (images/containers/)
+        ref: ghcr.io/your-org/einsora-pytorch-notebook:0.1.0 # container image (images/containers/)
 
   - id: openai-endpoint
     display_name: OpenAI-compatible model endpoint
@@ -81,4 +81,4 @@ images:
       - accelerators: [nvidia]
         server: vllm
         model_format: safetensors
-        ref: tensorafi-vllm # KServe ClusterServingRuntime (deploy/charts/cluster-config)
+        ref: einsora-vllm # KServe ClusterServingRuntime (deploy/charts/cluster-config)

@@ -3,8 +3,8 @@
 These rules add to the root [AGENTS.md](../AGENTS.md); read that first.
 
 **`infra/` bootstraps Linux servers for the Datacenter profile** ([ADR-0012](../docs/adr/0012-deployment-profiles.md)).
-Macs and personal Linux machines don't use Ansible. They install the `tensorafi` binary and run `tensorafi up` or
-`tensorafi agent` (Phases 1–2).
+Macs and personal Linux machines don't use Ansible. They install the `einsora` binary and run `einsora up` or
+`einsora agent` (Phases 1–2).
 
 ## Layout
 

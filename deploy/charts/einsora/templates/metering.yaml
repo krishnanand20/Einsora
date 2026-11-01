@@ -1,33 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tensorafi-metering
+  name: einsora-metering
   labels:
-    {{- include "tensorafi.labels" . | nindent 4 }}
-    app.kubernetes.io/name: tensorafi-metering
+    {{- include "einsora.labels" . | nindent 4 }}
+    app.kubernetes.io/name: einsora-metering
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app.kubernetes.io/name: tensorafi-metering
+      app.kubernetes.io/name: einsora-metering
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: tensorafi-metering
+        app.kubernetes.io/name: einsora-metering
     spec:
       automountServiceAccountToken: false
-      {{- include "tensorafi.podSecurityContext" . | nindent 6 }}
+      {{- include "einsora.podSecurityContext" . | nindent 6 }}
       containers:
         - name: metering
-          image: {{ include "tensorafi.image" . }}
+          image: {{ include "einsora.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: [metering]
           env:
-            {{- include "tensorafi.env" . | nindent 12 }}
+            {{- include "einsora.env" . | nindent 12 }}
           resources:
             {{- toYaml .Values.metering.resources | nindent 12 }}
-          {{- include "tensorafi.containerSecurityContext" . | nindent 10 }}
-          {{- include "tensorafi.catalogMount" . | nindent 10 }}
-      {{- include "tensorafi.catalogVolume" . | nindent 6 }}
+          {{- include "einsora.containerSecurityContext" . | nindent 10 }}
+          {{- include "einsora.catalogMount" . | nindent 10 }}
+      {{- include "einsora.catalogVolume" . | nindent 6 }}

@@ -6,7 +6,7 @@ package metering
 import (
 	"time"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 type Interval struct{ Start, End time.Time }

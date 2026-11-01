@@ -8,7 +8,7 @@ prometheus:
     storageSpec:
       volumeClaimTemplate:
         spec:
-          storageClassName: tensorafi-block
+          storageClassName: einsora-block
           resources:
             requests:
               storage: 100Gi

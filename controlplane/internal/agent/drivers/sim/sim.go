@@ -1,6 +1,6 @@
 // Package sim is a driver that runs nothing: workloads are ready as soon as they're applied. It's
-// for development (`tensorafi dev` with TENSORAFI_CLUSTER_BACKEND=agent) and tests, and the control
-// plane accepts it only when it's allowed to (TENSORAFI_ENV=dev). Its isolation counts as weak, so it
+// for development (`einsora dev` with EINSORA_CLUSTER_BACKEND=agent) and tests, and the control
+// plane accepts it only when it's allowed to (EINSORA_ENV=dev). Its isolation counts as weak, so it
 // never stands in for a strong driver.
 package sim
 
@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 type Driver struct {

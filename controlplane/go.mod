@@ -1,4 +1,4 @@
-module github.com/krishnanand20/tensorafi/controlplane
+module github.com/krishnanand20/einsora/controlplane
 
 go 1.27
 

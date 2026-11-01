@@ -11,12 +11,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/redact"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/redact"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
 )
 
-// Logs and transparency (ADR-0015): users can read and export everything TensoraFi records about
+// Logs and transparency (ADR-0015): users can read and export everything Einsora records about
 // their workloads. Nothing is filtered out except secrets, and every redaction is reported.
 
 // Redaction records something removed from an export, so removals are never silent.
@@ -25,7 +25,7 @@ type Redaction struct {
 	Reason string
 }
 
-// WorkloadExport is everything TensoraFi records about one workload.
+// WorkloadExport is everything Einsora records about one workload.
 type WorkloadExport struct {
 	Workload   domain.Workload // Params already redacted
 	Events     []domain.Event

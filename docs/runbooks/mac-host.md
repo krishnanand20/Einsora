@@ -1,4 +1,4 @@
-# Running an Apple Silicon Mac as a TensoraFi host
+# Running an Apple Silicon Mac as a Einsora host
 
 > **Status: planned (Phases 1–2, sharing in Phase 4).** This describes how the agent will use a Mac
 > ([ADR-0013](../adr/0013-node-agent-and-apple-silicon.md)). Verify each step once the agent ships.
@@ -17,8 +17,8 @@ The trust matrix in [tenancy-and-isolation.md](../architecture/tenancy-and-isola
 
 ## Set up the Mac
 
-1. **Install and join:** `brew install tensorafi/tap/tensorafi`. Then either run `tensorafi up` (Solo), or
-   `tensorafi agent --join <enrolment token from your Lab's dashboard>`. The agent dials out, so no ports need opening.
+1. **Install and join:** `brew install einsora/tap/einsora`. Then either run `einsora up` (Solo), or
+   `einsora agent --join <enrolment token from your Lab's dashboard>`. The agent dials out, so no ports need opening.
 2. **Power:**
    - Desktops (Mac mini, Mac Studio): set "Prevent automatic sleeping when the display is off" if you want it available overnight.
    - Laptops: the agent shares only while on AC power.
@@ -34,7 +34,7 @@ The trust matrix in [tenancy-and-isolation.md](../architecture/tenancy-and-isola
   - caps for GPU memory, CPU, and disk
 - When you come back, guest workloads stop within seconds.
 - Community users never run native code on your Mac. They get managed inference or a VM, no access to your files or home network, and no internet by default.
-- **You can see guest data on your own machine.** TensoraFi tells guests this before they launch anything.
+- **You can see guest data on your own machine.** Einsora tells guests this before they launch anything.
 - You pay for the electricity. An M-series Mac uses far less power than a GPU server, but check it anyway ([power notes](../hardware/power-and-cooling.md#hosting-at-home)).
 
 ## Troubleshooting

@@ -1,22 +1,23 @@
 # Local dependencies for development. `make dev` needs none of this; `make dev-pg` uses Postgres.
+name: einsora # the project name, so containers and volumes don't take the folder's name
 services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: tensorafi
-      POSTGRES_PASSWORD: tensorafi
-      POSTGRES_DB: tensorafi
+      POSTGRES_USER: einsora
+      POSTGRES_PASSWORD: einsora
+      POSTGRES_DB: einsora
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tensorafi"]
+      test: ["CMD-SHELL", "pg_isready -U einsora"]
       interval: 2s
       timeout: 3s
       retries: 20
 
-  # Optional: a local Keycloak to exercise TENSORAFI_AUTH_MODE=oidc.
+  # Optional: a local Keycloak to exercise EINSORA_AUTH_MODE=oidc.
   #   docker compose --profile auth up -d keycloak   → http://localhost:8180 (admin/admin)
   keycloak:
     profiles: ["auth"]

@@ -33,12 +33,12 @@ spec:
     featureGates:
       - HonorWaitForFirstConsumer
 ---
-# Lets VM disks be cloned from base images in tensorafi-images. The controller binds this
+# Lets VM disks be cloned from base images in einsora-images. The controller binds this
 # per tenant (manifests.Tenant) and also holds it itself, as KubeVirt checks the VM creator.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: tensorafi-image-cloner
+  name: einsora-image-cloner
 rules:
   - apiGroups: [cdi.kubevirt.io]
     resources: [datavolumes/source]

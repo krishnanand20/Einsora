@@ -1,10 +1,10 @@
 # ubuntu-24.04-cuda (Datacenter VM base image)
 
 In the Datacenter profile, catalog id `ubuntu-24.04-cuda` refers to the CDI **DataSource** of the same name
-in the `tensorafi-images` namespace. User VMs clone their root disk from it.
+in the `einsora-images` namespace. User VMs clone their root disk from it.
 
 Base images are **per region** (ADR-0009). Import the same versioned DataSource into every region's
-`tensorafi-images` namespace, so a catalog image means the same thing everywhere.
+`einsora-images` namespace, so a catalog image means the same thing everywhere.
 
 Lab machines will use the same Ubuntu image as a qcow2 file with the `libvirt` driver. Macs will use macOS
 guest images with the `macos-vz` driver (ADR-0013). Both are planned.
@@ -17,7 +17,7 @@ That's fine for testing, but users will expect drivers preinstalled.
 
 ```bash
 kubectl apply -f images/vm/ubuntu-24.04-cuda/datasource.yaml
-kubectl -n tensorafi-images get dv ubuntu-24.04-cuda -w     # wait for Succeeded
+kubectl -n einsora-images get dv ubuntu-24.04-cuda -w     # wait for Succeeded
 ```
 
 ## Later: a prebaked image

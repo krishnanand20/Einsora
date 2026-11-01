@@ -1,4 +1,4 @@
-// Package migrations embeds the SQL migrations applied by `tensorafi migrate` (goose format), one
+// Package migrations embeds the SQL migrations applied by `einsora migrate` (goose format), one
 // directory per database: postgres/ (Datacenter, larger Labs) and sqlite/ (Solo and Lab, ADR-0012).
 //
 // Add a migration: create NNNNN_description.sql in both directories, with -- +goose Up and

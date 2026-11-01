@@ -7,7 +7,7 @@ machines belongs in the node agent's drivers ([ADR-0013](../adr/0013-node-agent-
 1. **Justify it.** Which layer is it in, what does it replace or enable, and which phase needs it? If it's a new category or replaces a component, write an ADR first ([write-an-adr.md](write-an-adr.md)).
    Also say whether it runs **in every regional cluster** (most add-ons) or **once alongside the control plane** (Keycloak, the control plane's Postgres). A regional component must never depend on another region (ADR-0009).
 2. **Pick a version.** Use the current stable release from upstream. Read its install and upgrade notes, and note its Kubernetes version range against our k3s version. If you can't verify the version, say so in the PR. Don't guess.
-3. **Check the licence.** TensoraFi is free and open (ADR-0011), so add-ons must be free to use, with no licence keys or paid tiers required.
+3. **Check the licence.** Einsora is free and open (ADR-0011), so add-ons must be free to use, with no licence keys or paid tiers required.
 4. **helmfile:** add a release under the right layer heading in `deploy/helmfile.yaml.gotmpl`:
    - an exact `version:`
    - `installed: {{ .Values.features.<name> }}`, unless it's core to the profile

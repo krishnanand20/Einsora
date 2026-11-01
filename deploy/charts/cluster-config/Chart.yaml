@@ -1,7 +1,7 @@
 apiVersion: v2
 name: cluster-config
 description: >-
-  TensoraFi's own cluster objects: platform namespaces, MetalLB pool, ACME issuer, Gateway,
-  KubeVirt/CDI configuration, the tensorafi-vllm serving runtime, and the tensorafi-block storage class.
+  Einsora's own cluster objects: platform namespaces, MetalLB pool, ACME issuer, Gateway,
+  KubeVirt/CDI configuration, the einsora-vllm serving runtime, and the einsora-block storage class.
 type: application
 version: 0.1.0

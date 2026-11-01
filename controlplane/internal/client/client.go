@@ -1,4 +1,4 @@
-// Package client is a small Go client for the TensoraFi API, used by the `tensorafi` CLI commands
+// Package client is a small Go client for the Einsora API, used by the `einsora` CLI commands
 // (workloads, events, export). It only speaks the public /v1 API.
 package client
 
@@ -31,17 +31,17 @@ type Client struct {
 	HTTP         *http.Client
 }
 
-// FromEnv reads TENSORAFI_API_URL, TENSORAFI_TOKEN, TENSORAFI_DEV_TENANT, and TENSORAFI_INSECURE_HTTP.
+// FromEnv reads EINSORA_API_URL, EINSORA_TOKEN, EINSORA_DEV_TENANT, and EINSORA_INSECURE_HTTP.
 func FromEnv(getenv func(string) string) *Client {
-	base := getenv("TENSORAFI_API_URL")
+	base := getenv("EINSORA_API_URL")
 	if base == "" {
 		base = "http://127.0.0.1:8080"
 	}
-	insecure, _ := strconv.ParseBool(getenv("TENSORAFI_INSECURE_HTTP"))
+	insecure, _ := strconv.ParseBool(getenv("EINSORA_INSECURE_HTTP"))
 	return &Client{
 		BaseURL:      strings.TrimRight(base, "/"),
-		Token:        getenv("TENSORAFI_TOKEN"),
-		DevTenant:    getenv("TENSORAFI_DEV_TENANT"),
+		Token:        getenv("EINSORA_TOKEN"),
+		DevTenant:    getenv("EINSORA_DEV_TENANT"),
 		InsecureHTTP: insecure,
 		HTTP: &http.Client{
 			Timeout: 60 * time.Second,
@@ -65,7 +65,7 @@ func (c *Client) tokenSafe(u *url.URL) bool {
 func workloadPath(id, suffix string) (string, error) {
 	u, err := uuid.Parse(id)
 	if err != nil {
-		return "", fmt.Errorf("%q is not a workload ID (run `tensorafi workloads` to list them)", id)
+		return "", fmt.Errorf("%q is not a workload ID (run `einsora workloads` to list them)", id)
 	}
 	return "/v1/workloads/" + u.String() + suffix, nil
 }
@@ -127,8 +127,8 @@ func (c *Client) get(ctx context.Context, path string) (*http.Response, error) {
 	}
 	if c.Token != "" {
 		if !c.tokenSafe(req.URL) {
-			return nil, fmt.Errorf("refusing to send TENSORAFI_TOKEN over plain HTTP to %s: use https://, "+
-				"or set TENSORAFI_INSECURE_HTTP=true if you trust every network in between", req.URL.Host)
+			return nil, fmt.Errorf("refusing to send EINSORA_TOKEN over plain HTTP to %s: use https://, "+
+				"or set EINSORA_INSECURE_HTTP=true if you trust every network in between", req.URL.Host)
 		}
 		req.Header.Set("Authorization", "Bearer "+c.Token)
 	}
@@ -200,7 +200,7 @@ func (c *Client) Events(ctx context.Context, id string) ([]Event, error) {
 const MaxExportBytes = 256 << 20
 
 // exportName is the only file name a server may suggest: the workload's name and ID.
-var exportName = regexp.MustCompile(`^tensorafi-[a-z0-9-]{1,40}-[0-9a-f-]{36}\.json$`)
+var exportName = regexp.MustCompile(`^einsora-[a-z0-9-]{1,40}-[0-9a-f-]{36}\.json$`)
 
 // Export downloads the complete export of a workload. The body is returned byte-for-byte as the
 // server sent it, so nothing is lost or reformatted. The suggested file name is used only if it
@@ -227,7 +227,7 @@ func (c *Client) Export(ctx context.Context, id string) (body []byte, filename s
 	if _, params, perr := mime.ParseMediaType(resp.Header.Get("Content-Disposition")); perr == nil && exportName.MatchString(params["filename"]) {
 		filename = params["filename"]
 	} else {
-		filename = "tensorafi-workload-" + uuid.MustParse(id).String() + ".json" // id was checked by workloadPath
+		filename = "einsora-workload-" + uuid.MustParse(id).String() + ".json" // id was checked by workloadPath
 	}
 	return body, filename, nil
 }

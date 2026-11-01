@@ -12,12 +12,12 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/argon2"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/credential"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store/memstore"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
+	"github.com/krishnanand20/einsora/controlplane/internal/credential"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/service"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/store/memstore"
+	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
 const ownerPassword = "correct horse battery staple"
@@ -380,7 +380,7 @@ func TestDisabledAccountsSessionsAndTokensStop(t *testing.T) {
 	wantCode(t, err, domain.CodeUnauthenticated)
 }
 
-// The way back in for an owner who forgot their password: tensorafi setup -reset-password.
+// The way back in for an owner who forgot their password: einsora setup -reset-password.
 func TestResetPassword(t *testing.T) {
 	svc, _, _, _ := accounts(t)
 	ctx := context.Background()

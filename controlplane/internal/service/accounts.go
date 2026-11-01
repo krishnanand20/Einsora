@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/credential"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/credential"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
 )
 
 // Local accounts (ADR-0012): one owner account today; invites and teams arrive in Phase 2.
@@ -42,7 +42,7 @@ type SetupInput struct {
 
 // SetupOwner creates the first account, its trusted tenant, and a quota on every class. It refuses
 // once any account exists, so it can't be used to take over an installation. It's called by
-// `tensorafi setup`, which runs on the machine itself with access to the store.
+// `einsora setup`, which runs on the machine itself with access to the store.
 func (s *Service) SetupOwner(ctx context.Context, in SetupInput) (domain.User, error) {
 	email, ok := domain.NormalizeEmail(in.Email)
 	if !ok {
@@ -339,7 +339,7 @@ func principalFor(ctx context.Context, q store.Queries, userID uuid.UUID) (domai
 
 func requireAccount(p domain.Principal) error {
 	if p.UserID == uuid.Nil {
-		return domain.Errorf(domain.CodeInvalid, "this needs a local account (TENSORAFI_AUTH_MODE=local)")
+		return domain.Errorf(domain.CodeInvalid, "this needs a local account (EINSORA_AUTH_MODE=local)")
 	}
 	return nil
 }
@@ -445,7 +445,7 @@ func (s *Service) ChangePassword(ctx context.Context, p domain.Principal, curren
 }
 
 // ResetPassword sets a new password for an existing account and signs it out everywhere. It's
-// for `tensorafi setup -reset-password`, which needs access to the store: the way back in for an
+// for `einsora setup -reset-password`, which needs access to the store: the way back in for an
 // owner who forgot their password, since there's no email reset.
 func (s *Service) ResetPassword(ctx context.Context, email, password string) (domain.User, error) {
 	email, ok := domain.NormalizeEmail(email)

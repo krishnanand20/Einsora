@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/auth"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
+	"github.com/krishnanand20/einsora/controlplane/internal/auth"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/service"
 )
 
 // Local accounts (ADR-0012): sign-in, sessions, and API tokens. These routes exist only when the

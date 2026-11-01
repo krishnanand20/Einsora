@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/api"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/auth"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/client"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
+	"github.com/krishnanand20/einsora/controlplane/internal/api"
+	"github.com/krishnanand20/einsora/controlplane/internal/auth"
+	"github.com/krishnanand20/einsora/controlplane/internal/client"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/service"
+	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
 func TestClientAgainstRealAPI(t *testing.T) {
@@ -33,7 +33,7 @@ func TestClientAgainstRealAPI(t *testing.T) {
 	}
 
 	c := client.FromEnv(func(k string) string {
-		return map[string]string{"TENSORAFI_API_URL": srv.URL + "/", "TENSORAFI_DEV_TENANT": "acme"}[k]
+		return map[string]string{"EINSORA_API_URL": srv.URL + "/", "EINSORA_DEV_TENANT": "acme"}[k]
 	})
 
 	list, err := c.ListWorkloads(ctx, false)
@@ -45,11 +45,11 @@ func TestClientAgainstRealAPI(t *testing.T) {
 		t.Fatalf("Events = %+v, %v", events, err)
 	}
 	body, filename, err := c.Export(ctx, w.ID.String())
-	if err != nil || filename != "tensorafi-nb-"+w.ID.String()+".json" {
+	if err != nil || filename != "einsora-nb-"+w.ID.String()+".json" {
 		t.Fatalf("Export filename %q, %v", filename, err)
 	}
 	var exp map[string]any
-	if err := json.Unmarshal(body, &exp); err != nil || exp["format"] != "tensorafi.workload-export/v1" {
+	if err := json.Unmarshal(body, &exp); err != nil || exp["format"] != "einsora.workload-export/v1" {
 		t.Fatalf("export body: %v %s", err, body)
 	}
 
@@ -69,9 +69,9 @@ func TestExportDistrustsTheServer(t *testing.T) {
 	tests := []struct {
 		name, disposition, body, wantName, wantErr string
 	}{
-		{"expected name kept", "attachment; filename=tensorafi-llm-" + id + ".json", `{}`, "tensorafi-llm-" + id + ".json", ""},
-		{"dotfile refused", "attachment; filename=.bashrc", `{}`, "tensorafi-workload-" + id + ".json", ""},
-		{"path refused", `attachment; filename="../../.zshrc"`, `{}`, "tensorafi-workload-" + id + ".json", ""},
+		{"expected name kept", "attachment; filename=einsora-llm-" + id + ".json", `{}`, "einsora-llm-" + id + ".json", ""},
+		{"dotfile refused", "attachment; filename=.bashrc", `{}`, "einsora-workload-" + id + ".json", ""},
+		{"path refused", `attachment; filename="../../.zshrc"`, `{}`, "einsora-workload-" + id + ".json", ""},
 		{"not JSON", "", "echo pwned\n", "", "isn't valid JSON"},
 	}
 	for _, tt := range tests {
@@ -83,7 +83,7 @@ func TestExportDistrustsTheServer(t *testing.T) {
 				_, _ = w.Write([]byte(tt.body))
 			}))
 			t.Cleanup(srv.Close)
-			c := client.FromEnv(func(k string) string { return map[string]string{"TENSORAFI_API_URL": srv.URL}[k] })
+			c := client.FromEnv(func(k string) string { return map[string]string{"EINSORA_API_URL": srv.URL}[k] })
 			_, name, err := c.Export(context.Background(), id)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
@@ -102,8 +102,8 @@ func TestTokenIsNeverSentOverPlainHTTPToAnotherMachine(t *testing.T) {
 	ctx := context.Background()
 	env := func(vars map[string]string) func(string) string { return func(k string) string { return vars[k] } }
 
-	remote := client.FromEnv(env(map[string]string{"TENSORAFI_API_URL": "http://lab-box.invalid:8080", "TENSORAFI_TOKEN": "tkn"}))
-	if _, err := remote.ListWorkloads(ctx, false); err == nil || !strings.Contains(err.Error(), "refusing to send TENSORAFI_TOKEN") {
+	remote := client.FromEnv(env(map[string]string{"EINSORA_API_URL": "http://lab-box.invalid:8080", "EINSORA_TOKEN": "tkn"}))
+	if _, err := remote.ListWorkloads(ctx, false); err == nil || !strings.Contains(err.Error(), "refusing to send EINSORA_TOKEN") {
 		t.Fatalf("token over plain HTTP: err = %v", err)
 	}
 
@@ -113,7 +113,7 @@ func TestTokenIsNeverSentOverPlainHTTPToAnotherMachine(t *testing.T) {
 		_, _ = w.Write([]byte(`{"items":[]}`))
 	}))
 	t.Cleanup(srv.Close)
-	local := client.FromEnv(env(map[string]string{"TENSORAFI_API_URL": srv.URL, "TENSORAFI_TOKEN": "tkn"}))
+	local := client.FromEnv(env(map[string]string{"EINSORA_API_URL": srv.URL, "EINSORA_TOKEN": "tkn"}))
 	if _, err := local.ListWorkloads(ctx, false); err != nil || got != "Bearer tkn" {
 		t.Fatalf("loopback: err = %v, Authorization = %q", err, got)
 	}
@@ -139,7 +139,7 @@ func TestRedirectsAreNotFollowed(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	c := client.FromEnv(func(k string) string {
-		return map[string]string{"TENSORAFI_API_URL": srv.URL, "TENSORAFI_TOKEN": "tkn"}[k]
+		return map[string]string{"EINSORA_API_URL": srv.URL, "EINSORA_TOKEN": "tkn"}[k]
 	})
 	if _, err := c.ListWorkloads(context.Background(), false); err == nil || followed {
 		t.Fatalf("redirect followed=%v, err=%v; the token must not travel to a redirect target", followed, err)

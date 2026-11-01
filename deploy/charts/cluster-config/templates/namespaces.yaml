@@ -1,5 +1,5 @@
-{{- /* Platform namespaces. tensorafi.dev/role labels are referenced by tenant NetworkPolicies. */}}
-{{- $namespaces := dict "tensorafi-images" "" "tensorafi-gateway" "gateway" "tensorafi-models" "model-store" }}
+{{- /* Platform namespaces. einsora.dev/role labels are referenced by tenant NetworkPolicies. */}}
+{{- $namespaces := dict "einsora-images" "" "einsora-gateway" "gateway" "einsora-models" "model-store" }}
 {{- range $name, $role := $namespaces }}
 ---
 apiVersion: v1
@@ -7,8 +7,8 @@ kind: Namespace
 metadata:
   name: {{ $name }}
   labels:
-    app.kubernetes.io/part-of: tensorafi
+    app.kubernetes.io/part-of: einsora
     {{- with $role }}
-    tensorafi.dev/role: {{ . }}
+    einsora.dev/role: {{ . }}
     {{- end }}
 {{- end }}

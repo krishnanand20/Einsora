@@ -4,7 +4,7 @@ import (
 	"maps"
 	"strconv"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster"
 )
 
 // privateRanges are blocked for tenant egress: node IPs, other pods, the metadata range,
@@ -45,7 +45,7 @@ func Tenant(slug string, gpuQuota map[string]int, imagesNamespace string) []clus
 			"kind":       "RoleBinding",
 			"metadata":   metadata("clone-images-"+slug, imagesNamespace, lbl, nil),
 			"roleRef": map[string]any{
-				"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "tensorafi-image-cloner",
+				"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "einsora-image-cloner",
 			},
 			"subjects": []any{map[string]any{
 				"kind": "Group", "apiGroup": "rbac.authorization.k8s.io", "name": "system:serviceaccounts:" + ns,

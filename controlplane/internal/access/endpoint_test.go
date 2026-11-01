@@ -10,12 +10,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/access"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/credential"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
+	"github.com/krishnanand20/einsora/controlplane/internal/access"
+	"github.com/krishnanand20/einsora/controlplane/internal/credential"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/service"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
 func endpointFixture(t *testing.T) (fixture, *service.Service) {
@@ -76,8 +76,8 @@ func TestEndpointUsesTenantScopedAPITokens(t *testing.T) {
 	header := map[string]string{"Authorization": "Bearer " + value}
 	response := f.do("GET", f.host(f.workload), "/v1/models", &http.Cookie{Name: "private", Value: "browser-only"}, header)
 	if response.Code != http.StatusOK || response.Header().Get("X-Request-ID") == "" ||
-		response.Header().Get("X-TensoraFi-Region") != "local" || response.Header().Get("X-TensoraFi-Fallback") != "false" ||
-		response.Header().Get("X-TensoraFi-Compute-Class") != "apple-silicon-32gb" || len(response.Result().Cookies()) != 0 {
+		response.Header().Get("X-Einsora-Region") != "local" || response.Header().Get("X-Einsora-Fallback") != "false" ||
+		response.Header().Get("X-Einsora-Compute-Class") != "apple-silicon-32gb" || len(response.Result().Cookies()) != 0 {
 		t.Fatalf("endpoint response = %d, %v", response.Code, response.Header())
 	}
 	seen := <-f.seen
@@ -106,7 +106,7 @@ func TestEndpointRejectsCookiesWrongRoutesAndStoppedWorkloads(t *testing.T) {
 	value, _, _ := apiToken(t, f, "internal")
 	header := map[string]string{"Authorization": "Bearer " + value}
 	for _, path := range []string{"/v1/models", "/v1/chat/completions"} {
-		if response := f.do("GET", f.host(f.workload), path, &http.Cookie{Name: "tensorafi_access", Value: "planted"}, nil); response.Code != http.StatusUnauthorized {
+		if response := f.do("GET", f.host(f.workload), path, &http.Cookie{Name: "einsora_access", Value: "planted"}, nil); response.Code != http.StatusUnauthorized {
 			t.Errorf("cookie request for %s: %d; want 401", path, response.Code)
 		}
 	}

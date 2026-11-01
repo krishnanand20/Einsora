@@ -11,10 +11,10 @@ COPY src ./src
 RUN uv sync --frozen --no-dev
 
 FROM python:3.12-slim
-RUN useradd --system --uid 10001 --home-dir /work tensorafi && mkdir /work && chown tensorafi /work
+RUN useradd --system --uid 10001 --home-dir /work einsora && mkdir /work && chown einsora /work
 COPY --from=build /app /app
 ENV PATH="/app/.venv/bin:$PATH" HF_HOME=/work/.hf
 WORKDIR /work
 USER 10001
-ENTRYPOINT ["tensorafi-ml"]
+ENTRYPOINT ["einsora-ml"]
 CMD ["--help"]

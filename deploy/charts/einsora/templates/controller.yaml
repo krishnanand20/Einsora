@@ -4,16 +4,16 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: tensorafi-controller
+  name: einsora-controller
   labels:
-    {{- include "tensorafi.labels" . | nindent 4 }}
+    {{- include "einsora.labels" . | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: tensorafi-controller
+  name: einsora-controller
   labels:
-    {{- include "tensorafi.labels" . | nindent 4 }}
+    {{- include "einsora.labels" . | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: [nodes]
@@ -38,7 +38,7 @@ rules:
     verbs: [get, list, watch, create, patch, update, delete]
   - apiGroups: [rbac.authorization.k8s.io]
     resources: [clusterroles]
-    resourceNames: [tensorafi-image-cloner]
+    resourceNames: [einsora-image-cloner]
     verbs: [bind]
   - apiGroups: [cdi.kubevirt.io]
     resources: [datavolumes/source]
@@ -53,52 +53,52 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: tensorafi-controller
+  name: einsora-controller
   labels:
-    {{- include "tensorafi.labels" . | nindent 4 }}
+    {{- include "einsora.labels" . | nindent 4 }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: tensorafi-controller
+  name: einsora-controller
 subjects:
   - kind: ServiceAccount
-    name: tensorafi-controller
+    name: einsora-controller
     namespace: {{ .Release.Namespace }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tensorafi-controller
+  name: einsora-controller
   labels:
-    {{- include "tensorafi.labels" . | nindent 4 }}
-    app.kubernetes.io/name: tensorafi-controller
+    {{- include "einsora.labels" . | nindent 4 }}
+    app.kubernetes.io/name: einsora-controller
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app.kubernetes.io/name: tensorafi-controller
+      app.kubernetes.io/name: einsora-controller
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: tensorafi-controller
+        app.kubernetes.io/name: einsora-controller
       annotations:
         checksum/catalog: {{ .Values.catalog | sha256sum }}
     spec:
-      serviceAccountName: tensorafi-controller
-      {{- include "tensorafi.podSecurityContext" . | nindent 6 }}
+      serviceAccountName: einsora-controller
+      {{- include "einsora.podSecurityContext" . | nindent 6 }}
       containers:
         - name: controller
-          image: {{ include "tensorafi.image" . }}
+          image: {{ include "einsora.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: [controller]
           env:
-            {{- include "tensorafi.env" . | nindent 12 }}
-            - name: TENSORAFI_REGION
-              value: {{ include "tensorafi.region" . | quote }}
+            {{- include "einsora.env" . | nindent 12 }}
+            - name: EINSORA_REGION
+              value: {{ include "einsora.region" . | quote }}
           resources:
             {{- toYaml .Values.controller.resources | nindent 12 }}
-          {{- include "tensorafi.containerSecurityContext" . | nindent 10 }}
-          {{- include "tensorafi.catalogMount" . | nindent 10 }}
-      {{- include "tensorafi.catalogVolume" . | nindent 6 }}
+          {{- include "einsora.containerSecurityContext" . | nindent 10 }}
+          {{- include "einsora.catalogMount" . | nindent 10 }}
+      {{- include "einsora.catalogVolume" . | nindent 6 }}

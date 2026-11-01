@@ -1,6 +1,6 @@
 # Contributing
 
-TensoraFi is free and open for everyone ([ADR-0011](docs/adr/0011-free-for-everyone.md)), and contributions are welcome.
+Einsora is free and open for everyone ([ADR-0011](docs/adr/0011-free-for-everyone.md)), and contributions are welcome.
 
 ## Setup
 
@@ -40,7 +40,7 @@ Changes to these need a reviewer who knows the trust model:
 - `controlplane/internal/{api,service,store,cluster}`: tenant scoping, lifecycle, and manifests
 - agent and driver code (planned): the trust matrix, host protections, sandbox profiles
 - `controlplane/internal/metering`: usage-accounting correctness (quotas and fairness depend on it)
-- `ml/src/tensorafi_ml/validate.py`: the code-free model format rule
+- `ml/src/einsora_ml/validate.py`: the code-free model format rule
 - `deploy/charts/cluster-config`, plus anything touching NetworkPolicy, RBAC, or RuntimeClass
 - region filtering, fallback placement, sharing levels, and the inference gateway (AGENTS.md rules 9, 10, and 13)
 

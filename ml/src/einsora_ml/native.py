@@ -23,8 +23,8 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any, Protocol
 
-from tensorafi_ml.ingest import ModelRejectedError
-from tensorafi_ml.local import fetch_model
+from einsora_ml.ingest import ModelRejectedError
+from einsora_ml.local import fetch_model
 
 MAX_BODY_BYTES = 1024**2
 MAX_CONTEXT_TOKENS = 8192
@@ -380,11 +380,11 @@ def main() -> int:
             # image whose environment is offline and contains no model-download credentials.
             os.execvpe(  # noqa: S606 - trusted interpreter and driver-owned arguments
                 sys.executable,
-                [sys.executable, "-m", "tensorafi_ml.native", *sys.argv[1:], "--prepared"],
+                [sys.executable, "-m", "einsora_ml.native", *sys.argv[1:], "--prepared"],
                 dict(os.environ),
             )
         engine = MLXEngine(args.model_dir)
-        token = os.environ.pop("TENSORAFI_NATIVE_TOKEN")
+        token = os.environ.pop("EINSORA_NATIVE_TOKEN")
         with Server(args.socket, args.source, token, engine) as server:
             stage("ready")
             server.serve_forever()

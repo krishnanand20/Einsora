@@ -2,7 +2,7 @@
 
 These rules add to the root [AGENTS.md](../AGENTS.md); read that first.
 
-The dashboard is the same in every profile. For Solo, it will be embedded in the `tensorafi` binary
+The dashboard is the same in every profile. For Solo, it will be embedded in the `einsora` binary
 (ADR-0012), so it must work when served from `127.0.0.1` with no separate web server.
 
 ## Layout
@@ -25,7 +25,7 @@ src/styles.css        plain CSS with light/dark tokens; no CSS framework
 - **Nothing hidden** (rule 14, ADR-0015): show every timeline reason in full, never truncated or summarized away. Keep **Download full log** on the workload page, and include anything new the API exports. Show the request ID with every error (`ApiError` already appends it). Take download file names from `filenameFromDisposition`, which strips directories. Deleted workloads stay reachable: the workload page loads with `include_deleted`, and the list has **Show deleted**. Show notes (`from` equals `to`) as notes, via `describeChange`.
 - **Build workload URLs with `workloadPath`**, which encodes the ID, so an ID can never point at a different API path.
 - **No money anywhere** (rule 12): no prices, plans, upgrade prompts, or payment screens. Usage pages show hours, never currency.
-- **Auth:** in `client.ts` only. Local accounts sign in on `/login` and get an HttpOnly session cookie, which the browser sends by itself; every request carries `X-TensoraFi-CSRF`. A 401 from `/v1/auth/me` sends you to sign-in, and `safeNext` keeps the return path inside the dashboard. Dev mode adds `X-Dev-Tenant`. Planned: OIDC with PKCE (Datacenter). Never store tokens in `localStorage`; a new API token is shown once on the tokens page and kept only in memory.
+- **Auth:** in `client.ts` only. Local accounts sign in on `/login` and get an HttpOnly session cookie, which the browser sends by itself; every request carries `X-Einsora-CSRF`. A 401 from `/v1/auth/me` sends you to sign-in, and `safeNext` keeps the return path inside the dashboard. Dev mode adds `X-Dev-Tenant`. Planned: OIDC with PKCE (Datacenter). Never store tokens in `localStorage`; a new API token is shown once on the tokens page and kept only in memory.
 - **Relative URLs only:** call `/v1/...`, never hard-coded hosts, so the embedded build works on any address.
 - **Dependencies:** keep the list short. Ask before adding a UI kit, state library, or CSS framework.
 - **Strict TypeScript:** `any` needs a comment explaining why.

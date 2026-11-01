@@ -10,9 +10,9 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/catalog"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
+	"github.com/krishnanand20/einsora/controlplane/internal/catalog"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
 // The real catalog: an endpoint is served by vLLM on NVIDIA, MLX on Apple Silicon, and llama.cpp
@@ -45,7 +45,7 @@ func TestValidate(t *testing.T) {
 				{ID: "cpu", Accelerator: domain.AcceleratorCPU, VCPUsPerGPU: 4, MemoryGiBPerGPU: 16},
 			},
 			Images: []catalog.Image{{ID: "ep", Kind: domain.KindEndpoint, Runtimes: []catalog.Runtime{
-				{Accelerators: []domain.AcceleratorKind{domain.AcceleratorNVIDIA}, Server: "vllm", ModelFormat: "safetensors", Ref: "tensorafi-vllm"},
+				{Accelerators: []domain.AcceleratorKind{domain.AcceleratorNVIDIA}, Server: "vllm", ModelFormat: "safetensors", Ref: "einsora-vllm"},
 			}}},
 		}
 	}
@@ -279,13 +279,13 @@ func TestRuntimeSelectionIncludesDriver(t *testing.T) {
 		accel       domain.AcceleratorKind
 		driver, ref string
 	}{
-		{"pytorch-notebook", domain.AcceleratorCPU, "", "ghcr.io/your-org/tensorafi-pytorch-notebook:0.1.0"},
-		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverDocker, "ghcr.io/your-org/tensorafi-pytorch-notebook:0.1.0"},
+		{"pytorch-notebook", domain.AcceleratorCPU, "", "ghcr.io/your-org/einsora-pytorch-notebook:0.1.0"},
+		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverDocker, "ghcr.io/your-org/einsora-pytorch-notebook:0.1.0"},
 		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverMacOSNative, "jupyterlab-pytorch-mps"},
 		{"pytorch-notebook", domain.AcceleratorNVIDIA, domain.DriverMacOSNative, ""},
 		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverMacOSContainer, ""},
-		{"openai-endpoint", domain.AcceleratorNVIDIA, domain.DriverDocker, "ghcr.io/your-org/tensorafi-vllm-endpoint:0.1.0"},
-		{"openai-endpoint", domain.AcceleratorNVIDIA, "", "tensorafi-vllm"},
+		{"openai-endpoint", domain.AcceleratorNVIDIA, domain.DriverDocker, "ghcr.io/your-org/einsora-vllm-endpoint:0.1.0"},
+		{"openai-endpoint", domain.AcceleratorNVIDIA, "", "einsora-vllm"},
 	} {
 		t.Run(tt.image+"/"+string(tt.accel)+"/"+tt.driver, func(t *testing.T) {
 			img, _ := cat.Image(tt.image)
@@ -314,11 +314,11 @@ func TestDriverCandidatesCannotBypassModelPolicy(t *testing.T) {
 }
 
 func TestLegacyDockerContainerRefStillResolves(t *testing.T) {
-	img := catalog.Image{Kind: domain.KindEndpoint, Runtimes: []catalog.Runtime{{Accelerators: []domain.AcceleratorKind{domain.AcceleratorNVIDIA}, Ref: "tensorafi-vllm", ContainerRef: "registry.test/vllm:1", ModelFormat: "safetensors"}}}
+	img := catalog.Image{Kind: domain.KindEndpoint, Runtimes: []catalog.Runtime{{Accelerators: []domain.AcceleratorKind{domain.AcceleratorNVIDIA}, Ref: "einsora-vllm", ContainerRef: "registry.test/vllm:1", ModelFormat: "safetensors"}}}
 	if r, ok := img.RuntimeForDriver(domain.AcceleratorNVIDIA, domain.DriverDocker); !ok || r.Ref != "registry.test/vllm:1" {
 		t.Fatal("legacy Docker catalog stopped working")
 	}
-	if r, _ := img.RuntimeFor(domain.AcceleratorNVIDIA); r.Ref != "tensorafi-vllm" {
+	if r, _ := img.RuntimeFor(domain.AcceleratorNVIDIA); r.Ref != "einsora-vllm" {
 		t.Fatal("agent selection changed the default runtime")
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 func TestParseMeminfo(t *testing.T) {

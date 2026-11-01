@@ -1,6 +1,6 @@
 # Defaults only. Real values come from deploy/environments/<env>.yaml.
-domain: tensorafi.example.com
-acmeEmail: ops@tensorafi.example.com
+domain: einsora.example.com
+acmeEmail: ops@einsora.example.com
 
 metallb:
   addresses: []
@@ -16,8 +16,8 @@ features:
   kserve: true
 
 vllm:
-  # Pin a tested release; bump deliberately and re-run tensorafi-ml bench.
+  # Pin a tested release; bump deliberately and re-run einsora-ml bench.
   image: vllm/vllm-openai:v0.10.0
   shmSize: 16Gi
-  # Planned (ADR-0010): a tensorafi-vllm-cpu ClusterServingRuntime for CPU fallback, with the same
+  # Planned (ADR-0010): a einsora-vllm-cpu ClusterServingRuntime for CPU fallback, with the same
   # safety flags (--load-format=safetensors, never --trust-remote-code).

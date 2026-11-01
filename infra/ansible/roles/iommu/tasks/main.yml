@@ -8,7 +8,7 @@
 
 - name: Add IOMMU arguments to the kernel command line
   ansible.builtin.copy:
-    dest: /etc/default/grub.d/90-tensorafi-iommu.cfg
+    dest: /etc/default/grub.d/90-einsora-iommu.cfg
     content: |
       GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT {{ iommu_cmdline }}"
     mode: "0644"

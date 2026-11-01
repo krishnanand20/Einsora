@@ -10,11 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/catalog"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster/manifests"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
+	"github.com/krishnanand20/einsora/controlplane/internal/catalog"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster/manifests"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
 // Every kind a builder can emit must be in the allowlist, and must survive client-go's
@@ -22,7 +22,7 @@ import (
 func TestBuildersOnlyEmitAllowedKinds(t *testing.T) {
 	cat := testutil.Catalog(t)
 	gpu, _ := cat.GPUClass("l40s-48gb")
-	objs := manifests.Tenant("acme", map[string]int{"nvidia.com/gpu": 1}, "tensorafi-images")
+	objs := manifests.Tenant("acme", map[string]int{"nvidia.com/gpu": 1}, "einsora-images")
 	for kind, imageID := range map[domain.WorkloadKind]string{
 		domain.KindVM: "ubuntu-24.04-cuda", domain.KindNotebook: "pytorch-notebook", domain.KindEndpoint: "openai-endpoint",
 	} {

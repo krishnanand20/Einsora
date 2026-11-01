@@ -33,7 +33,7 @@
   (subpath (string-append (param "WORKLOAD") "/data"))
   (subpath (string-append (param "WORKLOAD") "/home")))
 
-;; Its run directory, in RUNS (~/.tensorafi/run): its server's socket, its kernels' sockets, and its
+;; Its run directory, in RUNS (~/.einsora/run): its server's socket, its kernels' sockets, and its
 ;; temporary files. Other workloads' run directories are out of reach, sockets included.
 (deny file-read* file-write* (subpath (param "RUNS")))
 (allow file-read* file-write* (subpath (param "RUN")))

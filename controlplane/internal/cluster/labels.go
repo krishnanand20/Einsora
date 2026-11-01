@@ -6,10 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// Labels and annotations on every object TensoraFi creates. Selectors in deploy/ and the
+// Labels and annotations on every object Einsora creates. Selectors in deploy/ and the
 // observability stack depend on these names; change them only with a migration plan.
 const (
-	Prefix = "tensorafi.dev/"
+	Prefix = "einsora.dev/"
 
 	LabelTenant       = Prefix + "tenant"
 	LabelWorkloadID   = Prefix + "workload-id"
@@ -24,10 +24,10 @@ const (
 	AnnotationDesiredRunning = Prefix + "desired-running"
 
 	LabelManagedBy = "app.kubernetes.io/managed-by"
-	ManagedBy      = "tensorafi"
+	ManagedBy      = "einsora"
 
 	// FieldManager is the server-side-apply field manager for everything the controller owns.
-	FieldManager = "tensorafi-controller"
+	FieldManager = "einsora-controller"
 )
 
 // TenantNamespace is where all of a tenant's objects live (AGENTS.md rule 3).

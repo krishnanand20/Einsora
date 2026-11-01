@@ -1,6 +1,6 @@
 # GPUs: access, allocation, and sharing
 
-## Accelerators TensoraFi supports
+## Accelerators Einsora supports
 
 | Accelerator | Platforms | How workloads use it | Partitioning | Status |
 |---|---|---|---|---|
@@ -11,7 +11,7 @@
 
 ## NVIDIA: the options
 
-| Method | Isolation | Cards | TensoraFi policy |
+| Method | Isolation | Cards | Einsora policy |
 |---|---|---|---|
 | **Whole-GPU passthrough** (VFIO) | Strong: the VM owns the device | Almost any; consumer cards have caveats | Default for VMs |
 | **Whole GPU to a container** | Good with Kata, weak with runc | Any | Default for notebooks and endpoints |

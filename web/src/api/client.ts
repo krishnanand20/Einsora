@@ -54,7 +54,7 @@ function authHeaders(): Record<string, string> {
   // Every request also carries the CSRF header: another site can't add it, so the API knows the
   // request came from this dashboard. Dev mode adds X-Dev-Tenant. OIDC with PKCE arrives with the
   // Datacenter profile (phase 3). Tokens never go in localStorage.
-  const headers: Record<string, string> = { "X-TensoraFi-CSRF": "1" };
+  const headers: Record<string, string> = { "X-Einsora-CSRF": "1" };
   const tenant = import.meta.env.VITE_DEV_TENANT ?? (import.meta.env.DEV ? "acme" : undefined);
   if (tenant) headers["X-Dev-Tenant"] = tenant;
   return headers;
@@ -85,12 +85,12 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-/** Downloads everything TensoraFi records about a workload, exactly as the server sent it. */
+/** Downloads everything Einsora records about a workload, exactly as the server sent it. */
 async function exportWorkload(id: string): Promise<{ blob: Blob; filename: string }> {
   const res = await send("GET", workloadPath(id, "/export"));
   return {
     blob: await res.blob(),
-    filename: filenameFromDisposition(res.headers.get("Content-Disposition"), `tensorafi-workload-${id}.json`),
+    filename: filenameFromDisposition(res.headers.get("Content-Disposition"), `einsora-workload-${id}.json`),
   };
 }
 

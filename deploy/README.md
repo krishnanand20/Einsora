@@ -32,13 +32,13 @@ one-region deployment, and its cluster also hosts the control plane. For more re
 - **The catalog** is [`catalog.yaml`](catalog.yaml) (not `images/catalog.yaml`, which is for Solo and Lab).
   It lists every region of the deployment, and only the classes Kubernetes can run: NVIDIA GPUs today.
 - **Each environment's `region`** goes to that cluster's controller (`cluster.region`, then
-  `TENSORAFI_REGION`), which reconciles only that region's workloads. It must be listed in the catalog:
+  `EINSORA_REGION`), which reconciles only that region's workloads. It must be listed in the catalog:
   `make deploy-check` and the chart refuse to render otherwise, and the controller refuses to start. A
   region ID can't change once workloads exist in it.
 
 Planned additions:
 
-- CPU worker nodes, the `tensorafi-vllm-cpu` ClusterServingRuntime, and CPU classes in the catalog (ADR-0010)
+- CPU worker nodes, the `einsora-vllm-cpu` ClusterServingRuntime, and CPU classes in the catalog (ADR-0010)
 - the regional inference gateway
 - a controller-only install for additional regions (today the chart also installs the API, web,
   metering, and the migrate Job, which a second region must not run again; ADR-0009)
@@ -61,10 +61,10 @@ None of these live in git. Create them before the first apply:
 
 | Secret | Namespace | Keys | Used by |
 |---|---|---|---|
-| `tensorafi-db` | tensorafi-system | `DATABASE_URL` | tensorafi chart |
+| `einsora-db` | einsora-system | `DATABASE_URL` | einsora chart |
 | `grafana-admin` | observability | `admin-user`, `admin-password` | kube-prometheus-stack |
 | Keycloak DB credentials | keycloak | see platform/keycloak/README.md | Keycloak |
-| Object store credentials | tensorafi-models | depends on choice | model ingestion and KServe |
+| Object store credentials | einsora-models | depends on choice | model ingestion and KServe |
 
 ## Versions
 

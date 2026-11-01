@@ -51,7 +51,7 @@ Add `internal/service/<resource>.go`:
 
 ## 6. Runtime (if it runs anything)
 
-1. **Datacenter:** add a pure builder in `internal/cluster/manifests/` and unit-test it (`CheckJSONTypes`, labels, namespace, hardening). Add any new kinds to `kube.allowed` **and** the controller ClusterRole (`deploy/charts/tensorafi/templates/controller.yaml`).
+1. **Datacenter:** add a pure builder in `internal/cluster/manifests/` and unit-test it (`CheckJSONTypes`, labels, namespace, hardening). Add any new kinds to `kube.allowed` **and** the controller ClusterRole (`deploy/charts/einsora/templates/controller.yaml`).
 2. **Agents** (once they exist): add a pure spec builder for the driver, and unit-test it. Put OS-specific code behind build tags in the driver package (rule 11), and enforce the trust matrix.
 3. Handle the new kind in a controller step, with tests using `fake.Backend`.
 
@@ -59,7 +59,7 @@ Add `internal/service/<resource>.go`:
 
 - Update `web/src/api/types.ts` and `web/src/api/client.ts`, plus a page or component if the resource is user-facing.
 - Update [control-plane.md](../architecture/control-plane.md) (lifecycle, API conventions) and `controlplane/README.md` (endpoint list).
-- If users need it from a terminal, add a method to `internal/client` and a command to `cmd/tensorafi/client.go`, with a test against the real API.
+- If users need it from a terminal, add a method to `internal/client` and a command to `cmd/einsora/client.go`, with a test against the real API.
 - If it has history users should see, make it readable and exportable ([logs and transparency](../architecture/logs-and-transparency.md)).
 
 ## 8. Verify

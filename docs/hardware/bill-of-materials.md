@@ -1,6 +1,6 @@
 # Hardware guide
 
-TensoraFi runs on hardware you already have. This page helps you choose machines, from a single Mac to a datacenter.
+Einsora runs on hardware you already have. This page helps you choose machines, from a single Mac to a datacenter.
 
 ## Personal machines (Solo and Lab)
 

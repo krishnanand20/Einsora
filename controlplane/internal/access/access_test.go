@@ -17,11 +17,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/access"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/credential"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
+	"github.com/krishnanand20/einsora/controlplane/internal/access"
+	"github.com/krishnanand20/einsora/controlplane/internal/credential"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
 // targets is the agent backend's view: workload → its server's socket and token.
@@ -71,9 +71,9 @@ func newFixture(t *testing.T) fixture {
 			_, _ = io.Copy(conn, rw)
 			return
 		}
-		http.SetCookie(w, &http.Cookie{Name: "tensorafi_access", Value: "planted"})
-		w.Header().Add("Set-Cookie", "tensorafi_access =planted-with-a-space; Path=/") // a browser trims the name
-		w.Header().Add("Set-Cookie", "everywhere=1; Domain=localhost; Path=/")         // for every workload's host
+		http.SetCookie(w, &http.Cookie{Name: "einsora_access", Value: "planted"})
+		w.Header().Add("Set-Cookie", "einsora_access =planted-with-a-space; Path=/") // a browser trims the name
+		w.Header().Add("Set-Cookie", "everywhere=1; Domain=localhost; Path=/")       // for every workload's host
 		http.SetCookie(w, &http.Cookie{Name: "_xsrf", Value: "jupyter-own"})
 		_, _ = io.WriteString(w, "jupyter")
 	}))
@@ -134,9 +134,9 @@ func TestOpeningAWorkload(t *testing.T) {
 		t.Fatalf("without a session: %d", rec.Code)
 	}
 	ticket := f.ticket(t)
-	rec := f.do("GET", host, "/_tensorafi/open?ticket="+url.QueryEscape(ticket), nil, nil)
+	rec := f.do("GET", host, "/_einsora/open?ticket="+url.QueryEscape(ticket), nil, nil)
 	cookies := rec.Result().Cookies()
-	if rec.Code != http.StatusOK || len(cookies) != 1 || cookies[0].Name != "tensorafi_access" || !cookies[0].HttpOnly ||
+	if rec.Code != http.StatusOK || len(cookies) != 1 || cookies[0].Name != "einsora_access" || !cookies[0].HttpOnly ||
 		cookies[0].SameSite != http.SameSiteStrictMode || cookies[0].Domain != "" {
 		t.Fatalf("opening: %d %+v; want a host-only, HttpOnly, SameSite=Strict cookie", rec.Code, cookies)
 	}
@@ -160,7 +160,7 @@ func TestOpeningAWorkload(t *testing.T) {
 	if got.Header.Get("Authorization") != "token jupyter-token" {
 		t.Errorf("the workload got Authorization %q; want its own token, never the browser's", got.Header.Get("Authorization"))
 	}
-	if strings.Contains(got.Header.Get("Cookie"), "tensorafi_access") || !strings.Contains(got.Header.Get("Cookie"), "_xsrf=abc") {
+	if strings.Contains(got.Header.Get("Cookie"), "einsora_access") || !strings.Contains(got.Header.Get("Cookie"), "_xsrf=abc") {
 		t.Errorf("the workload got cookies %q; want its own, never the proxy's session", got.Header.Get("Cookie"))
 	}
 	if got.Host != "localhost" || got.Header.Get("Origin") != "http://localhost" {
@@ -169,7 +169,7 @@ func TestOpeningAWorkload(t *testing.T) {
 	kept := map[string]*http.Cookie{}
 	for _, c := range rec.Result().Cookies() {
 		kept[c.Name] = c
-		if c.Name == "tensorafi_access" {
+		if c.Name == "einsora_access" {
 			t.Errorf("the workload replaced the proxy's cookie: %v", c)
 		}
 	}
@@ -178,7 +178,7 @@ func TestOpeningAWorkload(t *testing.T) {
 	}
 
 	// A ticket opens once.
-	if rec := f.do("GET", host, "/_tensorafi/open?ticket="+url.QueryEscape(ticket), nil, nil); rec.Code != http.StatusForbidden {
+	if rec := f.do("GET", host, "/_einsora/open?ticket="+url.QueryEscape(ticket), nil, nil); rec.Code != http.StatusForbidden {
 		t.Errorf("a used ticket: %d; want 403", rec.Code)
 	}
 }
@@ -188,10 +188,10 @@ func TestSessionsAreForOneWorkload(t *testing.T) {
 	f := newFixture(t)
 	ticket := f.ticket(t)
 	elsewhere := f.host(uuid.New())
-	if rec := f.do("GET", elsewhere, "/_tensorafi/open?ticket="+url.QueryEscape(ticket), nil, nil); rec.Code != http.StatusForbidden {
+	if rec := f.do("GET", elsewhere, "/_einsora/open?ticket="+url.QueryEscape(ticket), nil, nil); rec.Code != http.StatusForbidden {
 		t.Errorf("a ticket at another workload's host: %d; want 403", rec.Code)
 	}
-	rec := f.do("GET", f.host(f.workload), "/_tensorafi/open?ticket="+url.QueryEscape(f.ticket(t)), nil, nil)
+	rec := f.do("GET", f.host(f.workload), "/_einsora/open?ticket="+url.QueryEscape(f.ticket(t)), nil, nil)
 	session := rec.Result().Cookies()[0]
 	if rec := f.do("GET", elsewhere, "/", session, nil); rec.Code != http.StatusUnauthorized {
 		t.Errorf("a session at another workload's host: %d; want 401", rec.Code)
@@ -202,7 +202,7 @@ func TestSessionsAreForOneWorkload(t *testing.T) {
 // transport, with the same credential and origin protections as normal HTTP requests.
 func TestKernelChannelUpgrade(t *testing.T) {
 	f := newFixture(t)
-	opened := f.do("GET", f.host(f.workload), "/_tensorafi/open?ticket="+url.QueryEscape(f.ticket(t)), nil, nil)
+	opened := f.do("GET", f.host(f.workload), "/_einsora/open?ticket="+url.QueryEscape(f.ticket(t)), nil, nil)
 	session := opened.Result().Cookies()[0]
 	server := httptest.NewServer(f.proxy)
 	defer server.Close()
@@ -240,7 +240,7 @@ func TestKernelChannelUpgrade(t *testing.T) {
 		t.Fatalf("kernel channel echo = %q, %v", got, err)
 	}
 	seen := <-f.seen
-	if seen.Header.Get("Authorization") != "token jupyter-token" || strings.Contains(seen.Header.Get("Cookie"), "tensorafi_access") ||
+	if seen.Header.Get("Authorization") != "token jupyter-token" || strings.Contains(seen.Header.Get("Cookie"), "einsora_access") ||
 		seen.Host != "localhost" || seen.Header.Get("Origin") != "http://localhost" {
 		t.Error("upgraded request didn't preserve the proxy's credential and origin protections")
 	}
@@ -270,13 +270,13 @@ func TestStoppedWorkloads(t *testing.T) {
 		return q.CreateAccessTicket(ctx, domain.AccessTicket{Hash: hash, TenantID: f.tenant, WorkloadID: gone, Subject: "o",
 			ExpiresAt: time.Now().Add(time.Minute)})
 	})
-	rec := f.do("GET", f.host(gone), "/_tensorafi/open?ticket="+url.QueryEscape(ticket), nil, nil)
+	rec := f.do("GET", f.host(gone), "/_einsora/open?ticket="+url.QueryEscape(ticket), nil, nil)
 	if rec.Code != http.StatusServiceUnavailable || len(rec.Result().Cookies()) != 0 {
 		t.Errorf("opening a workload with no running server: %d, cookies %v; want 503 and none", rec.Code, rec.Result().Cookies())
 	}
 
 	// A session ends when its workload stops: the next run's server has a new token.
-	rec = f.do("GET", f.host(f.workload), "/_tensorafi/open?ticket="+url.QueryEscape(f.ticket(t)), nil, nil)
+	rec = f.do("GET", f.host(f.workload), "/_einsora/open?ticket="+url.QueryEscape(f.ticket(t)), nil, nil)
 	session := rec.Result().Cookies()[0]
 	running := f.targets[f.workload]
 	delete(f.targets, f.workload)
@@ -298,7 +298,7 @@ func TestStoppedWorkloads(t *testing.T) {
 func TestRequestsFromElsewhere(t *testing.T) {
 	f := newFixture(t)
 	host := f.host(f.workload)
-	rec := f.do("GET", host, "/_tensorafi/open?ticket="+url.QueryEscape(f.ticket(t)), nil, nil)
+	rec := f.do("GET", host, "/_einsora/open?ticket="+url.QueryEscape(f.ticket(t)), nil, nil)
 	session := rec.Result().Cookies()[0]
 	for _, tt := range []struct {
 		name   string

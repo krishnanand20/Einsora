@@ -1,48 +1,48 @@
-{{- define "tensorafi.labels" -}}
-app.kubernetes.io/part-of: tensorafi
+{{- define "einsora.labels" -}}
+app.kubernetes.io/part-of: einsora
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 
-{{- define "tensorafi.image" -}}
+{{- define "einsora.image" -}}
 {{ .Values.image.repository }}:{{ .Values.image.tag }}
 {{- end }}
 
 {{- /* Environment shared by every control plane process. */}}
-{{- define "tensorafi.env" -}}
-- name: TENSORAFI_ENV
+{{- define "einsora.env" -}}
+- name: EINSORA_ENV
   value: {{ .Values.env | quote }}
-- name: TENSORAFI_DATABASE_URL
+- name: EINSORA_DATABASE_URL
   valueFrom:
     secretKeyRef:
       name: {{ .Values.database.existingSecret }}
       key: DATABASE_URL
-- name: TENSORAFI_AUTH_MODE
+- name: EINSORA_AUTH_MODE
   value: oidc
-- name: TENSORAFI_OIDC_ISSUER
+- name: EINSORA_OIDC_ISSUER
   value: {{ .Values.auth.oidcIssuer | quote }}
-- name: TENSORAFI_OIDC_AUDIENCE
+- name: EINSORA_OIDC_AUDIENCE
   value: {{ .Values.auth.oidcAudience | quote }}
-- name: TENSORAFI_OIDC_TENANT_CLAIM
+- name: EINSORA_OIDC_TENANT_CLAIM
   value: {{ .Values.auth.tenantClaim | quote }}
-- name: TENSORAFI_CLUSTER_BACKEND
+- name: EINSORA_CLUSTER_BACKEND
   value: kubernetes
-- name: TENSORAFI_UNTRUSTED_RUNTIME_CLASS
+- name: EINSORA_UNTRUSTED_RUNTIME_CLASS
   value: {{ .Values.cluster.untrustedRuntimeClass | quote }}
-- name: TENSORAFI_STORAGE_CLASS
+- name: EINSORA_STORAGE_CLASS
   value: {{ .Values.cluster.storageClass | quote }}
-- name: TENSORAFI_IMAGES_NAMESPACE
+- name: EINSORA_IMAGES_NAMESPACE
   value: {{ .Values.cluster.imagesNamespace | quote }}
 {{- end }}
 
-{{- define "tensorafi.podSecurityContext" -}}
+{{- define "einsora.podSecurityContext" -}}
 securityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
 {{- end }}
 
-{{- define "tensorafi.containerSecurityContext" -}}
+{{- define "einsora.containerSecurityContext" -}}
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: true
@@ -50,17 +50,17 @@ securityContext:
     drop: [ALL]
 {{- end }}
 
-{{- define "tensorafi.catalogVolume" -}}
+{{- define "einsora.catalogVolume" -}}
 volumes:
   - name: catalog
     configMap:
-      name: tensorafi-catalog
+      name: einsora-catalog
 {{- end }}
 
-{{- define "tensorafi.catalogMount" -}}
+{{- define "einsora.catalogMount" -}}
 volumeMounts:
   - name: catalog
-    mountPath: /etc/tensorafi
+    mountPath: /etc/einsora
     readOnly: true
 {{- end }}
 
@@ -69,7 +69,7 @@ The region this cluster's controller reconciles (ADR-0009). It must be a region 
 the catalog, or rendering fails: a controller for a region nobody can create workloads in would leave
 every workload pending without a word.
 */}}
-{{- define "tensorafi.region" -}}
+{{- define "einsora.region" -}}
 {{- $region := required "cluster.region is required (ADR-0009)" .Values.cluster.region -}}
 {{- if not (regexMatch "^[a-z0-9]([-a-z0-9]{0,38}[a-z0-9])?$" $region) -}}
 {{- fail (printf "cluster.region %q isn't a region ID (lowercase letters, digits, and '-')" $region) -}}

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent"
 )
 
 // Options configure the driver.

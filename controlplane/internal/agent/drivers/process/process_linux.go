@@ -13,7 +13,7 @@ import (
 )
 
 // ticksPerSecond is the kernel's USER_HZ, which /proc reports times in: 100 on every Linux
-// architecture TensoraFi builds for.
+// architecture Einsora builds for.
 const ticksPerSecond = 100
 
 // startTime is when the kernel started pid, in microseconds since the epoch: the boot time plus its

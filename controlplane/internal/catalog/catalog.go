@@ -11,7 +11,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 const defaultRootDiskGiB = 100
@@ -71,7 +71,7 @@ type Runtime struct {
 	// serves them (rule 10). Empty for other kinds.
 	Server string `json:"server,omitempty"`
 	// ModelFormat is the weight format an endpoint's server loads: safetensors or gguf. A format is
-	// accepted only once tensorafi-ml validate checks it (rule 6).
+	// accepted only once einsora-ml validate checks it (rule 6).
 	ModelFormat string `json:"model_format,omitempty"`
 	// Ref is what the backend runs. Kubernetes: a CDI DataSource (vm), a container image
 	// (notebook), or a KServe ClusterServingRuntime (endpoint). Node agents: interpreted by their
@@ -136,7 +136,7 @@ type Catalog struct {
 
 // Load reads and validates a catalog file. Unknown fields are errors.
 func Load(path string) (*Catalog, error) {
-	// The path comes from operator config (TENSORAFI_CATALOG_PATH), never from a request.
+	// The path comes from operator config (EINSORA_CATALOG_PATH), never from a request.
 	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, fmt.Errorf("read catalog: %w", err)
@@ -255,7 +255,7 @@ func validateImage(img Image, seen map[string]bool) error {
 	return nil
 }
 
-// validatedFormats are the model formats tensorafi-ml validate checks (rule 6). GGUF joins when the
+// validatedFormats are the model formats einsora-ml validate checks (rule 6). GGUF joins when the
 // validator checks GGUF headers (roadmap step 10); until then, runtimes that load it can't be used.
 var validatedFormats = map[string]bool{"safetensors": true}
 
@@ -295,7 +295,7 @@ func CheckLaunch(tier domain.IsolationTier, class GPUClass, img Image, kind doma
 		return invalid("on Apple Silicon, %ss run natively on macOS, which only the machine's owner may do; use a VM", img.Kind)
 	}
 	if img.Kind == domain.KindEndpoint && !validatedFormats[runtime.ModelFormat] {
-		return invalid("on %s, endpoints are served by %s, which loads %s models; those aren't accepted until tensorafi-ml validate checks them (rule 6)",
+		return invalid("on %s, endpoints are served by %s, which loads %s models; those aren't accepted until einsora-ml validate checks them (rule 6)",
 			class.Accelerator, runtime.Server, runtime.ModelFormat)
 	}
 	return runtime, nil

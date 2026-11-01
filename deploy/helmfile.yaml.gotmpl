@@ -151,7 +151,7 @@ releases:
   # ---------------------------------------------------------------- Our cluster objects
   # Address pool, ACME issuer, Gateway, KubeVirt/CDI config, serving runtime, storage class.
   - name: cluster-config
-    namespace: tensorafi-system
+    namespace: einsora-system
     chart: ./charts/cluster-config
     values: [environments/{{ .Environment.Name }}.yaml]
     needs:
@@ -162,21 +162,21 @@ releases:
       - kserve/kserve
 {{- end }}
 
-  # ---------------------------------------------------------------- Layer 7: TensoraFi
-  - name: tensorafi
-    namespace: tensorafi-system
-    chart: ./charts/tensorafi
-    installed: {{ .Values.features.tensorafi }}
+  # ---------------------------------------------------------------- Layer 7: Einsora
+  - name: einsora
+    namespace: einsora-system
+    chart: ./charts/einsora
+    installed: {{ .Values.features.einsora }}
     set:
       - name: domain
         value: {{ .Values.domain }}
       - name: image.tag
-        value: {{ .Values.tensorafi.version | quote }}
+        value: {{ .Values.einsora.version | quote }}
       - name: webImage.tag
-        value: {{ .Values.tensorafi.version | quote }}
+        value: {{ .Values.einsora.version | quote }}
       - name: catalog
         file: catalog.yaml
       # This cluster's region (ADR-0009). The chart refuses to render if it isn't in catalog.yaml.
       - name: cluster.region
         value: {{ .Values.region }}
-    needs: [tensorafi-system/cluster-config]
+    needs: [einsora-system/cluster-config]

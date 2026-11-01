@@ -9,12 +9,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster/agents"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/testutil"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster/agents"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
 type fixture struct {
@@ -508,7 +508,7 @@ func TestTargetsAreLocalOnly(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	const sock = "/Users/o/.tensorafi/run/1a2b3c4d/jupyter.sock"
+	const sock = "/Users/o/.einsora/run/1a2b3c4d/jupyter.sock"
 	ready := protocol.Status{ID: w.ID, Attempt: 1, State: protocol.StateReady, Access: &protocol.Access{Socket: sock, Token: "t0ken"}}
 
 	sync(true, ready)

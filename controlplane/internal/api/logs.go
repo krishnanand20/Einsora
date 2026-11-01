@@ -10,16 +10,16 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 // Logs and transparency (ADR-0015): the full timeline and a complete export of every workload,
 // plus a request ID on every response so any log line can be found.
 
-const exportFormat = "tensorafi.workload-export/v1"
+const exportFormat = "einsora.workload-export/v1"
 
 const outputLogsNote = "Workload output (stdout and stderr) isn't captured yet; it will be once the " +
-	"runtime log pipeline lands (ADR-0015). Everything else TensoraFi records about this workload is in this file."
+	"runtime log pipeline lands (ADR-0015). Everything else Einsora records about this workload is in this file."
 
 type eventView struct {
 	ID     int64        `json:"id"`
@@ -120,7 +120,7 @@ func (s *Server) exportWorkload(w http.ResponseWriter, r *http.Request, p domain
 	for i, rd := range exp.Redactions {
 		view.Redactions[i] = redactionView{Field: rd.Field, Reason: rd.Reason}
 	}
-	filename := fmt.Sprintf("tensorafi-%s-%s.json", exp.Workload.Name, exp.Workload.ID)
+	filename := fmt.Sprintf("einsora-%s-%s.json", exp.Workload.Name, exp.Workload.ID)
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
 	writeJSON(w, http.StatusOK, view)
 	return nil

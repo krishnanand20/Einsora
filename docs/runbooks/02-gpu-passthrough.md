@@ -15,17 +15,17 @@ kubectl delete -f deploy/examples/gpu-smoke-test.yaml
 
 ### Burn-in (required before anyone else uses a GPU)
 
-Run `tensorafi-ml burnin` in a PyTorch CUDA image with all GPUs for at least 30 minutes:
+Run `einsora-ml burnin` in a PyTorch CUDA image with all GPUs for at least 30 minutes:
 
 ```bash
 kubectl run burnin --rm -it --restart=Never \
   --image=pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime \
   --overrides='{"spec":{"containers":[{"name":"burnin","image":"pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime",
-    "command":["bash","-c","pip install -q /src && tensorafi-ml burnin --seconds 1800"],
+    "command":["bash","-c","pip install -q /src && einsora-ml burnin --seconds 1800"],
     "resources":{"limits":{"nvidia.com/gpu":"4"}}}]}}'
 ```
 
-The command above is illustrative. In practice, build `tensorafi-ml` into the image, or mount `ml/`.
+The command above is illustrative. In practice, build `einsora-ml` into the image, or mount `ml/`.
 
 **Pass criteria:**
 

@@ -1,5 +1,5 @@
 // Package sqlitestore is the SQLite Store for the Solo and Lab profiles (ADR-0012). It uses a
-// pure-Go driver (modernc.org/sqlite), so the tensorafi binary stays CGO-free and cross-compiles
+// pure-Go driver (modernc.org/sqlite), so the einsora binary stays CGO-free and cross-compiles
 // for every platform (rule 11).
 //
 // All access goes through one connection, so a process runs one transaction at a time: the same
@@ -27,9 +27,9 @@ import (
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
-	"github.com/krishnanand20/tensorafi/controlplane/migrations"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/migrations"
 )
 
 type Store struct{ db *sql.DB }

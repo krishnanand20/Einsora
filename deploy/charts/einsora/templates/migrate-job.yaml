@@ -3,9 +3,9 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: tensorafi-migrate
+  name: einsora-migrate
   labels:
-    {{- include "tensorafi.labels" . | nindent 4 }}
+    {{- include "einsora.labels" . | nindent 4 }}
   annotations:
     helm.sh/hook: pre-install,pre-upgrade
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
@@ -15,23 +15,23 @@ spec:
     spec:
       restartPolicy: Never
       automountServiceAccountToken: false
-      {{- include "tensorafi.podSecurityContext" . | nindent 6 }}
+      {{- include "einsora.podSecurityContext" . | nindent 6 }}
       containers:
         - name: migrate
-          image: {{ include "tensorafi.image" . }}
+          image: {{ include "einsora.image" . }}
           args: [migrate]
           env:
-            - name: TENSORAFI_ENV
+            - name: EINSORA_ENV
               value: {{ .Values.env | quote }}
-            - name: TENSORAFI_DATABASE_URL
+            - name: EINSORA_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.database.existingSecret }}
                   key: DATABASE_URL
-            - name: TENSORAFI_AUTH_MODE
+            - name: EINSORA_AUTH_MODE
               value: oidc
-            - name: TENSORAFI_OIDC_ISSUER
+            - name: EINSORA_OIDC_ISSUER
               value: {{ .Values.auth.oidcIssuer | quote }}
-            - name: TENSORAFI_CLUSTER_BACKEND
+            - name: EINSORA_CLUSTER_BACKEND
               value: kubernetes
-          {{- include "tensorafi.containerSecurityContext" . | nindent 10 }}
+          {{- include "einsora.containerSecurityContext" . | nindent 10 }}

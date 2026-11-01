@@ -1,5 +1,5 @@
-// Command tensorafi runs the TensoraFi control plane. One binary, one image; the subcommand
-// picks the role. See `tensorafi help`.
+// Command einsora runs the Einsora control plane. One binary, one image; the subcommand
+// picks the role. See `einsora help`.
 package main
 
 import (
@@ -22,63 +22,63 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/access"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/docker"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/hostlock"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/inventory"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/macosnative"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/sim"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/api"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/auth"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/catalog"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster/agents"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster/fake"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/cluster/kube"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/config"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/controller"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/devseed"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/metering"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/redact"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/service"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store/memstore"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store/pgstore"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store/sqlitestore"
+	"github.com/krishnanand20/einsora/controlplane/internal/access"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/drivers/docker"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/drivers/hostlock"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/drivers/inventory"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/drivers/macosnative"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/drivers/sim"
+	"github.com/krishnanand20/einsora/controlplane/internal/api"
+	"github.com/krishnanand20/einsora/controlplane/internal/auth"
+	"github.com/krishnanand20/einsora/controlplane/internal/catalog"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster/agents"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster/fake"
+	"github.com/krishnanand20/einsora/controlplane/internal/cluster/kube"
+	"github.com/krishnanand20/einsora/controlplane/internal/config"
+	"github.com/krishnanand20/einsora/controlplane/internal/controller"
+	"github.com/krishnanand20/einsora/controlplane/internal/devseed"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/metering"
+	"github.com/krishnanand20/einsora/controlplane/internal/redact"
+	"github.com/krishnanand20/einsora/controlplane/internal/service"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/store/memstore"
+	"github.com/krishnanand20/einsora/controlplane/internal/store/pgstore"
+	"github.com/krishnanand20/einsora/controlplane/internal/store/sqlitestore"
 )
 
-const usage = `tensorafi — free, self-hosted GPU cloud
+const usage = `einsora — free, self-hosted GPU cloud
 
-Usage: tensorafi <command> [arguments]
+Usage: einsora <command> [arguments]
 
 Server commands:
   api         serve the REST API
   controller  reconcile workloads with the runtime (Kubernetes today; node agents planned)
   metering    usage accounting: turn workload events into hourly usage records (no money)
-  migrate     apply database migrations to TENSORAFI_DATABASE_URL (Postgres or a SQLite file;
+  migrate     apply database migrations to EINSORA_DATABASE_URL (Postgres or a SQLite file;
               a SQLite file is also migrated whenever it's opened)
-  seed        create dev tenants and quotas (TENSORAFI_ENV=dev only)
+  seed        create dev tenants and quotas (EINSORA_ENV=dev only)
   setup -email you@example.com [-tenant home] [-password-stdin]
-              create the first account, the machine's owner, for TENSORAFI_AUTH_MODE=local; asks for
+              create the first account, the machine's owner, for EINSORA_AUTH_MODE=local; asks for
               the password without echoing it (or reads one line from stdin)
   dev         api + controller + metering in one process with seeded data; uses an in-memory
-              store unless TENSORAFI_DATABASE_URL is set (postgres://… or sqlite:<path>)
+              store unless EINSORA_DATABASE_URL is set (postgres://… or sqlite:<path>)
 
 Client commands (talk to a running API):
   workloads [-all]      list your workloads (-all includes deleted ones)
   events <id> [-json]   show a workload's complete timeline: every state change and note, when, and why
   export <id> [-o file] [-f]
                         save everything recorded about a workload as one JSON file, readable by
-                        you only (default tensorafi-<name>-<id>.json; -o - writes to stdout;
+                        you only (default einsora-<name>-<id>.json; -o - writes to stdout;
                         -f replaces an existing file)
 
-Server configuration: TENSORAFI_* environment variables (see .env.example). Set TENSORAFI_LOG_LEVEL=debug
-for detailed logs and TENSORAFI_LOG_FILE=path to keep a complete copy on disk.
-Client configuration: TENSORAFI_API_URL (default http://127.0.0.1:8080), and TENSORAFI_TOKEN (bearer)
-or TENSORAFI_DEV_TENANT (dev mode). A token is never sent over plain http:// to another machine
-unless TENSORAFI_INSECURE_HTTP=true.
+Server configuration: EINSORA_* environment variables (see .env.example). Set EINSORA_LOG_LEVEL=debug
+for detailed logs and EINSORA_LOG_FILE=path to keep a complete copy on disk.
+Client configuration: EINSORA_API_URL (default http://127.0.0.1:8080), and EINSORA_TOKEN (bearer)
+or EINSORA_DEV_TENANT (dev mode). A token is never sent over plain http:// to another machine
+unless EINSORA_INSECURE_HTTP=true.
 `
 
 func main() {
@@ -96,12 +96,12 @@ func main() {
 	case cmd == "setup":
 		err = runSetup(ctx, args, os.Stdin, os.Stdout)
 	case len(args) > 0:
-		err = fmt.Errorf("%s takes no arguments (see tensorafi help)", cmd)
+		err = fmt.Errorf("%s takes no arguments (see einsora help)", cmd)
 	default:
 		err = run(ctx, cmd)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "tensorafi:", err)
+		fmt.Fprintln(os.Stderr, "einsora:", err)
 		os.Exit(1)
 	}
 }
@@ -130,7 +130,7 @@ func run(ctx context.Context, cmd string) error {
 			log.Info("store: sqlite", "path", db.DSN)
 			n, err = sqlitestore.Migrate(ctx, db.DSN)
 		default:
-			return errors.New("TENSORAFI_DATABASE_URL is required")
+			return errors.New("EINSORA_DATABASE_URL is required")
 		}
 		log.Info("migrations applied", "count", n)
 		return err
@@ -159,12 +159,12 @@ func run(ctx context.Context, cmd string) error {
 		return metering.New(st, log, nil).Run(ctx, cfg.MeteringInterval)
 	case "seed":
 		if cfg.Env != "dev" {
-			return errors.New("seed only runs with TENSORAFI_ENV=dev")
+			return errors.New("seed only runs with EINSORA_ENV=dev")
 		}
 		return devseed.Seed(ctx, st, time.Now())
 	case "dev":
 		if cfg.Env != "dev" {
-			return errors.New("dev only runs with TENSORAFI_ENV=dev")
+			return errors.New("dev only runs with EINSORA_ENV=dev")
 		}
 		if err := devseed.Seed(ctx, st, time.Now()); err != nil {
 			return err
@@ -180,10 +180,10 @@ func run(ctx context.Context, cmd string) error {
 			func(ctx context.Context) error { return metering.New(st, log, nil).Run(ctx, cfg.MeteringInterval) },
 		)
 	}
-	return fmt.Errorf("unknown command %q (see tensorafi help)", cmd)
+	return fmt.Errorf("unknown command %q (see einsora help)", cmd)
 }
 
-// newLogger writes to stderr and, if TENSORAFI_LOG_FILE is set, a complete copy to that file
+// newLogger writes to stderr and, if EINSORA_LOG_FILE is set, a complete copy to that file
 // (appended, readable by the owner only). Nothing is sampled or dropped.
 func newLogger(cfg config.Config) (*slog.Logger, func(), error) {
 	var out io.Writer = os.Stderr
@@ -191,7 +191,7 @@ func newLogger(cfg config.Config) (*slog.Logger, func(), error) {
 	if cfg.LogFile != "" {
 		f, err := openLogFile(cfg.LogFile)
 		if err != nil {
-			return nil, nil, fmt.Errorf("open TENSORAFI_LOG_FILE: %w", err)
+			return nil, nil, fmt.Errorf("open EINSORA_LOG_FILE: %w", err)
 		}
 		out = io.MultiWriter(os.Stderr, f)
 		closeFn = func() { _ = f.Close() }
@@ -262,7 +262,7 @@ func openStore(ctx context.Context, cfg config.Config, log *slog.Logger, allowMe
 		return sqlitestore.Open(ctx, db.DSN) // applies pending migrations itself
 	}
 	if !allowMemory {
-		return nil, errors.New("TENSORAFI_DATABASE_URL is required (only `tensorafi dev` can run in-memory)")
+		return nil, errors.New("EINSORA_DATABASE_URL is required (only `einsora dev` can run in-memory)")
 	}
 	return memstore.New(), nil
 }
@@ -272,7 +272,7 @@ func openStore(ctx context.Context, cfg config.Config, log *slog.Logger, allowMe
 func newController(cfg config.Config, log *slog.Logger, st store.Store, cat *catalog.Catalog) (func(context.Context) error, error) {
 	// A controller for a region users can't create workloads in would leave everything pending.
 	if _, ok := cat.Region(cfg.Region); !ok {
-		return nil, fmt.Errorf("TENSORAFI_REGION %q isn't in the catalog's regions", cfg.Region)
+		return nil, fmt.Errorf("EINSORA_REGION %q isn't in the catalog's regions", cfg.Region)
 	}
 	var backend cluster.Backend
 	var hub *agents.Hub
@@ -337,10 +337,10 @@ func runAccessProxy(cfg config.Config, log *slog.Logger, st store.Store, hub *ag
 	}
 }
 
-// runLocalAgent registers this machine, owned by TENSORAFI_MACHINE_OWNER, and runs its agent in this
+// runLocalAgent registers this machine, owned by EINSORA_MACHINE_OWNER, and runs its agent in this
 // process (Solo, ADR-0016), once this process's controller leads its region: a standby's agent
 // would sync with a controller that isn't reconciling. It waits for the owner's tenant, which
-// `tensorafi setup` creates.
+// `einsora setup` creates.
 func runLocalAgent(cfg config.Config, log *slog.Logger, st store.Store, hub *agents.Hub, leading <-chan struct{}) func(context.Context) error {
 	return func(ctx context.Context) error {
 		select {
@@ -384,7 +384,7 @@ func runLocalAgent(cfg config.Config, log *slog.Logger, st store.Store, hub *age
 				}()
 				if len(drivers) == 0 {
 					log.Warn("this machine's agent has no drivers it can use, so workloads wait for a machine that can run them; " +
-						"TENSORAFI_AGENT_DRIVERS=sim simulates them in dev")
+						"EINSORA_AGENT_DRIVERS=sim simulates them in dev")
 				}
 				return agent.New(hub.Conn(m.ID), drivers, inventory.Detect, "dev", log).Run(ctx)
 			}
@@ -392,7 +392,7 @@ func runLocalAgent(cfg config.Config, log *slog.Logger, st store.Store, hub *age
 				return fmt.Errorf("register this machine: %w", err)
 			}
 			if !warned {
-				log.Warn("this machine's owner tenant doesn't exist yet; create it with `tensorafi setup`, or set TENSORAFI_MACHINE_OWNER",
+				log.Warn("this machine's owner tenant doesn't exist yet; create it with `einsora setup`, or set EINSORA_MACHINE_OWNER",
 					"tenant", cfg.MachineOwner)
 				warned = true
 			}
@@ -405,7 +405,7 @@ func runLocalAgent(cfg config.Config, log *slog.Logger, st store.Store, hub *age
 	}
 }
 
-// machineIDFile is where this machine's ID is kept between starts: TENSORAFI_AGENT_STATE_DIR, or the
+// machineIDFile is where this machine's ID is kept between starts: EINSORA_AGENT_STATE_DIR, or the
 // SQLite database's directory. With the in-memory store (dev) nothing is kept, since the database
 // itself isn't.
 func machineIDFile(cfg config.Config) (string, error) {
@@ -432,7 +432,7 @@ func machineIDFile(cfg config.Config) (string, error) {
 	return filepath.Join(dir, "machine-id"), nil
 }
 
-// localDrivers builds this machine's drivers: the ones TENSORAFI_AGENT_DRIVERS names, or every real
+// localDrivers builds this machine's drivers: the ones EINSORA_AGENT_DRIVERS names, or every real
 // one this machine can run. A driver that can't run here is skipped, and the log says why.
 func localDrivers(cfg config.Config, idFile string, log *slog.Logger) []agent.Driver {
 	names := cfg.AgentDrivers
@@ -457,7 +457,7 @@ func localDrivers(cfg config.Config, idFile string, log *slog.Logger) []agent.Dr
 			drivers = append(drivers, d)
 		case domain.DriverMacOSNative:
 			if idFile == "" {
-				log.Warn("macos-native needs a state directory: use a SQLite database (TENSORAFI_DATABASE_URL=sqlite:...) or set TENSORAFI_AGENT_STATE_DIR")
+				log.Warn("macos-native needs a state directory: use a SQLite database (EINSORA_DATABASE_URL=sqlite:...) or set EINSORA_AGENT_STATE_DIR")
 				continue
 			}
 			private, err := privateFiles(cfg)
@@ -494,7 +494,7 @@ func privateFiles(cfg config.Config) ([]string, error) {
 	if cfg.LogFile != "" {
 		abs, err := filepath.Abs(cfg.LogFile)
 		if err != nil {
-			return nil, fmt.Errorf("TENSORAFI_LOG_FILE: %w", err)
+			return nil, fmt.Errorf("EINSORA_LOG_FILE: %w", err)
 		}
 		out = append(out, abs)
 	}
@@ -614,16 +614,16 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, st store
 	case "local":
 		authn = auth.NewLocal(svc, auth.Transport{TrustedProxies: cfg.TrustedProxies, AllowPlainHTTP: cfg.InsecureHTTP})
 		if n, err := countUsers(ctx, st); err == nil && n == 0 {
-			log.Warn("local auth: no accounts yet; create the owner with `tensorafi setup`")
+			log.Warn("local auth: no accounts yet; create the owner with `einsora setup`")
 		}
 		if !listensOnlyOnLoopback(cfg.HTTPAddr) && !cfg.InsecureHTTP && len(cfg.TrustedProxies) == 0 {
 			log.Warn("local auth: listening beyond this machine, but sign-in from other machines needs HTTPS "+
-				"through a trusted proxy (TENSORAFI_TRUSTED_PROXIES), or TENSORAFI_INSECURE_HTTP=true on a network you trust",
+				"through a trusted proxy (EINSORA_TRUSTED_PROXIES), or EINSORA_INSECURE_HTTP=true on a network you trust",
 				"addr", cfg.HTTPAddr)
 		}
 		for _, p := range cfg.TrustedProxies {
 			if p.Bits() < p.Addr().BitLen() {
-				log.Warn("local auth: TENSORAFI_TRUSTED_PROXIES lists a range; every address in it can claim any client "+
+				log.Warn("local auth: EINSORA_TRUSTED_PROXIES lists a range; every address in it can claim any client "+
 					"address and claim HTTPS, so list only your proxies' own addresses", "range", p.String())
 			}
 		}

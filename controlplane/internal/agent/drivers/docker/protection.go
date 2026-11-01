@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 // Labels prove which requested spec a container belongs to, but not which settings Docker actually
@@ -22,12 +22,12 @@ func (d *Driver) checkProtection(info containerInfo, st state) error {
 		return fmt.Errorf("docker did not apply the requested resource limits")
 	}
 	expected := map[string]mount{
-		"/work":           {Source: filepath.Join(d.dir(st.Desired.ID), "data")},
-		"/home/tensorafi": {Source: filepath.Join(d.dir(st.Desired.ID), "home")},
-		"/run/tensorafi":  {Source: d.run(st)},
+		"/work":         {Source: filepath.Join(d.dir(st.Desired.ID), "data")},
+		"/home/einsora": {Source: filepath.Join(d.dir(st.Desired.ID), "home")},
+		"/run/einsora":  {Source: d.run(st)},
 	}
 	if st.Desired.Kind == domain.KindEndpoint {
-		expected["/opt/tensorafi/runtime.zip"] = mount{Source: d.bundle, ReadOnly: true}
+		expected["/opt/einsora/runtime.zip"] = mount{Source: d.bundle, ReadOnly: true}
 	}
 	if len(h.Mounts) != len(expected) {
 		return fmt.Errorf("docker mounts differ from this workload's private directories")

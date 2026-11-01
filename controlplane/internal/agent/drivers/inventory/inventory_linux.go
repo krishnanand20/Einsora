@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
 )
 
 func memoryMiB() (int64, error) {

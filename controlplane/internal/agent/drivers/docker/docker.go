@@ -19,11 +19,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/drivers/pythonruntime"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/agent/protocol"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/domain"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/redact"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/drivers/pythonruntime"
+	"github.com/krishnanand20/einsora/controlplane/internal/agent/protocol"
+	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/redact"
 )
 
 type Options struct {
@@ -91,7 +91,7 @@ func newDriver(opts Options, e *engine, devices []Device, uid, gid int) (*Driver
 		return nil, err
 	}
 	if len(runs)+1+8+len("/server.sock") > protocol.MaxSocketPath {
-		return nil, fmt.Errorf("docker Unix socket paths are too long; set a shorter TENSORAFI_AGENT_RUN_DIR")
+		return nil, fmt.Errorf("docker Unix socket paths are too long; set a shorter EINSORA_AGENT_RUN_DIR")
 	}
 	if opts.Log == nil {
 		opts.Log = slog.New(slog.DiscardHandler)
@@ -144,9 +144,9 @@ func (d *Driver) dir(id uuid.UUID) string {
 func (d *Driver) run(st state) string    { return filepath.Join(d.runs, st.Run) }
 func (d *Driver) socket(st state) string { return filepath.Join(d.run(st), "server.sock") }
 func (d *Driver) name(st state) string {
-	return fmt.Sprintf("tensorafi-%s-%s-%d", d.instance, st.Desired.ID, st.Desired.Attempt)
+	return fmt.Sprintf("einsora-%s-%s-%d", d.instance, st.Desired.ID, st.Desired.Attempt)
 }
-func (d *Driver) network(id uuid.UUID) string { return "tensorafi-" + d.instance + "-" + id.String() }
+func (d *Driver) network(id uuid.UUID) string { return "einsora-" + d.instance + "-" + id.String() }
 func (d *Driver) policy(kind domain.WorkloadKind) string {
 	text := "docker-isolation-v1"
 	if kind == domain.KindEndpoint {

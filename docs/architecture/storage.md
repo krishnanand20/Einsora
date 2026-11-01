@@ -4,8 +4,8 @@
 
 | Data | Where | Notes |
 |---|---|---|
-| Control plane store | SQLite file in the data directory, or Postgres for larger Labs | `tensorafi backup` (planned) takes a consistent copy |
-| Data directory | macOS: `~/Library/Application Support/TensoraFi`. Linux: `/var/lib/tensorafi` (service) or `~/.local/share/tensorafi` (user). | Planned |
+| Control plane store | SQLite file in the data directory, or Postgres for larger Labs | `einsora backup` (planned) takes a consistent copy |
+| Data directory | macOS: `~/Library/Application Support/Einsora`. Linux: `/var/lib/einsora` (service) or `~/.local/share/einsora` (user). | Planned |
 | Workload disks (VM images, notebook workspaces) | Local disk on the machine that runs the workload | **No replication.** A workload is tied to its machine's disk. |
 | Model cache | One per machine, deduplicated by sha256 and shared between workloads | Validated before first use |
 | Disk caps | Per workload, and a total for guests on shared machines (ADR-0014) | Planned |
@@ -17,14 +17,14 @@ anything precious off community hosts.
 
 | Need | Phase 3 start | Later | Referenced as |
 |---|---|---|---|
-| Block (VM disks, notebook dirs, Postgres, Prometheus) | Longhorn | Ceph RBD | StorageClass **`tensorafi-block`** (cluster-config) |
-| Object (models, datasets, backups) | SeaweedFS or Garage ([object-store](../../deploy/platform/object-store/README.md)) | Ceph RGW | S3 endpoint in `tensorafi-models` |
-| Shared filesystem | none | CephFS | future `tensorafi-shared` |
+| Block (VM disks, notebook dirs, Postgres, Prometheus) | Longhorn | Ceph RBD | StorageClass **`einsora-block`** (cluster-config) |
+| Object (models, datasets, backups) | SeaweedFS or Garage ([object-store](../../deploy/platform/object-store/README.md)) | Ceph RGW | S3 endpoint in `einsora-models` |
+| Shared filesystem | none | CephFS | future `einsora-shared` |
 | Local scratch | `emptyDir` on NVMe | TopoLVM or local-path | future |
 
-The control plane only knows `tensorafi-block` (`TENSORAFI_STORAGE_CLASS`), so switching backends changes `deploy/`, not code.
+The control plane only knows `einsora-block` (`EINSORA_STORAGE_CLASS`), so switching backends changes `deploy/`, not code.
 
-**VM images** are CDI `DataSource`s in `tensorafi-images`, imported per region. Each VM's root disk is a clone of one.
+**VM images** are CDI `DataSource`s in `einsora-images`, imported per region. Each VM's root disk is a clone of one.
 
 ### Durability and backups
 

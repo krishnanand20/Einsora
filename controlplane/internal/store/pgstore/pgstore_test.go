@@ -13,15 +13,15 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/pressly/goose/v3"
 
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store"
-	"github.com/krishnanand20/tensorafi/controlplane/internal/store/storetest"
-	"github.com/krishnanand20/tensorafi/controlplane/migrations"
+	"github.com/krishnanand20/einsora/controlplane/internal/store"
+	"github.com/krishnanand20/einsora/controlplane/internal/store/storetest"
+	"github.com/krishnanand20/einsora/controlplane/migrations"
 )
 
 func TestConformance(t *testing.T) {
-	url := os.Getenv("TENSORAFI_TEST_DATABASE_URL")
+	url := os.Getenv("EINSORA_TEST_DATABASE_URL")
 	if url == "" {
-		t.Skip("set TENSORAFI_TEST_DATABASE_URL to run Postgres store tests (make test-cp-pg)")
+		t.Skip("set EINSORA_TEST_DATABASE_URL to run Postgres store tests (make test-cp-pg)")
 	}
 	ctx := context.Background()
 	if _, err := Migrate(ctx, url); err != nil {
@@ -43,9 +43,9 @@ func TestConformance(t *testing.T) {
 }
 
 func TestSchemaMatchesSQLite(t *testing.T) {
-	url := os.Getenv("TENSORAFI_TEST_DATABASE_URL")
+	url := os.Getenv("EINSORA_TEST_DATABASE_URL")
 	if url == "" {
-		t.Skip("set TENSORAFI_TEST_DATABASE_URL to run Postgres store tests (make test-cp-pg)")
+		t.Skip("set EINSORA_TEST_DATABASE_URL to run Postgres store tests (make test-cp-pg)")
 	}
 	ctx := context.Background()
 	if _, err := Migrate(ctx, url); err != nil {
@@ -89,9 +89,9 @@ func TestSchemaMatchesSQLite(t *testing.T) {
 // Upgrading a database with data, from version 1 through the 00002 gap to the latest. It runs
 // in a throwaway schema, so the test database's own tables are untouched.
 func TestUpgradeRepairsPlacement(t *testing.T) {
-	base := os.Getenv("TENSORAFI_TEST_DATABASE_URL")
+	base := os.Getenv("EINSORA_TEST_DATABASE_URL")
 	if base == "" {
-		t.Skip("set TENSORAFI_TEST_DATABASE_URL to run Postgres store tests (make test-cp-pg)")
+		t.Skip("set EINSORA_TEST_DATABASE_URL to run Postgres store tests (make test-cp-pg)")
 	}
 	ctx := context.Background()
 	admin, err := pgx.Connect(ctx, base)
