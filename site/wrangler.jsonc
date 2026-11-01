@@ -4,6 +4,10 @@
 {
 	"name": "einsora",
 	"compatibility_date": "2026-10-01",
+	// The site's own address is https://einsora.com (a custom domain on the Worker); the workers.dev
+	// address stays on as a fallback, and pull requests get preview URLs.
+	"workers_dev": true,
+	"preview_urls": true,
 	"assets": {
 		"directory": "./dist",
 		"not_found_handling": "404-page"
