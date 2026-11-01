@@ -1,11 +1,11 @@
-"""Build the deterministic Python source bundle embedded in the native Go driver."""
+"""Build the deterministic Python source bundle embedded in the native and Docker drivers."""
 
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 root = Path(__file__).resolve().parents[2]
 source = root / "ml/src"
-target = root / "controlplane/internal/agent/drivers/macosnative/runtime.zip"
+target = root / "controlplane/internal/agent/drivers/pythonruntime/runtime.zip"
 with ZipFile(target, "w", compression=ZIP_DEFLATED) as archive:
     for path in sorted((source / "tensora_ml").glob("*.py")):
         entry = ZipInfo(path.relative_to(source).as_posix(), date_time=(1980, 1, 1, 0, 0, 0))

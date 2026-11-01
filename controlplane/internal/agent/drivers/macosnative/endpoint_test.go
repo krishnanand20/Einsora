@@ -3,8 +3,6 @@
 package macosnative
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tensora/tensora/controlplane/internal/agent/drivers/pythonruntime"
 	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
 	"github.com/tensora/tensora/controlplane/internal/domain"
 )
@@ -70,7 +69,7 @@ func endpointEnvironment(t *testing.T, d *Driver, python string) string {
 		t.Fatal(err)
 	}
 	for name, data := range map[string][]byte{
-		"bin/python": []byte(python), ".tensora-ready": {}, "tensora-runtime.zip": nativeRuntime,
+		"bin/python": []byte(python), ".tensora-ready": {}, "tensora-runtime.zip": pythonruntime.Bytes(),
 	} {
 		mode := os.FileMode(0o600)
 		if name == "bin/python" {
@@ -142,36 +141,6 @@ func TestEndpointPreparationCanStopAndPolicyFailuresAreFixed(t *testing.T) {
 				status(t, d, w.ID, func(s protocol.Status) bool { return s.State == protocol.StateStopped })
 			}
 		})
-	}
-}
-
-func TestNativeBundleMatchesMLSources(t *testing.T) {
-	archive, err := zip.NewReader(bytes.NewReader(nativeRuntime), int64(len(nativeRuntime)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	source := filepath.Join("..", "..", "..", "..", "..", "ml", "src")
-	files, err := filepath.Glob(filepath.Join(source, "tensora_ml", "*.py"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(files) != len(archive.File) {
-		t.Fatal("runtime bundle is stale: run python3 ml/scripts/bundle_native.py")
-	}
-	for _, file := range archive.File {
-		reader, err := file.Open()
-		if err != nil {
-			t.Fatal(err)
-		}
-		data, err := io.ReadAll(reader)
-		_ = reader.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
-		original, err := os.ReadFile(filepath.Join(source, filepath.FromSlash(file.Name)))
-		if err != nil || !bytes.Equal(data, original) {
-			t.Errorf("%s differs from its ML source; regenerate runtime.zip", file.Name)
-		}
 	}
 }
 

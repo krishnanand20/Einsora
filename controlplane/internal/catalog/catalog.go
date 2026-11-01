@@ -77,6 +77,9 @@ type Runtime struct {
 	// (notebook), or a KServe ClusterServingRuntime (endpoint). Node agents: interpreted by their
 	// driver (roadmap step 7).
 	Ref string `json:"ref"`
+	// ContainerRef is the pinned container image when an endpoint's Ref names a Kubernetes runtime.
+	// It is operator configuration and is never exposed by the API.
+	ContainerRef string `json:"container_ref,omitempty"`
 }
 
 type Image struct {

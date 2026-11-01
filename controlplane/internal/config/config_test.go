@@ -149,6 +149,8 @@ func TestAgentBackend(t *testing.T) {
 		"Postgres, until agents join over the network": {"TENSORA_CLUSTER_BACKEND": "agent", "TENSORA_DATABASE_URL": "postgres://db/tensora"},
 		"a relative state directory":                   {"TENSORA_CLUSTER_BACKEND": "agent", "TENSORA_AGENT_STATE_DIR": "state"},
 		"a relative run directory":                     {"TENSORA_CLUSTER_BACKEND": "agent", "TENSORA_AGENT_RUN_DIR": "run"},
+		"a remote Docker socket":                       {"TENSORA_CLUSTER_BACKEND": "agent", "TENSORA_DOCKER_SOCKET": "tcp://host:2375"},
+		"a relative Docker socket":                     {"TENSORA_CLUSTER_BACKEND": "agent", "TENSORA_DOCKER_SOCKET": "docker.sock"},
 	} {
 		if _, err := FromEnv(env(kv)); err == nil {
 			t.Errorf("%s: accepted", name)
@@ -162,6 +164,15 @@ func TestNativeDriversOutsideDev(t *testing.T) {
 		"TENSORA_DATABASE_URL": "sqlite:/var/lib/tensora/tensora.db", "TENSORA_AUTH_MODE": "local", "TENSORA_AGENT_DRIVERS": "macos-native"}))
 	if err != nil || c.AccessAddr != "127.0.0.1:8090" {
 		t.Fatalf("config = %+v, %v", c, err)
+	}
+}
+
+func TestDockerOutsideDev(t *testing.T) {
+	c, err := FromEnv(env(map[string]string{"TENSORA_ENV": "production", "TENSORA_CLUSTER_BACKEND": "agent",
+		"TENSORA_DATABASE_URL": "sqlite:/var/lib/tensora/tensora.db", "TENSORA_AUTH_MODE": "local",
+		"TENSORA_AGENT_DRIVERS": "docker", "TENSORA_DOCKER_SOCKET": "/var/run/docker.sock"}))
+	if err != nil || len(c.AgentDrivers) != 1 || c.AgentDrivers[0] != "docker" || c.DockerSocket != "/var/run/docker.sock" {
+		t.Fatalf("Docker config = %+v, %v", c, err)
 	}
 }
 

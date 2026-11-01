@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/tensora/tensora/controlplane/internal/agent/drivers/process"
+	"github.com/tensora/tensora/controlplane/internal/agent/drivers/pythonruntime"
 	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
 	"github.com/tensora/tensora/controlplane/internal/domain"
 )
@@ -23,7 +24,7 @@ func (d *Driver) sandboxFingerprint(kind domain.WorkloadKind) string {
 	}
 	// Dependency-only security updates must also retire old serving processes.
 	lock, _ := envs.ReadFile("envs/mlx-lm.txt") // this fixed file is embedded with the runtime
-	data := append([]byte(d.sandboxID), nativeRuntime...)
+	data := append([]byte(d.sandboxID), pythonruntime.Bytes()...)
 	sum := sha256.Sum256(append(data, lock...))
 	return hex.EncodeToString(sum[:])
 }

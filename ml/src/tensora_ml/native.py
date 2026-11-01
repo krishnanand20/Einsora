@@ -214,7 +214,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _authenticated(self) -> bool:
         values = self.headers.get_all("Authorization", [])
-        if len(values) != 1 or not hmac.compare_digest(values[0], "token " + self.server.token):
+        if len(values) != 1 or not hmac.compare_digest(values[0], "Bearer " + self.server.token):
             self._error(401, "authentication required")
             return False
         return True

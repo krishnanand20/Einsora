@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -28,6 +29,25 @@ func TestClusterPlacementCountsWhatsHeld(t *testing.T) {
 	p.take(pl, w)
 	if _, _, _, ok := p.choose(w, l40s); ok {
 		t.Error("taken capacity was offered again")
+	}
+}
+
+func TestMissingNVIDIAToolkitDoesNotSilentlyPlaceGPUWorkOnCPU(t *testing.T) {
+	cat := testutil.Catalog(t)
+	f := machines()
+	f.pc.TenantID = f.owner
+	f.capacity.Machines = f.capacity.Machines[1:]
+	f.capacity.Machines[0].Drivers = []cluster.Driver{{Name: domain.DriverDocker, Accelerators: []domain.AcceleratorKind{domain.AcceleratorCPU}}}
+	p := newPool(cat, f.capacity, []domain.Machine{f.pc}, nil)
+	w := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, GPUClass: "l40s-48gb", GPUCount: 1}
+	gpu, _ := cat.GPUClass(w.GPUClass)
+	if _, _, why, ok := p.choose(w, gpu); ok || !strings.Contains(why, "driver") {
+		t.Errorf("GPU request fell back silently: %v %q", ok, why)
+	}
+	w.GPUClass = "cpu-4c-16g"
+	cpu, _ := cat.GPUClass(w.GPUClass)
+	if placement, _, _, ok := p.choose(w, cpu); !ok || placement.class != w.GPUClass || placement.driver != domain.DriverDocker {
+		t.Error("explicit CPU request cannot use CPU-only Docker")
 	}
 }
 
@@ -69,6 +89,8 @@ func TestMachinePlacementFollowsTheTrustMatrix(t *testing.T) {
 		wantWhyPrefix string
 	}{
 		{"the owner's notebook on their Mac runs natively", domain.Workload{TenantID: f.owner, Kind: domain.KindNotebook, GPUCount: 1},
+			"apple-silicon-32gb", f.mac.ID, domain.DriverMacOSNative, ""},
+		{"the owner's endpoint on their Mac runs natively", domain.Workload{TenantID: f.owner, Kind: domain.KindEndpoint, GPUCount: 1},
 			"apple-silicon-32gb", f.mac.ID, domain.DriverMacOSNative, ""},
 		{"a guest can't use someone's private Mac", domain.Workload{TenantID: f.guest, Kind: domain.KindVM, GPUCount: 1},
 			"apple-silicon-32gb", uuid.Nil, "", "waiting for a machine that can run apple-silicon-32gb"},

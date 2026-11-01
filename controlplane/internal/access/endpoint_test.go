@@ -81,7 +81,7 @@ func TestEndpointUsesTenantScopedAPITokens(t *testing.T) {
 		t.Fatalf("endpoint response = %d, %v", response.Code, response.Header())
 	}
 	seen := <-f.seen
-	if seen.Header.Get("Authorization") != "token jupyter-token" || seen.Header.Get("Cookie") != "" ||
+	if seen.Header.Get("Authorization") != "Bearer jupyter-token" || seen.Header.Get("Cookie") != "" ||
 		seen.Header.Get("X-Request-ID") != response.Header().Get("X-Request-ID") {
 		t.Error("the endpoint received browser credentials or lost its request ID")
 	}

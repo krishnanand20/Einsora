@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httputil"
 	"strconv"
 	"strings"
 
@@ -85,6 +86,11 @@ func (s *Server) endpoint(w http.ResponseWriter, r *http.Request, id uuid.UUID) 
 	r.Header.Del("Cookie")
 	r.Header.Set("X-Request-ID", requestID)
 	proxy := s.proxy(socket, token)
+	rewrite := proxy.Rewrite
+	proxy.Rewrite = func(pr *httputil.ProxyRequest) {
+		rewrite(pr)
+		pr.Out.Header.Set("Authorization", "Bearer "+token)
+	}
 	modify := proxy.ModifyResponse
 	proxy.ModifyResponse = func(resp *http.Response) error {
 		if err := modify(resp); err != nil {

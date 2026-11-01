@@ -193,14 +193,16 @@ vocabulary, never from raw runtime messages, and `service.CleanReason` cleans ev
 
 Every tenant also gets a namespace bundle: PSA baseline, a GPU `ResourceQuota`, a default-deny NetworkPolicy, Gateway ingress, and image-clone RBAC.
 
-**Agents** (ADR-0013, ADR-0017). Built: `macos-native` notebooks. The rest of roadmap step 7 is `macos-native`
-endpoints (7b) and `docker` (7c); the other drivers are Phase 2. `sim` runs nothing and is for development only.
+**Agents** (ADR-0013, ADR-0017, [ADR-0018](../adr/0018-linux-docker-driver.md)). Built: `macos-native`
+notebooks and MLX endpoints; Linux `docker` notebooks (CPU or NVIDIA) and NVIDIA vLLM endpoints.
+Linux/CUDA hardware validation is pending. VM drivers and networked agents are Phase 2. `sim` runs
+nothing and is for development only.
 
 | Kind | Mac | Linux |
 |---|---|---|
 | vm | macOS guest (`macos-vz`, Metal) or Linux guest (CPU) | KVM guest (`libvirt`, VFIO GPU) |
 | notebook | Native JupyterLab in a sandbox (`macos-native`, Metal; built), or a Linux container in its own VM (`macos-container`, CPU) | Container (`docker`, CUDA or CPU) |
-| endpoint | MLX or llama.cpp server (`macos-native`, Metal) | vLLM or llama.cpp (`docker`) |
+| endpoint | MLX (`macos-native`, Metal); llama.cpp planned | vLLM (`docker`, NVIDIA); CPU llama.cpp planned |
 
 ## API conventions
 

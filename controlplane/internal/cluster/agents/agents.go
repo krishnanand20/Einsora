@@ -427,6 +427,7 @@ func (h *Hub) describe(d *protocol.Desired, w domain.Workload) error {
 	d.Accelerator, d.VCPUs, d.MemoryMiB = g.Accelerator, g.VCPUsPerGPU*w.GPUCount, int64(g.MemoryGiBPerGPU)*1024*int64(w.GPUCount)
 	if g.Accelerator != domain.AcceleratorCPU {
 		d.Devices = w.GPUCount
+		d.DeviceModels = slices.Clone(g.Models)
 	}
 	img, ok := h.catalog.Image(w.ImageID)
 	if !ok {
@@ -438,6 +439,9 @@ func (h *Hub) describe(d *protocol.Desired, w domain.Workload) error {
 	}
 	d.ImageID = img.ID
 	d.Runtime = protocol.Runtime{Ref: rt.Ref, Server: rt.Server, ModelFormat: rt.ModelFormat}
+	if w.Driver == domain.DriverDocker && rt.ContainerRef != "" {
+		d.Runtime.Ref = rt.ContainerRef
+	}
 	d.ModelURI, d.SSHPublicKey = w.Params[domain.ParamModelURI], w.Params[domain.ParamSSHPublicKey]
 	return nil
 }

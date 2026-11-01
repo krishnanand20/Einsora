@@ -6,9 +6,10 @@ What users can launch.
 |---|---|
 | `catalog.yaml` | The launch catalog for Solo and Lab (and `make dev`): regions, classes, and images. The control plane loads it, and its tests validate it. The Datacenter profile uses [`deploy/catalog.yaml`](../deploy/catalog.yaml), which offers only what Kubernetes can run. |
 | `containers/pytorch-notebook/` | JupyterLab with PyTorch and CUDA (catalog id `pytorch-notebook`), for Linux |
+| `containers/vllm-endpoint/` | NVIDIA vLLM endpoint with the driver-supplied safetensors validation worker |
 | `vm/ubuntu-24.04-cuda/` | Datacenter VM base image, as a CDI DataSource (catalog id `ubuntu-24.04-cuda`) |
 
-Endpoint images aren't built here. In a datacenter, the `openai-endpoint` catalog entry's vLLM runtime
+For Linux Solo, build the vLLM image below. In a datacenter, the `openai-endpoint` catalog entry's vLLM runtime
 points to the `tensora-vllm` ClusterServingRuntime in `deploy/charts/cluster-config`, which pins an
 upstream vLLM image.
 
@@ -22,7 +23,7 @@ upstream vLLM image.
   - notebooks (`pytorch-notebook`): the CUDA container on NVIDIA and CPU, and a uv-managed environment with PyTorch (MPS) on Macs. That environment's lock file, with hashes, is `controlplane/internal/agent/drivers/macosnative/envs/jupyterlab-pytorch-mps.txt`, embedded in the binary; its header says how to regenerate it.
   - VMs (`ubuntu-24.04-cuda`): NVIDIA passthrough today; macOS guests (Virtualization framework) arrive with the `macos-vz` driver
 - An endpoint runtime names its `server` and the `model_format` it loads. Only formats `tensora-ml validate` checks are accepted (rule 6): safetensors today, GGUF from roadmap step 10, so llama.cpp endpoints wait until then.
-- A runtime's `ref` is what the backend runs: a CDI DataSource, container image, or KServe ServingRuntime on Kubernetes, or a name the node agent's driver understands (`macos-native`: `jupyterlab-pytorch-mps`, an environment whose lock is embedded in the binary). The API shows each runtime's accelerators and server, never its ref.
+- A runtime's `ref` is what the backend runs: a CDI DataSource, container image, or KServe ServingRuntime on Kubernetes, or a name the node agent's driver understands (`macos-native`: `jupyterlab-pytorch-mps`, an environment whose lock is embedded in the binary). An optional `container_ref` supplies the pinned Docker image when `ref` names a KServe runtime. The API shows accelerators and server, never either ref.
 
 ## Adding an image
 
@@ -36,5 +37,25 @@ Rules for images in user workloads:
 - Run as non-root (uid 1000).
 - No baked-in credentials.
 - No SSH server in container images.
-- Expose the documented port only.
+- Expose the documented port only for Datacenter workloads; Solo uses private Unix sockets and publishes no ports.
 - Free to use and redistribute: no paid or licence-key software (rule 12).
+
+## Build Linux Solo images
+
+From the repository root, on an already configured Linux Docker host:
+
+```bash
+docker build -f images/containers/pytorch-notebook/Dockerfile -t ghcr.io/your-org/tensora-pytorch-notebook:0.1.0 .
+docker build -f images/containers/vllm-endpoint/Dockerfile -t ghcr.io/your-org/tensora-vllm-endpoint:0.1.0 .
+```
+
+These are local tags matching `images/catalog.yaml`, not published images. Change the catalog refs
+if you tag them differently; keep explicit versions or sha256 digests. The vLLM base is pinned to
+v0.11.0 for Unix socket support, independently of Datacenter's image. Its extra pinned `boto3`
+dependency supports the existing S3 ingestion path. The Go binary supplies its embedded Python
+policy archive read-only; regenerate it with `python3 ml/scripts/bundle_native.py` after ML source
+changes. Container commands and auth are set by the driver, overriding image defaults.
+
+CPU notebooks use the same notebook image with runc and no GPU device request. NVIDIA workloads
+require the NVIDIA container runtime and physical GPU UUID discovery. CPU model endpoints remain
+blocked until GGUF validation and llama.cpp are implemented. Live Linux/CUDA validation is pending.

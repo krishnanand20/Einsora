@@ -104,7 +104,7 @@ func TestRealEndpoint(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		req.Header.Set("Authorization", "token "+ready.Access.Token)
+		req.Header.Set("Authorization", "Bearer "+ready.Access.Token)
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(req)
 		if err != nil {

@@ -154,6 +154,7 @@ images:
         server: vllm
         model_format: safetensors
         ref: tensora-vllm # KServe ClusterServingRuntime (deploy/charts/cluster-config)
+        container_ref: ghcr.io/your-org/tensora-vllm-endpoint:0.1.0 # local Linux Docker runtime
       - accelerators: [apple]
         server: mlx
         model_format: safetensors

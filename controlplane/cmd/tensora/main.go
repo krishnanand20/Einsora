@@ -24,6 +24,7 @@ import (
 
 	"github.com/tensora/tensora/controlplane/internal/access"
 	"github.com/tensora/tensora/controlplane/internal/agent"
+	"github.com/tensora/tensora/controlplane/internal/agent/drivers/docker"
 	"github.com/tensora/tensora/controlplane/internal/agent/drivers/hostlock"
 	"github.com/tensora/tensora/controlplane/internal/agent/drivers/inventory"
 	"github.com/tensora/tensora/controlplane/internal/agent/drivers/macosnative"
@@ -40,6 +41,7 @@ import (
 	"github.com/tensora/tensora/controlplane/internal/devseed"
 	"github.com/tensora/tensora/controlplane/internal/domain"
 	"github.com/tensora/tensora/controlplane/internal/metering"
+	"github.com/tensora/tensora/controlplane/internal/redact"
 	"github.com/tensora/tensora/controlplane/internal/service"
 	"github.com/tensora/tensora/controlplane/internal/store"
 	"github.com/tensora/tensora/controlplane/internal/store/memstore"
@@ -435,13 +437,24 @@ func machineIDFile(cfg config.Config) (string, error) {
 func localDrivers(cfg config.Config, idFile string, log *slog.Logger) []agent.Driver {
 	names := cfg.AgentDrivers
 	if len(names) == 0 {
-		names = []string{domain.DriverMacOSNative}
+		names = []string{domain.DriverMacOSNative, domain.DriverDocker}
 	}
 	var drivers []agent.Driver
 	for _, name := range names {
 		switch name {
 		case domain.DriverSim:
 			drivers = append(drivers, sim.New(domain.AcceleratorNVIDIA, domain.AcceleratorApple, domain.AcceleratorAMD, domain.AcceleratorCPU))
+		case domain.DriverDocker:
+			if idFile == "" {
+				log.Warn("docker needs a persistent agent state directory")
+				continue
+			}
+			d, err := docker.New(docker.Options{Root: filepath.Join(filepath.Dir(idFile), "docker-state"), Runs: cfg.AgentRunDir, Socket: cfg.DockerSocket, Log: log.With("driver", name)})
+			if err != nil {
+				log.Info("driver not available here", "driver", name, "why", redact.Secrets(err.Error()))
+				continue
+			}
+			drivers = append(drivers, d)
 		case domain.DriverMacOSNative:
 			if idFile == "" {
 				log.Warn("macos-native needs a state directory: use a SQLite database (TENSORA_DATABASE_URL=sqlite:...) or set TENSORA_AGENT_STATE_DIR")

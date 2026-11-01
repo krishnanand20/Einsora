@@ -33,7 +33,7 @@ def client() -> Iterator[httpx.Client]:
             with httpx.Client(
                 base_url="http://localhost",
                 transport=httpx.HTTPTransport(uds=socket),
-                headers={"Authorization": "token worker-token"},
+                headers={"Authorization": "Bearer worker-token"},
             ) as client:
                 try:
                     yield client
@@ -157,7 +157,7 @@ def test_stalled_body_times_out() -> None:
                     conn.connect(path)
                     conn.sendall(
                         b"POST /v1/chat/completions HTTP/1.1\r\nHost: localhost\r\n"
-                        b"Authorization: token worker-token\r\nContent-Length: 10\r\n\r\n"
+                        b"Authorization: Bearer worker-token\r\nContent-Length: 10\r\n\r\n"
                     )
                     assert b"408" in conn.recv(4096)
             finally:

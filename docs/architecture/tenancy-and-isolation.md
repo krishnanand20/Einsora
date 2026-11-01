@@ -64,6 +64,16 @@ checks each machine:
   stopped or removed counts until it has stopped). So a bug or a race can't put two users on one GPU.
 - What an agent reports must fit its machine: one Apple GPU, only on an Apple Silicon Mac; NVIDIA and AMD GPUs
   only on Linux; drivers only on their own OS.
+- `docker` runs only on Linux through a local rootful Engine without user-namespace remapping
+  ([ADR-0018](../adr/0018-linux-docker-driver.md)). Each owner workload has non-root execution, a
+  read-only root, no capabilities or privilege escalation, CPU/memory/no-swap/PID limits, its own
+  bridge network, and private data/home/run mounts. There are no published ports or host namespaces,
+  devices, files, or daemon socket mounts. The access proxy connects to its Unix socket. Create
+  warnings and effective settings are checked before start, including recovery. NVIDIA allocations
+  reserve exact physical UUIDs; CPU containers use runc with no GPUs. Missing toolkit support never
+  changes an allocation to CPU. Unknown owned containers remain visible through parking and explicit
+  removal, with durable cleanup records. Outbound network access includes the LAN; this is weak,
+  owner-only isolation. Disk quotas and output export are still planned. Linux/CUDA validation is pending.
 - `macos-native` runs each workload as its own process group under `sandbox-exec` (ADR-0017). The profile
   allows writing only to the workload's data, home, and temporary directories. It denies reading or writing
   the Tensora state directory (other than reading the workload's own directory and the shared environment),
@@ -120,7 +130,7 @@ checks each machine:
 
 **Compute**
 - Datacenter tenant pods get `automountServiceAccountToken: false`, no host namespaces, dropped capabilities, RuntimeDefault seccomp, requests equal to limits, and the Kata runtime class for untrusted tenants.
-- Agents run non-owner workloads only through strong-isolation drivers, per the matrix (enforced by placement and checked again by the agent). Drivers that can cap memory, CPU, GPU memory, and disk will (`docker` with cgroups, step 7c; the VM drivers, Phase 2). `macos-native` can't: macOS has no per-process memory or CPU limits, so a native notebook can use the whole Mac, which is one reason it's for the owner's own workloads only. A machine's owner keeps a quarter of its CPUs and memory: placement uses only what the agent reports as usable.
+- Agents run non-owner workloads only through strong-isolation drivers, per the matrix (enforced by placement and checked again by the agent). Drivers that can cap memory, CPU, GPU memory, and disk will (`docker` enforces CPU and memory through cgroups; the VM drivers are Phase 2; disk quotas are planned). `macos-native` can't: macOS has no per-process memory or CPU limits, so a native notebook can use the whole Mac, which is one reason it's for the owner's own workloads only. A machine's owner keeps a quarter of its CPUs and memory: placement uses only what the agent reports as usable.
 - No GPU time-slicing between different users, ever. On a Mac, an untrusted user gets the whole GPU or none of it.
 
 **Network** (details in [networking.md](networking.md))
@@ -167,7 +177,7 @@ checks each machine:
 | Datacenter admin network not firewalled | Open | Phase 3 |
 | The controller's ServiceAccount can create pods in any namespace | Accepted | Kind allowlist, RBAC limited to listed resources, audit logging |
 | Hosts can see guest data | **Accepted and disclosed** | Product warnings; confidential computing out of scope |
-| Before machines are shared (Phase 4) | Open | Two things to change first: once `macos-native` runs CPU workloads (roadmap step 7), a CPU workload under it can still use the Mac's GPU through Metal, so on an Apple machine any active weak-driver workload must count as holding the GPU; and every driver must refuse to create a fresh disk for a workload that ran before (`macos-native` does; `docker` must, step 7c). Placement uses only the tenant's own machines until then. |
+| Before machines are shared (Phase 4) | Open | Two things to change first: once `macos-native` runs CPU workloads (roadmap step 7), a CPU workload under it can still use the Mac's GPU through Metal, so on an Apple machine any active weak-driver workload must count as holding the GPU; and every driver must refuse to create a fresh disk for a workload that ran before (`macos-native` and `docker` do). Placement uses only the tenant's own machines until then. |
 | A program listening on a loopback port gets the browser's cookies for that host: cookies ignore ports | Mitigated for workloads | A page sent to `127.0.0.1:7777`, then on to another path there, carries the dashboard's session cookie to whatever listens there (or, at `w-<id>.localhost:7777`, another workload's access session). Native workloads can't listen on any TCP or UDP port: the sandbox denies it, JupyterLab is on a Unix socket in the workload's run directory, and kernels talk over IPC. Other programs on the machine, and other OS users, still can; Solo assumes a machine whose other users are trusted. The cost: native notebooks can't serve their own web apps on a port (TensorBoard, Gradio) or use JupyterLab's debugger, until the access proxy serves them on Unix sockets. |
 | Access-proxy sessions aren't checked against the user's access again | Accepted | A session lasts 12 hours or until its workload stops, so a user whose account is disabled keeps a notebook tab they already opened until then. Stop the workload to end every session for it. Phase 2 (users and teams) ends sessions with the account. |
 | Slow guessing from many addresses, and making sign-in busy | Accepted (mitigated) | Per-caller limits, a cap on concurrent password checks, and refusing common passwords keep guessing slow, but someone with many IPv4 addresses or IPv6 /48s can still guess slowly, or keep the password checks busy so sign-in answers "busy" for a while. Use a long, uncommon password. Before exposing sign-in to the internet, put a rate-limiting proxy in front; Phase 2 adds per-account alerts. |

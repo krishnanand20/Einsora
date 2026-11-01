@@ -44,16 +44,15 @@ type Config struct {
 	// machine, so another machine could never open them, and would only see plain HTTP.
 	AccessAddr string
 	// AgentDrivers are the in-process agent's drivers (TENSORA_AGENT_DRIVERS, comma-separated); empty
-	// means every real driver this machine can run. macos-native exists so far (notebooks; endpoints
-	// and docker are the rest of roadmap step 7), and sim, which runs nothing, in dev only.
+	// means every real driver this machine can run: macos-native or docker. sim runs nothing, in dev only.
 	AgentDrivers []string
 	// AgentStateDir keeps this machine's identity for the in-process agent (TENSORA_AGENT_STATE_DIR).
 	// Empty means the SQLite database's directory.
 	AgentStateDir string
-	// AgentRunDir holds native workloads' Unix sockets and temporary files (TENSORA_AGENT_RUN_DIR,
-	// ADR-0017). macOS limits a socket's path to 104 bytes, so it must be short. Empty means
-	// ~/.tensora/run.
+	// AgentRunDir holds workloads' Unix sockets (TENSORA_AGENT_RUN_DIR, ADR-0017/0018).
+	// Keep it short. Empty: ~/.tensora/run for native macOS; docker-state/run for Linux Docker.
 	AgentRunDir           string
+	DockerSocket          string // local Unix socket only (TENSORA_DOCKER_SOCKET)
 	UntrustedRuntimeClass string
 	StorageClass          string
 	ImagesNamespace       string
@@ -97,6 +96,7 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		MachineOwner:          get("MACHINE_OWNER", "home"),
 		AgentStateDir:         get("AGENT_STATE_DIR", ""),
 		AgentRunDir:           get("AGENT_RUN_DIR", ""),
+		DockerSocket:          get("DOCKER_SOCKET", ""),
 		AccessAddr:            get("ACCESS_ADDR", "127.0.0.1:8090"),
 		UntrustedRuntimeClass: get("UNTRUSTED_RUNTIME_CLASS", "kata-qemu-nvidia-gpu"),
 		StorageClass:          get("STORAGE_CLASS", "tensora-block"),
@@ -181,10 +181,13 @@ func (c Config) validate() error {
 		if c.AgentRunDir != "" && !filepath.IsAbs(c.AgentRunDir) {
 			errs = append(errs, errors.New("TENSORA_AGENT_RUN_DIR must be an absolute path"))
 		}
+		if c.DockerSocket != "" && !filepath.IsAbs(c.DockerSocket) {
+			errs = append(errs, errors.New("TENSORA_DOCKER_SOCKET must be an absolute local Unix socket path"))
+		}
 		for _, d := range c.AgentDrivers {
 			switch {
-			case d != domain.DriverSim && d != domain.DriverMacOSNative:
-				errs = append(errs, fmt.Errorf("TENSORA_AGENT_DRIVERS: unknown driver %q (sim and macos-native exist so far)", d))
+			case d != domain.DriverSim && d != domain.DriverMacOSNative && d != domain.DriverDocker:
+				errs = append(errs, fmt.Errorf("TENSORA_AGENT_DRIVERS: unknown driver %q (sim, macos-native, and docker exist so far)", d))
 			case d == domain.DriverSim && c.Env != "dev":
 				errs = append(errs, errors.New("TENSORA_AGENT_DRIVERS=sim runs nothing, so it's only for TENSORA_ENV=dev"))
 			}

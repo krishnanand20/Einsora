@@ -34,6 +34,7 @@ import (
 
 	"github.com/tensora/tensora/controlplane/internal/agent"
 	"github.com/tensora/tensora/controlplane/internal/agent/drivers/process"
+	"github.com/tensora/tensora/controlplane/internal/agent/drivers/pythonruntime"
 	"github.com/tensora/tensora/controlplane/internal/agent/protocol"
 	"github.com/tensora/tensora/controlplane/internal/domain"
 	"github.com/tensora/tensora/controlplane/internal/redact"
@@ -44,12 +45,6 @@ var envs embed.FS
 
 //go:embed sandbox.sb
 var sandboxProfile []byte
-
-// The bundle is generated from ml/src/tensora_ml, including the single model-policy validator.
-//
-//go:generate python3 ../../../../../ml/scripts/bundle_native.py
-//go:embed runtime.zip
-var nativeRuntime []byte
 
 const (
 	sandboxExec = "/usr/bin/sandbox-exec"
@@ -610,7 +605,7 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 		}
 	}
 	if ref == "mlx-lm" {
-		if err := os.WriteFile(filepath.Join(dir, "tensora-runtime.zip"), nativeRuntime, 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "tensora-runtime.zip"), pythonruntime.Bytes(), 0o600); err != nil {
 			return "", err
 		}
 	}
@@ -623,7 +618,7 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 // envDir is where the environment for a runtime's lock lives.
 func (d *Driver) envDir(ref string, lock []byte) (name, dir string) {
 	if ref == "mlx-lm" {
-		lock = append(append([]byte(nil), lock...), nativeRuntime...)
+		lock = append(append([]byte(nil), lock...), pythonruntime.Bytes()...)
 	}
 	sum := sha256.Sum256(lock)
 	name = ref + "-" + hex.EncodeToString(sum[:6])

@@ -95,13 +95,18 @@ bin/tensora export <id>                    # download everything recorded about 
 
 For full server logs, run `make dev TENSORA_LOG_LEVEL=debug TENSORA_LOG_FILE=$PWD/tensora.log`.
 
+Real owner workloads are available through the in-process agent: JupyterLab and MLX on Apple Silicon,
+and JupyterLab (CPU or NVIDIA) and vLLM (NVIDIA) through a local Linux Docker Engine. See the
+[local setup instructions](docs/runbooks/00-quickstart.md#run-real-workloads-on-linux). Linux/CUDA
+hardware validation is pending.
+
 `make build-all` cross-compiles the binary for macOS (Apple Silicon), Linux amd64, and Linux arm64.
 
 ## Status
 
 | | Built | Planned |
 |---|---|---|
-| Control plane | API, lifecycle, quotas, controller, usage accounting, SQLite, Postgres, and in-memory stores, Kubernetes backend, regions, machines, and placement in the data model, timeline and log export, CLI client | Node agent and drivers, `tensora up`, local accounts, choosing a region, fallback placement, sharing, workload output logs, activity log |
+| Control plane | API, lifecycle, quotas, controller, usage accounting, SQLite, Postgres, and in-memory stores, Kubernetes backend, regions, machines, and placement in the data model, timeline and log export, CLI client, local accounts, in-process agent, Mac native and Linux Docker drivers | Networked agents, VM drivers, `tensora up`, choosing a region, fallback placement, sharing, workload output logs, activity log |
 | ML layer | Model validator (safetensors), ingestion, benchmarking, CUDA burn-in | GGUF validation, Metal burn-in |
 | Dashboard | Workload list, launch form, workload timeline and full-log download | Machines, sharing, usage reports, embedded in the binary |
 | Datacenter | Charts, add-ons, Ansible, runbooks (rendered and linted, not yet run on hardware) | Production validation |

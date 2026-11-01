@@ -86,15 +86,16 @@ type Desired struct {
 	Mode Mode      `json:"mode"`
 	// Attempt counts the workload's admissions. An agent runs each attempt at most once: one that
 	// ended (failed, or stopped by itself) isn't started again until a new attempt.
-	Attempt     int64                  `json:"attempt"`
-	Kind        domain.WorkloadKind    `json:"kind"`
-	Driver      string                 `json:"driver"`
-	Accelerator domain.AcceleratorKind `json:"accelerator"`
-	Devices     int                    `json:"devices"` // whole GPUs; 0 for CPU classes
-	VCPUs       int                    `json:"vcpus"`
-	MemoryMiB   int64                  `json:"memory_mib"`
-	ImageID     string                 `json:"image_id"`
-	Runtime     Runtime                `json:"runtime"`
+	Attempt      int64                  `json:"attempt"`
+	Kind         domain.WorkloadKind    `json:"kind"`
+	Driver       string                 `json:"driver"`
+	Accelerator  domain.AcceleratorKind `json:"accelerator"`
+	Devices      int                    `json:"devices"`                 // whole GPUs; 0 for CPU classes
+	DeviceModels []string               `json:"device_models,omitempty"` // eligible physical GPU models, from the catalog
+	VCPUs        int                    `json:"vcpus"`
+	MemoryMiB    int64                  `json:"memory_mib"`
+	ImageID      string                 `json:"image_id"`
+	Runtime      Runtime                `json:"runtime"`
 	// ModelURI is an endpoint's model (hf:// or s3://, never with credentials); SSHPublicKey is a
 	// VM's login key.
 	ModelURI     string `json:"model_uri,omitempty"`
@@ -170,6 +171,8 @@ const (
 	CodeValidatingModel Code = "validating-model"
 	CodeLoadingModel    Code = "loading-model"
 	CodeModelRejected   Code = "model-rejected"
+	CodePullingImage    Code = "pulling-image"
+	CodeRuntimeChanged  Code = "runtime-changed"
 )
 
 // Reason is the text an owner reads for code. Unknown codes, which a newer or hostile agent could
@@ -210,6 +213,10 @@ func Reason(code Code) string {
 		return "loading its validated model on its machine's GPU"
 	case CodeModelRejected:
 		return "its model failed the code-free model policy; use valid safetensors weights without custom code"
+	case CodePullingImage:
+		return "preparing its container image on its machine; the first time, this downloads the image"
+	case CodeRuntimeChanged:
+		return "its container runtime policy changed; restart the workload to use the updated protections"
 	}
 	return "its machine reported a problem"
 }
@@ -228,7 +235,7 @@ func ProgressReason(code Code) string {
 // a known code, which a hostile or buggy agent could send, reads as a problem, never as "starting".
 func FailureReason(code Code) string {
 	switch code {
-	case "", CodeStarting, CodePreparing, CodeDevicesBusy, CodeRemovingFailed, CodeFetchingModel, CodeValidatingModel, CodeLoadingModel:
+	case "", CodeStarting, CodePreparing, CodeDevicesBusy, CodeRemovingFailed, CodeFetchingModel, CodeValidatingModel, CodeLoadingModel, CodePullingImage:
 		return Reason("unknown")
 	}
 	return Reason(code)

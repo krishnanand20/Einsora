@@ -167,10 +167,10 @@ func LookupDriver(driver string) (DriverSpec, bool) {
 		return DriverSpec{Isolation: IsolationWeak, Kinds: []WorkloadKind{KindVM, KindNotebook, KindEndpoint},
 			Accelerators: []AcceleratorKind{AcceleratorNVIDIA, AcceleratorApple, AcceleratorAMD, AcceleratorCPU}}, true
 	case DriverMacOSNative:
-		// Endpoints join with the MLX server (roadmap step 7b). Only the Apple GPU for now: the catalog
+		// Only the Apple GPU for now: the catalog
 		// picks a runtime by accelerator, and an image's CPU runtime is a container, which this driver
 		// can't run. CPU workloads join once runtimes are chosen per driver too (roadmap).
-		return DriverSpec{Isolation: IsolationWeak, OS: "darwin", Kinds: []WorkloadKind{KindNotebook},
+		return DriverSpec{Isolation: IsolationWeak, OS: "darwin", Kinds: notebooksAndEndpoints,
 			Accelerators: []AcceleratorKind{AcceleratorApple}}, true
 	case DriverMacOSVZ:
 		// macOS guests get the Mac's GPU through paravirtualized Metal, so a VM is always the GPU's

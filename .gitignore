@@ -21,6 +21,7 @@ CLAUDE.local.md
 machine-id
 agent.lock
 native/
+docker-state/
 
 # Go
 controlplane/bin/

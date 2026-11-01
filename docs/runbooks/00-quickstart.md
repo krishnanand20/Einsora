@@ -181,3 +181,60 @@ or deleting an endpoint removes its model data. Existing API-token expiry, revoc
 disablement apply to every inference request. Response headers identify region, actual compute class,
 and whether a fallback was used. This access path is local to the control plane's machine; remote
 relaying and endpoint-scoped keys are Phase 2.
+
+### Run real workloads on Linux
+
+The `docker` driver runs the machine owner's notebooks on CPU or NVIDIA, and safetensors model
+endpoints on NVIDIA ([ADR-0018](../adr/0018-linux-docker-driver.md)). Linux/CUDA hardware validation
+is pending; the daemon-backed notebook test below is opt-in.
+
+Use an already configured local **rootful Docker Engine**, without `userns-remap`, accepting Engine
+API 1.41–1.47 and enforcing CPU, memory, swap, and PID cgroup limits. The user running `tensora`
+needs access to its Unix socket. NVIDIA also needs the NVIDIA container runtime and `nvidia-smi`
+physical GPU discovery. Tensora reports an unavailable driver if these daemon requirements fail;
+it does not install or reconfigure Docker or the host. Rootless and remote daemons aren't supported.
+
+Build the [local pinned notebook and endpoint images](../../images/README.md#build-linux-solo-images)
+first. Then, from the repository root:
+
+```bash
+cd controlplane
+export TENSORA_DATABASE_URL=sqlite:$PWD/tensora.db TENSORA_AUTH_MODE=local TENSORA_CLUSTER_BACKEND=agent
+export TENSORA_AGENT_DRIVERS=docker
+go run ./cmd/tensora setup -email you@example.com   # once
+go run ./cmd/tensora dev                            # then `make web-dev` from the repo root
+```
+
+Sign in as the owner and launch a notebook on an available **CPU** class or a class matching the
+NVIDIA GPU's exact catalog model. If no NVIDIA runtime is usable, only CPU is advertised: a GPU
+request waits and is never silently converted to CPU. An NVIDIA model endpoint uses the same API
+connection and local API-token flow as the Mac example, with a vLLM-supported safetensors model
+such as `hf://Qwen/Qwen2.5-0.5B-Instruct`. Only the validated local snapshot is loaded; GGUF and
+CPU endpoints remain blocked until step 10.
+
+Each workload has a non-root container, resource limits, private directories and network, and no
+published ports. Notebook **Open** and the endpoint API use the existing access proxy and private
+Unix socket. `TENSORA_DOCKER_SOCKET` selects an absolute local socket path (default
+`/var/run/docker.sock`). State and notebook files live in `docker-state/` next to the database.
+The default socket directory is `docker-state/run/`; set `TENSORA_AGENT_RUN_DIR` to a shorter,
+private persistent path if the default exceeds the socket path limit.
+
+Stopping keeps notebook files; deletion removes them. Endpoints' files are removed on stop by the
+controller's explicit removal intent. Running containers survive a Tensora restart and are adopted
+again; interrupted preparation and cleanup resume. Changed worker policies stop old endpoints and
+ask for a restart. Lost saved notebook disks fail rather than creating empty replacements.
+These containers are only for the owner's own workloads: runc shares the host kernel and outbound
+network access includes the LAN. Disk quotas and exporting container output are still planned.
+
+On a Linux test host with the notebook image built, verify real Jupyter startup, private socket
+access, file persistence across stop/start, and cleanup:
+
+```bash
+cd controlplane
+TENSORA_TEST_DOCKER_NOTEBOOK_IMAGE=ghcr.io/your-org/tensora-pytorch-notebook:0.1.0 \
+  go test ./internal/agent/drivers/docker -run TestRealDockerNotebook -count=1 -v
+```
+
+This test creates and removes only its own workload on the existing daemon. The regular Go suite
+uses a local Engine API fixture to test cancellation, ownership, cgroup refusal, exact GPU UUID
+reservations, and recovery, without Docker or a GPU.
