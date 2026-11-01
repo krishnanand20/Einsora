@@ -1,0 +1,25 @@
+# build output
+dist/
+# generated types
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+
+# Generated from the repository's Markdown by scripts/sync-docs.mjs: the repository is the single
+# source of truth, so these are never edited or committed.
+src/generated/
+src/content/docs/architecture/
+src/content/docs/components/
+src/content/docs/contributing/
+src/content/docs/decisions/
+src/content/docs/hardware/
+src/content/docs/product/
+src/content/docs/project/
+src/content/docs/runbooks/
+
+# macOS-specific files
+.DS_Store

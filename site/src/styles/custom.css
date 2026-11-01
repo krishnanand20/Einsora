@@ -1,0 +1,52 @@
+/* Einsora's colours: indigo, on Starlight's own light and dark themes. */
+:root {
+	--sl-color-accent-low: #1e1b4b;
+	--sl-color-accent: #6366f1;
+	--sl-color-accent-high: #c7d2fe;
+	--einsora-card-border: color-mix(in srgb, var(--sl-color-accent) 35%, transparent);
+}
+
+:root[data-theme='light'] {
+	--sl-color-accent-low: #e0e7ff;
+	--sl-color-accent: #4f46e5;
+	--sl-color-accent-high: #312e81;
+}
+
+/* The landing page's hero: a wider tagline, and room to breathe. */
+.hero .tagline {
+	max-width: 46rem;
+	font-size: var(--sl-text-lg);
+}
+
+/* Diagrams are drawn in the browser from Mermaid source; until then, the source is hidden. */
+pre.mermaid {
+	background: transparent;
+	border: 1px solid var(--sl-color-gray-5);
+	border-radius: 0.5rem;
+	padding: 1rem;
+	text-align: center;
+	overflow-x: auto;
+}
+pre.mermaid:not([data-processed]) {
+	color: transparent;
+	min-height: 6rem;
+}
+
+/* Status labels in tables. */
+.status-built {
+	color: var(--sl-color-green-high);
+	font-weight: 600;
+}
+.status-next {
+	color: var(--sl-color-orange-high);
+	font-weight: 600;
+}
+.status-later {
+	color: var(--sl-color-gray-3);
+}
+
+/* Wide tables scroll rather than squeeze, on phones. */
+.sl-markdown-content table {
+	display: block;
+	overflow-x: auto;
+}

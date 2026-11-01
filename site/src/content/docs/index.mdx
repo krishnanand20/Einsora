@@ -1,0 +1,264 @@
+---
+title: Your own GPU cloud, free and open source
+description: A free, open-source GPU cloud you run yourself. Launch notebooks and OpenAI-compatible model endpoints on a Mac, a Linux box, or a datacenter, and share idle machines if you want. MIT licensed.
+template: splash
+hero:
+  title: Your own GPU cloud, on the machines you already have
+  tagline: Einsora turns a Mac, a Linux PC, or a rack of servers into a private GPU cloud. Launch notebooks and OpenAI-compatible model endpoints from a dashboard, a CLI, or an API, and share idle machines when you want to. Free for everyone, and MIT licensed.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Try it
+      link: runbooks/00-quickstart/
+      icon: right-arrow
+    - text: Why Einsora
+      link: why/
+      variant: secondary
+    - text: View on GitHub
+      link: https://github.com/krishnanand20/Einsora
+      icon: external
+      variant: minimal
+---
+
+import { Aside, Card, CardGrid, LinkCard, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+
+<Aside type="caution" title="Early, and built in the open">
+Einsora is **pre-release**. It runs today from source: notebooks and model endpoints on Apple
+Silicon Macs (Metal) and on Linux (Docker with NVIDIA), with the dashboard, API, and complete
+logs. One-command install (`einsora up`), packages, and the rest of the CLI are next. See the
+[roadmap](product/roadmap/) for exactly what's built.
+</Aside>
+
+## What you can run
+
+<CardGrid>
+	<Card title="Notebooks" icon="laptop">
+		JupyterLab with a workspace that survives restarts: PyTorch and MLX on Apple Silicon (Metal), PyTorch
+		with CUDA on NVIDIA, or plain CPU. **Built.**
+	</Card>
+	<Card title="Model endpoints" icon="rocket">
+		An OpenAI-compatible API for an open model: MLX on Macs, vLLM on NVIDIA. Only code-free weights
+		(safetensors) are served, never pickle or remote code. **Built.**
+	</Card>
+	<Card title="GPU VMs" icon="puzzle">
+		A full VM with root over SSH: KVM with whole-GPU passthrough on Linux, macOS guests with Metal on
+		Macs. **Planned** for the Lab profile; KubeVirt in the Datacenter profile.
+	</Card>
+	<Card title="CPU when GPUs are busy" icon="setting">
+		CPU instances, and opt-in fallbacks: another GPU class, CPU, or another machine. Never a silent
+		substitution: the timeline says what actually ran.
+	</Card>
+</CardGrid>
+
+## One product, three sizes
+
+The same API from a laptop to a datacenter ([deployment profiles](decisions/0012-deployment-profiles/)).
+Code written against your Mac works unchanged against a cluster.
+
+<Tabs>
+<TabItem label="Solo">
+
+**One machine.** A single binary with SQLite and a built-in dashboard. Your Mac or Linux PC is the
+whole cloud. Start it with `einsora up` (next on the roadmap); today, run it from source with
+`make dev`. **In progress: this is Phase 1.**
+
+</TabItem>
+<TabItem label="Lab">
+
+**2 to ~20 machines**, mixing Macs and Linux. One machine runs the control plane; the others run a
+node agent that connects outbound (it works behind NAT). Users, invites, quotas, VMs, and fallbacks.
+**Planned: Phase 2.**
+
+</TabItem>
+<TabItem label="Datacenter">
+
+**3 to thousands of servers** on Kubernetes: KubeVirt for VMs, KServe for endpoints, the NVIDIA GPU
+Operator, Ceph, Postgres HA, and SSO, deployed with helmfile and Ansible. The charts render and
+validate today. **Planned: Phase 3.**
+
+</TabItem>
+</Tabs>
+
+## How it works
+
+<pre class="mermaid">{`flowchart LR
+  you["You: dashboard, CLI, or API"] --> api["API: records what you asked for"]
+  api --> store[("Store: SQLite or Postgres")]
+  ctrl["Controller: places and reconciles"] --> store
+  ctrl --> agents["Node agents on Macs and Linux"]
+  ctrl --> k8s["Kubernetes, in a datacenter"]
+  agents --> wl["Notebooks, endpoints, VMs"]
+  k8s --> wl`}</pre>
+
+<Steps>
+
+1. **The API records intent and returns.** It never talks to the machines: what you asked for is stored
+   first (SQLite on one machine, Postgres at scale), so a restart never loses or repeats anything
+   ([ADR-0008](decisions/0008-postgres-intent-kubernetes-runtime/)).
+
+2. **The controller decides where it runs.** Placement is one function with one set of rules: your own
+   machines, the class you asked for, the trust level the workload needs, and free GPUs, CPUs, and
+   memory. Every decision goes in the workload's timeline with its reason.
+
+3. **A node agent runs it.** Each machine's agent syncs with the control plane over one long-polled call
+   and runs workloads through drivers: sandboxed native processes on macOS, containers on Linux, and
+   VMs later ([ADR-0016](decisions/0016-agent-protocol-and-machine-placement/)). In a datacenter,
+   Kubernetes does this part.
+
+4. **You open it from the browser.** Each running workload gets its own site, behind an access proxy
+   and a one-time link, so a notebook can never act as you on the dashboard
+   ([ADR-0017](decisions/0017-local-workload-access-and-native-drivers/)).
+
+</Steps>
+
+Read the [architecture overview](architecture/overview/) for the full picture.
+
+## Built so you can trust it
+
+<CardGrid>
+	<Card title="Private by default" icon="approve-check">
+		A machine is shared only by its owner's choice. Code from someone else runs only behind strong
+		isolation (VMs, Kata), per the [trust matrix](architecture/tenancy-and-isolation/).
+	</Card>
+	<Card title="Sandboxed native workloads" icon="warning">
+		On a Mac, a native notebook can write only its own files, can't read your credentials or the
+		database, can't signal other programs, and can't listen on any network port.
+	</Card>
+	<Card title="Nothing hidden" icon="open-book">
+		Every decision about your work is in its timeline with a reason. Download the complete log any time;
+		only secrets are redacted, and the export lists each one
+		([logs and transparency](architecture/logs-and-transparency/)).
+	</Card>
+	<Card title="Safe models" icon="document">
+		Model files are checked before they're served: safetensors only, no pickle, no custom model code,
+		no `trust_remote_code`. Loading is exactly what an attacker wants, so the validator never loads.
+	</Card>
+	<Card title="Your data stays in its region" icon="information">
+		Every workload belongs to one region and its data never leaves it unless you opt in. Fallbacks are
+		opt-in, recorded, and accounted as what actually ran.
+	</Card>
+	<Card title="Honest about hosts" icon="star">
+		Whoever owns a machine can, as root, see what runs on it. Einsora says so plainly instead of
+		pretending otherwise, and keeps strangers' work off machines they didn't choose.
+	</Card>
+</CardGrid>
+
+## For developers
+
+<Tabs>
+<TabItem label="Run from source">
+
+Everything below runs on an Apple Silicon Mac or Linux. `make dev` needs no GPU, Kubernetes, or
+Docker: it uses a fake backend and seeded tenants.
+
+```bash
+git clone https://github.com/krishnanand20/Einsora.git && cd Einsora
+make doctor         # checks Go, uv, and Node are installed
+make setup          # installs dev dependencies
+make dev            # API, controller, and usage accounting on :8080
+make web-dev        # the dashboard on :5173, in another terminal
+```
+
+To run real notebooks and model endpoints on your Mac's GPU, follow the
+[quickstart](runbooks/00-quickstart/).
+
+</TabItem>
+<TabItem label="REST API">
+
+JSON over HTTP, versioned under `/v1`. Every response carries an `X-Request-ID` that finds the exact
+log lines. Another tenant's object is always a 404.
+
+```bash
+export EINSORA_TOKEN=tsk_...   # made on the dashboard's API tokens page
+
+# Launch a notebook on this Mac's GPU
+curl -s -X POST localhost:8080/v1/workloads \
+  -H "Authorization: Bearer $EINSORA_TOKEN" \
+  -d '{"name":"nb","kind":"notebook","image_id":"pytorch-notebook","gpu_class":"apple-silicon-32gb","gpu_count":1}'
+
+# Its timeline: every state change, with the reason
+curl -s localhost:8080/v1/workloads/<id>/events -H "Authorization: Bearer $EINSORA_TOKEN"
+```
+
+The full API is in the [control plane's README](components/controlplane/).
+
+</TabItem>
+<TabItem label="OpenAI-compatible">
+
+A running endpoint speaks the OpenAI API, so existing clients work. Get its base URL from the
+dashboard (**API connection**) or `POST /v1/workloads/<id>/access`.
+
+```python
+import os
+from openai import OpenAI
+
+client = OpenAI(base_url=os.environ["BASE_URL"], api_key=os.environ["EINSORA_TOKEN"])
+model = client.models.list().data[0].id          # each endpoint serves one model
+reply = client.chat.completions.create(
+    model=model,
+    messages=[{"role": "user", "content": "Hello"}],
+    max_tokens=64,
+)
+print(reply.choices[0].message.content)
+```
+
+Response headers say what served each request: region, compute class, and whether a fallback was used.
+
+</TabItem>
+<TabItem label="CLI">
+
+The `einsora` binary is also a client for a running API.
+
+```bash
+einsora workloads -all        # your workloads, including deleted ones
+einsora events <id>           # a workload's full timeline
+einsora export <id> -o log.json   # everything recorded about it, as one JSON file
+```
+
+Write commands (`launch`, `stop`, `start`, `delete`) are on the roadmap.
+
+</TabItem>
+</Tabs>
+
+## Free, open, and MIT licensed
+
+Einsora is free for everyone: students, developers, startups, enterprises, and big tech. There's no
+pricing, no paid tier, and no feature behind a paywall
+([ADR-0011](decisions/0011-free-for-everyone/)). Usage accounting exists only for quotas and
+fairness. The code is [MIT licensed](license/): use it, change it, and redistribute it, including
+commercially.
+
+<CardGrid>
+	<LinkCard title="The thinking behind Einsora" description="The problem, the principles, and the decisions that shape it." href="why/" />
+	<LinkCard title="License" description="The MIT licence in plain English, and what it covers." href="license/" />
+</CardGrid>
+
+## Where it's going
+
+| Phase | What it delivers | Status |
+|---|---|---|
+| **0. Foundations** | Architecture, core platform, ML validator, dashboard, logs and transparency | <span class="status-built">Done</span> |
+| **1. Solo** | One-command install on a Mac or Linux box; notebooks and model endpoints on the local GPU | <span class="status-next">In progress</span>: drivers done, `einsora up` next |
+| **2. Lab** | Mixed Mac and Linux machines; users, invites, quotas; VMs; fallbacks; a relay for remote access | <span class="status-later">Planned</span> |
+| **3. Datacenter** | Kubernetes in production: KubeVirt, KServe, Ceph, Postgres HA, SSO, audit logs | <span class="status-later">Planned</span> |
+| **4. Sharing** | Invite-only and community pools: idle detection, preemption, managed inference, fair share | <span class="status-later">Planned</span> |
+| **5. Ecosystem** | Windows (WSL2), AMD ROCm, a serverless model API across pools, Terraform | <span class="status-later">Planned</span> |
+
+## How it compares
+
+| Tool | Great at | Einsora adds |
+|---|---|---|
+| Ollama, LM Studio | Running models on one machine | Notebooks and VMs too; many machines; many users; sharing |
+| exo and similar | Pooling home devices for inference | Notebooks and VMs, isolation between users, a datacenter path |
+| GPUStack and similar | Serving models across mixed GPU clusters | Notebooks and VMs, idle-machine sharing, a fallback policy |
+| dstack, SkyPilot | Orchestrating jobs across clouds and on-prem | A self-contained cloud with a dashboard, from one Mac up |
+| DIY Kubernetes (KubeVirt + KServe) | Datacenter flexibility | A product on top: API, users, quotas, isolation rules, and Solo and Lab modes |
+
+## Get involved
+
+<CardGrid>
+	<LinkCard title="Contribute" description="Build, test, and the conventions every change follows." href="contributing/" />
+	<LinkCard title="Architecture decisions" description="Twenty-one ADRs: what was decided, and why." href="decisions/" />
+	<LinkCard title="Security" description="How to report a vulnerability." href="project/security/" />
+	<LinkCard title="GitHub" description="Source, issues, and discussions." href="https://github.com/krishnanand20/Einsora" />
+</CardGrid>

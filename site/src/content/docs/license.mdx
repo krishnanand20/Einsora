@@ -1,0 +1,40 @@
+---
+title: License
+description: Einsora is MIT licensed. What that lets you do, what it asks of you, and what it covers.
+---
+
+import { Aside, Code } from '@astrojs/starlight/components';
+import license from '../../generated/LICENSE.txt?raw';
+
+Einsora is open source under the **MIT licence**, and free for everyone
+([ADR-0011](../decisions/0011-free-for-everyone/), [ADR-0020](../decisions/0020-name-and-licence/)).
+
+## In plain English
+
+**You may** use Einsora for anything, including commercially; copy it; change it; merge it into your
+own software; and publish, distribute, sublicense, or sell copies.
+
+**You must** keep the copyright notice and the licence text in every copy or substantial portion of it.
+
+**There's no warranty.** The software is provided as is: the authors aren't liable for anything that
+happens from using it.
+
+<Aside type="note" title="Not legal advice">
+This summary helps you read the licence; it doesn't replace it. The licence below is what applies.
+</Aside>
+
+## What it covers, and what it doesn't
+
+- **Covered:** the code and documentation in the
+  [Einsora repository](https://github.com/krishnanand20/Einsora).
+- **Not covered: models.** Each model keeps its own licence, and you must follow it (Llama's, for
+  example). The catalog shows a model's licence when it's known.
+- **Not covered: dependencies.** Third-party libraries keep their own licences (Apache-2.0, BSD, MIT,
+  and similar), all of which allow this use. Their notices ship with Einsora's binaries.
+- **Not covered: the name.** The MIT licence grants rights to the software, not to the Einsora name or
+  logo.
+- **No paid edition.** There's nothing to buy: no paid tier, no enterprise edition, and no licence keys.
+
+## The licence
+
+<Code code={license} lang="text" title="LICENSE" />

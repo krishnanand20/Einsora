@@ -52,7 +52,16 @@ setup: doctor ## Install dev dependencies for all components
 	cd $(ML) && uv sync
 	@$(UNHIDE_VENV)
 	cd $(WEB) && npm install
+	cd site && npm install
 	-pre-commit install
+
+# ---------------------------------------------------------------- website
+.PHONY: site site-dev
+site: ## Build the website (site/) into site/dist from the repo's docs; fails on a broken link
+	cd site && npm run build
+
+site-dev: ## Website dev server: http://localhost:4321/Einsora/
+	cd site && npm run dev
 
 # ---------------------------------------------------------------- local dev
 .PHONY: dev dev-pg web-dev migrate

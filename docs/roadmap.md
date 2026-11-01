@@ -52,7 +52,7 @@ Each step keeps `make lint test deploy-check build-all` green. Do the data-model
 | 9 | Web | Machines page; region and placed class on each workload; fallback opt-in on the launch form. No money anywhere. |
 | 10 | ML | GGUF validation in `validate.py`; an MPS (Metal) path for `burnin`; bench docs for llama.cpp and MLX servers |
 | 11 | Packaging | Homebrew tap, `install.sh`, `.deb` and `.rpm` packages, launchd and systemd units, signed and notarized macOS builds, a release workflow |
-| 12 | Docs | Turn [runbook 00](runbooks/00-quickstart.md) from planned into verified; update the control-plane.md API tables; remove "planned" notes as each item lands |
+| 12 | Docs | The website (`site/`) is built: a landing page, the thinking behind Einsora, the licence, and every document in this repository, rendered at build time and published to GitHub Pages. Left: turn [runbook 00](runbooks/00-quickstart.md) from planned into verified; update the control-plane.md API tables; remove "planned" notes as each item lands; move the site to the project's domain once registered |
 | 13 | CLI | Write commands: `einsora launch`, `stop`, `start`, `delete`, and `catalog`, with `-json` output. The read commands (`workloads`, `events`, `export`) are built. |
 | 14 | Logs | Workload output (ADR-0015): drivers capture stdout and stderr, and VM boot logs. The agent ships them to the control plane, which keeps them per workload for 14 days. Add `GET /v1/workloads/{id}/logs` (with follow), `einsora logs <id> --follow`, a Logs tab in the dashboard, and `output_logs` in the export. |
 

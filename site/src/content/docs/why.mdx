@@ -1,0 +1,121 @@
+---
+title: The thinking behind Einsora
+description: The problem Einsora solves, the principles it holds to, the decisions that follow from them, and the trade-offs it's honest about.
+---
+
+import { Aside, LinkCard, CardGrid } from '@astrojs/starlight/components';
+
+## The problem
+
+GPU compute is expensive, scattered, and mostly idle.
+
+- **Clouds bill by the hour,** so students, researchers, and small teams ration their experiments.
+- **Powerful hardware sits unused.** An Apple Silicon Mac has tens of gigabytes of memory its GPU
+  can use, enough for real models, and a gaming PC has an RTX card. Both are idle most of the day,
+  and no cloud runs on them.
+- **The tools stop at one machine or start at a datacenter.** Running a model on your laptop is easy
+  (Ollama, LM Studio). Running a private GPU cloud for a team means assembling Kubernetes, KubeVirt,
+  KServe, and the GPU Operator yourself. Nothing covers the path from one to the other.
+- **Sharing is all or nothing.** Lending a machine to a classmate or a community means trusting
+  their code with your files and your network, or not sharing at all.
+
+## The bet
+
+**One product, free, from a laptop to a datacenter.** Install Einsora on the machines you have, and
+launch notebooks, model endpoints, and VMs on them through one API. Add machines as you grow, from
+one Mac to a lab of mixed Macs and Linux boxes to a Kubernetes datacenter, without changing a line of
+the code you wrote against it. When a machine is idle, lend it, safely.
+
+## Principles
+
+1. **Free for everyone, forever.** No pricing, no paid tiers, and no enterprise features behind a
+   paywall. Usage is accounted only for quotas and fairness. Removing money removes every reason to
+   hold a feature back ([ADR-0011](../decisions/0011-free-for-everyone/)).
+2. **Runs on what you have.** Apple Silicon Macs and Linux are first-class, NVIDIA and Metal alike,
+   and CPU-only machines are welcome ([ADR-0013](../decisions/0013-node-agent-and-apple-silicon/)).
+3. **One API everywhere.** The same API and the same rules on one laptop and on a thousand servers
+   ([ADR-0012](../decisions/0012-deployment-profiles/)).
+4. **Private by default, safe when shared.** A machine is shared only by its owner's choice, and a
+   stranger's code never runs without strong isolation ([ADR-0014](../decisions/0014-sharing-idle-compute/)).
+5. **No dead ends.** If the GPU you wanted is busy, opt-in fallbacks keep you working: another GPU,
+   CPU, or another machine. Never silently ([ADR-0010](../decisions/0010-fallbacks-cpu-placement-and-inference-failover/)).
+6. **Open.** Open source under the MIT licence, open model formats (safetensors, GGUF), and standard
+   APIs (OpenAI-compatible endpoints).
+7. **Nothing hidden.** Every decision about your work is recorded with its reason, and you can read
+   and download all of it ([ADR-0015](../decisions/0015-logs-and-transparency/)).
+
+## The decisions that follow
+
+Each of these is recorded as an [architecture decision record](../decisions/): what was decided,
+what else was considered, and the consequences. A few that shape everything:
+
+**The person using a machine may not be its owner.** That one assumption drives the security model.
+Hosts are protected from guests, guests from each other, and Einsora is honest that a host can see
+what runs on its machine. Code from someone other than the machine's owner runs only behind strong
+isolation: a VM, or a container inside its own VM. Native macOS execution is for owners alone
+([tenancy and isolation](../architecture/tenancy-and-isolation/)).
+
+**The store owns what you asked for; the runtime owns what's running.** The API records intent and
+returns, and never talks to a machine. A controller reconciles the two, and every state change goes
+through one function that appends to the workload's timeline. A crash or a restart never loses or
+repeats work, and usage accounting is exact because it's computed from those events
+([ADR-0008](../decisions/0008-postgres-intent-kubernetes-runtime/)).
+
+**Machines join by calling out.** A node agent makes one long-polled call to the control plane and
+gets its machine's complete desired state back. It works behind home routers and NAT, needs no open
+port on the machine, and a restart can't make it stop or delete anything by mistake
+([ADR-0016](../decisions/0016-agent-protocol-and-machine-placement/)).
+
+**Each workload is its own website, and listens on no port.** A notebook's code controls what its
+page serves. If it shared a site with the dashboard, it could act as you, so each workload gets its
+own address behind an access proxy and a one-time link. Browsers send cookies to every port of a
+host, so a native workload isn't allowed to listen on any network port at all: JupyterLab runs on a
+Unix socket ([ADR-0017](../decisions/0017-local-workload-access-and-native-drivers/)).
+
+**Models are data, not code.** Model files are validated before they're served: safetensors only,
+never pickle, never custom model code, never `trust_remote_code`. The validator inspects headers and
+never loads weights, because loading is exactly what an attacker wants.
+
+**Every workload belongs to one region.** Its data stays there unless you opt in, and each controller
+reconciles one region, so a datacenter in one country never handles another's data by accident
+([ADR-0009](../decisions/0009-regions-global-control-plane-regional-cells/)).
+
+**Nothing about your work is hidden from you.** Admission, queueing, placement, fallback, failure, and
+retry are all in the timeline, each with a specific reason from a fixed vocabulary, never raw runtime
+text that could leak another tenant's details. The export is complete, and the only things redacted
+are secrets, each one listed ([ADR-0015](../decisions/0015-logs-and-transparency/)).
+
+## Honest trade-offs
+
+<Aside type="note">
+Good infrastructure says what it can't do. These are the limits Einsora accepts today, each with its
+plan in the [tenancy and isolation](../architecture/tenancy-and-isolation/) document.
+</Aside>
+
+- **A host can see guest data.** Whoever has root on a machine can read what runs on it. Without
+  confidential computing, no software can prevent that, so Einsora discloses it, and keeps strangers'
+  workloads off machines their users didn't choose.
+- **The macOS sandbox is weaker than a VM.** It's enough to protect an owner from mistakes in their own
+  notebooks, so native execution is for owners only; everyone else gets VMs.
+- **Native notebooks can't serve their own web apps on a port** (TensorBoard, Gradio) yet, because
+  closing ports is what keeps a notebook from capturing your browser session.
+- **There's no hidden magic.** If there's no GPU free, your work waits, and its timeline says why,
+  unless you opted in to a fallback.
+
+## What Einsora won't do
+
+Pricing, payments, or paid features. Mining on shared hosts. Running strangers' code natively on
+personal machines. Giving users the Kubernetes API.
+
+## How it's built
+
+Einsora is built in the open by one developer working with AI coding agents, which shows in how the
+project is organised: every rule an agent or a contributor must follow is written down
+([`AGENTS.md`](../contributing/agents/)), every significant choice is an ADR, and every change is
+linted, tested, cross-compiled for three platforms, and reviewed for isolation and tenancy before it
+lands.
+
+<CardGrid>
+	<LinkCard title="Read the product definition" description="Who it's for, what it runs, and the milestones." href="../product/definition/" />
+	<LinkCard title="See the architecture" description="How the pieces fit together." href="../architecture/overview/" />
+</CardGrid>

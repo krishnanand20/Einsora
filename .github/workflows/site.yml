@@ -1,0 +1,71 @@
+name: site
+
+# Builds the website (site/) from the repository's docs on every change to them, and publishes it to
+# GitHub Pages from main. A broken link fails the build.
+#
+# One-time setup: Settings → Pages → Build and deployment → Source: GitHub Actions. To publish at the
+# project's own domain, set the repository variables SITE_URL (https://einsora.com) and BASE_PATH
+# (/), and add the domain under Settings → Pages.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "docs/**"
+      - "**/*.md"
+      - "LICENSE"
+      - ".github/workflows/site.yml"
+  pull_request:
+    paths:
+      - "site/**"
+      - "docs/**"
+      - "**/*.md"
+      - "LICENSE"
+      - ".github/workflows/site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Install
+        working-directory: site
+        run: npm ci
+      - name: Build
+        working-directory: site
+        env:
+          SITE_URL: ${{ vars.SITE_URL || 'https://krishnanand20.github.io' }}
+          BASE_PATH: ${{ vars.BASE_PATH || '/Einsora' }}
+        run: npm run build
+      - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        with:
+          path: site/dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
