@@ -250,6 +250,12 @@ func (c *Controller) admit(ctx context.Context) error {
 			continue
 		}
 		free.take(pl, w)
+		img, _ := c.catalog.Image(w.ImageID)
+		runtime, ok = img.LaunchRuntime(g.Accelerator, pl.driver)
+		if !ok {
+			c.transition(ctx, w, domain.StateFailed, "can't start: its image has no validated runtime for the selected driver")
+			continue
+		}
 		placed, ok := c.place(ctx, w, pl, runtime.Server)
 		if !ok {
 			continue // counted anyway; the next pass sees what happened
@@ -539,6 +545,9 @@ func (c *Controller) place(ctx context.Context, w domain.Workload, pl placement,
 	if server != "" {
 		reason += ", served by " + server
 	}
+	if g, ok := c.catalog.GPUClass(pl.class); ok && pl.driver == domain.DriverMacOSNative && g.Accelerator == domain.AcceleratorCPU {
+		reason += "; Metal remains accessible to native code, so the Apple GPU is reserved exclusively"
+	}
 	ok := c.transitionWith(ctx, w, domain.StateProvisioning, reason,
 		func(q store.Queries, w *domain.Workload) error {
 			if err := q.SetPlacement(ctx, w.ID, pl.class, pl.machineID, pl.driver); err != nil {
@@ -639,6 +648,11 @@ func (c *Controller) spec(ctx context.Context, w domain.Workload) (cluster.Spec,
 		return cluster.Spec{}, err
 	}
 	spec.Class, spec.Image, spec.Runtime = gpu, img, runtime
+	if selected, ok := img.LaunchRuntime(gpu.Accelerator, w.Driver); ok {
+		spec.Runtime = selected
+	} else if w.MachineID == uuid.Nil {
+		return cluster.Spec{}, errors.New("its image has no validated runtime for its driver")
+	}
 	return spec, nil
 }
 

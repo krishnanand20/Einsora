@@ -34,12 +34,15 @@ type pool struct {
 
 // slot is one connected machine that's in the controller's region, with what's free on it.
 type slot struct {
-	m       domain.Machine
-	drivers []cluster.Driver
-	devices map[string]int
-	vcpus   int
-	memMiB  int64
-	running map[string]int // workloads holding capacity here, per driver (for DriverSpec.MaxPerMachine)
+	cat       *catalog.Catalog
+	m         domain.Machine
+	drivers   []cluster.Driver
+	devices   map[string]int
+	vcpus     int
+	memMiB    int64
+	running   map[string]int // workloads holding capacity here, per driver (for DriverSpec.MaxPerMachine)
+	appleHeld int
+	nativeCPU bool // a native CPU notebook can still use Metal, so it reserves the Apple GPU
 }
 
 // newPool builds the pass's view: capacity from the backend, minus what holding workloads use.
@@ -66,7 +69,7 @@ func newPool(cat *catalog.Catalog, capacity cluster.Capacity, machines []domain.
 		if !ok {
 			continue
 		}
-		s := &slot{m: m, drivers: mc.Drivers, devices: map[string]int{}, vcpus: mc.VCPUs, memMiB: mc.MemoryMiB, running: map[string]int{}}
+		s := &slot{cat: cat, m: m, drivers: mc.Drivers, devices: map[string]int{}, vcpus: mc.VCPUs, memMiB: mc.MemoryMiB, running: map[string]int{}}
 		for class, n := range mc.Devices {
 			s.devices[class] = n
 		}
@@ -106,6 +109,12 @@ func needs(g catalog.GPUClass, n int) (devices, vcpus int, memMiB int64) {
 
 func (s *slot) take(g catalog.GPUClass, n int, driver string) {
 	devices, vcpus, mem := needs(g, n)
+	if g.Accelerator == domain.AcceleratorApple {
+		s.appleHeld += devices
+	}
+	if driver == domain.DriverMacOSNative && g.Accelerator == domain.AcceleratorCPU {
+		s.nativeCPU = true
+	}
 	s.devices[g.ID] -= devices
 	s.vcpus -= vcpus
 	s.memMiB -= mem
@@ -116,6 +125,7 @@ func (s *slot) take(g catalog.GPUClass, n int, driver string) {
 
 // saturate marks everything on s as taken, by a workload whose size isn't known.
 func (s *slot) saturate(driver string) {
+	s.nativeCPU = true
 	for class := range s.devices {
 		s.devices[class] = 0
 	}
@@ -127,6 +137,10 @@ func (s *slot) saturate(driver string) {
 
 // fits reports how many units of g fit in what's free on s, run with driver.
 func (s *slot) fits(g catalog.GPUClass, driver string) int {
+	if g.Accelerator == domain.AcceleratorApple && s.nativeCPU ||
+		driver == domain.DriverMacOSNative && g.Accelerator == domain.AcceleratorCPU && (s.nativeCPU || s.appleHeld > 0) {
+		return 0
+	}
 	if spec, ok := domain.LookupDriver(driver); ok && spec.MaxPerMachine > 0 && s.running[driver] >= spec.MaxPerMachine {
 		return 0
 	}
@@ -160,6 +174,10 @@ func keepsDriver(w domain.Workload) bool {
 // accelerator with isolation the trust matrix allows for w's tenant on this machine. A workload
 // that keeps its driver gets only that one.
 func (s *slot) driverFor(w domain.Workload, g catalog.GPUClass) (string, bool) {
+	img, ok := s.cat.Image(w.ImageID)
+	if !ok {
+		return "", false
+	}
 	for _, d := range s.drivers {
 		if keepsDriver(w) && d.Name != w.Driver {
 			continue
@@ -167,6 +185,9 @@ func (s *slot) driverFor(w domain.Workload, g catalog.GPUClass) (string, bool) {
 		spec, ok := domain.LookupDriver(d.Name)
 		if !ok || !slices.Contains(spec.Kinds, w.Kind) || !slices.Contains(spec.Accelerators, g.Accelerator) ||
 			!slices.Contains(d.Accelerators, g.Accelerator) {
+			continue
+		}
+		if _, ok := img.LaunchRuntime(g.Accelerator, d.Name); !ok {
 			continue
 		}
 		if s.m.CheckPlacement(w, d.Name) == nil {

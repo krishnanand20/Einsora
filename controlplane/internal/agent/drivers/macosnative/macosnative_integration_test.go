@@ -14,12 +14,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tensora/tensora/controlplane/internal/domain"
 	"github.com/tensora/tensora/controlplane/internal/redact"
 )
 
 // TestRealNotebook uses an environment previously built from the driver's embedded lock. It
 // exercises real Jupyter kernels under the sandbox, without downloading packages during tests.
 func TestRealNotebook(t *testing.T) {
+	for _, accelerator := range []domain.AcceleratorKind{domain.AcceleratorApple, domain.AcceleratorCPU} {
+		t.Run(string(accelerator), func(t *testing.T) { testRealNotebook(t, accelerator) })
+	}
+}
+
+func testRealNotebook(t *testing.T, accelerator domain.AcceleratorKind) {
 	realEnv := os.Getenv("TENSORA_TEST_NATIVE_ENV")
 	if realEnv == "" {
 		t.Skip("set TENSORA_TEST_NATIVE_ENV to a driver-built Jupyter environment to test Metal and IPC")
@@ -39,6 +46,10 @@ func TestRealNotebook(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	w := notebook(1)
+	w.Accelerator = accelerator
+	if accelerator == domain.AcceleratorCPU {
+		w.Devices = 0
+	}
 	if err := d.Run(ctx, w); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +102,7 @@ assert client.transport == "ipc", client.transport
 client.start_channels()
 try:
     client.wait_for_ready(timeout=30)
-    message = client.execute("""
+    code = """
 import torch
 import mlx.core as mx
 assert torch.backends.mps.is_available(), "PyTorch MPS unavailable"
@@ -99,7 +110,10 @@ assert torch.ones(4, device="mps").sum().item() == 4
 assert mx.metal.is_available(), "MLX Metal unavailable"
 assert mx.sum(mx.ones(4)).item() == 4
 print("native notebook: IPC, PyTorch MPS, MLX Metal")
-""")
+"""
+    if sys.argv[2] == "cpu":
+        code = 'import torch; t = torch.ones(4, device="cpu"); assert t.device.type == "cpu"; assert t.sum().item() == 4; print("native notebook: IPC, PyTorch CPU")'
+    message = client.execute(code)
     output = ""
     while True:
         reply = client.get_iopub_msg(timeout=30)
@@ -112,12 +126,13 @@ print("native notebook: IPC, PyTorch MPS, MLX Metal")
             output += content["text"]
         if reply["msg_type"] == "status" and content["execution_state"] == "idle":
             break
-    assert "native notebook: IPC, PyTorch MPS, MLX Metal" in output, output
+    expected = "native notebook: IPC, PyTorch CPU" if sys.argv[2] == "cpu" else "native notebook: IPC, PyTorch MPS, MLX Metal"
+    assert expected in output, output
     print(output.strip())
 finally:
     client.stop_channels()
 `
-	cmd := exec.CommandContext(ctx, filepath.Join(realEnv, "bin", "python"), "-c", check, connection)
+	cmd := exec.CommandContext(ctx, filepath.Join(realEnv, "bin", "python"), "-c", check, connection, string(accelerator))
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("real notebook execution: %v: %s", err, out)
 	} else {

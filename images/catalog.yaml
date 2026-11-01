@@ -124,7 +124,7 @@ gpu_classes:
 # What runs. Each image lists runtimes in order of preference; a workload uses the first one that
 # supports its class's accelerator. A runtime's ref is what the backend runs: on Kubernetes, a CDI
 # DataSource (vm), a container image (notebook), or a KServe ClusterServingRuntime (endpoint); on a
-# node agent, a name its driver understands (roadmap step 7).
+# node agent, driver_refs maps each supported driver to its own ref (ADR-0019).
 images:
   - id: ubuntu-24.04-cuda
     display_name: Ubuntu 24.04 + NVIDIA driver
@@ -142,8 +142,13 @@ images:
     runtimes:
       - accelerators: [nvidia, cpu]
         ref: ghcr.io/your-org/tensora-pytorch-notebook:0.1.0 # container image (images/containers/)
+        driver_refs:
+          docker: ghcr.io/your-org/tensora-pytorch-notebook:0.1.0
+          macos-native: jupyterlab-pytorch-mps
       - accelerators: [apple]
-        ref: jupyterlab-pytorch-mps # macos-native driver: a uv environment from a lock embedded in the binary (ADR-0017)
+        ref: jupyterlab-pytorch-mps # pinned native environment (ADR-0017)
+        driver_refs:
+          macos-native: jupyterlab-pytorch-mps
 
   - id: openai-endpoint
     display_name: OpenAI-compatible model endpoint
@@ -154,11 +159,14 @@ images:
         server: vllm
         model_format: safetensors
         ref: tensora-vllm # KServe ClusterServingRuntime (deploy/charts/cluster-config)
-        container_ref: ghcr.io/your-org/tensora-vllm-endpoint:0.1.0 # local Linux Docker runtime
+        driver_refs:
+          docker: ghcr.io/your-org/tensora-vllm-endpoint:0.1.0
       - accelerators: [apple]
         server: mlx
         model_format: safetensors
-        ref: mlx-lm # macos-native driver: pinned MLX runtime, validated safetensors, private Unix socket
+        ref: mlx-lm # pinned MLX runtime, validated safetensors, private Unix socket
+        driver_refs:
+          macos-native: mlx-lm
       - accelerators: [nvidia, apple, amd, cpu]
         server: llama.cpp
         model_format: gguf # refused until tensora-ml validate checks GGUF (rule 6)

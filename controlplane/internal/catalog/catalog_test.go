@@ -271,3 +271,68 @@ func TestModelsBelongToOneClass(t *testing.T) {
 		t.Error("models on an Apple class were accepted")
 	}
 }
+
+func TestRuntimeSelectionIncludesDriver(t *testing.T) {
+	cat := testutil.Catalog(t)
+	for _, tt := range []struct {
+		image       string
+		accel       domain.AcceleratorKind
+		driver, ref string
+	}{
+		{"pytorch-notebook", domain.AcceleratorCPU, "", "ghcr.io/your-org/tensora-pytorch-notebook:0.1.0"},
+		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverDocker, "ghcr.io/your-org/tensora-pytorch-notebook:0.1.0"},
+		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverMacOSNative, "jupyterlab-pytorch-mps"},
+		{"pytorch-notebook", domain.AcceleratorNVIDIA, domain.DriverMacOSNative, ""},
+		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverMacOSContainer, ""},
+		{"openai-endpoint", domain.AcceleratorNVIDIA, domain.DriverDocker, "ghcr.io/your-org/tensora-vllm-endpoint:0.1.0"},
+		{"openai-endpoint", domain.AcceleratorNVIDIA, "", "tensora-vllm"},
+	} {
+		t.Run(tt.image+"/"+string(tt.accel)+"/"+tt.driver, func(t *testing.T) {
+			img, _ := cat.Image(tt.image)
+			r, ok := img.RuntimeForDriver(tt.accel, tt.driver)
+			if ok != (tt.ref != "") || ok && r.Ref != tt.ref {
+				t.Fatalf("got %+v, %v; want %q", r, ok, tt.ref)
+			}
+		})
+	}
+}
+
+func TestDriverCandidatesCannotBypassModelPolicy(t *testing.T) {
+	img := catalog.Image{Kind: domain.KindEndpoint, Runtimes: []catalog.Runtime{
+		{Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple}, Ref: "mlx-lm", Server: "mlx", ModelFormat: "safetensors", DriverRefs: map[string]string{domain.DriverMacOSNative: "mlx-lm"}},
+		{Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple}, Ref: "llama-server", Server: "llama.cpp", ModelFormat: "gguf", DriverRefs: map[string]string{domain.DriverMacOSVZ: "llama-server"}},
+	}}
+	if _, ok := img.LaunchRuntime(domain.AcceleratorApple, domain.DriverMacOSNative); !ok {
+		t.Fatal("validated MLX runtime unavailable")
+	}
+	// An agent candidate with an unvalidated format must fail even though the default is safe.
+	img.Runtimes[0].DriverRefs = map[string]string{domain.DriverDocker: "unrelated"}
+	img.Runtimes[1].DriverRefs = map[string]string{domain.DriverMacOSNative: "llama-server"}
+	if r, ok := img.LaunchRuntime(domain.AcceleratorApple, domain.DriverMacOSNative); ok || r.ModelFormat != "gguf" {
+		t.Fatal("driver selection bypassed GGUF validation")
+	}
+}
+
+func TestLegacyDockerContainerRefStillResolves(t *testing.T) {
+	img := catalog.Image{Kind: domain.KindEndpoint, Runtimes: []catalog.Runtime{{Accelerators: []domain.AcceleratorKind{domain.AcceleratorNVIDIA}, Ref: "tensora-vllm", ContainerRef: "registry.test/vllm:1", ModelFormat: "safetensors"}}}
+	if r, ok := img.RuntimeForDriver(domain.AcceleratorNVIDIA, domain.DriverDocker); !ok || r.Ref != "registry.test/vllm:1" {
+		t.Fatal("legacy Docker catalog stopped working")
+	}
+	if r, _ := img.RuntimeFor(domain.AcceleratorNVIDIA); r.Ref != "tensora-vllm" {
+		t.Fatal("agent selection changed the default runtime")
+	}
+}
+
+func TestDriverRefValidation(t *testing.T) {
+	for _, refs := range []map[string]string{{"typo": "env"}, {domain.DriverMacOSNative: " "}, {domain.DriverLibvirt: "env"}} {
+		cat := *testutil.Catalog(t)
+		cat.Images = append([]catalog.Image(nil), cat.Images...)
+		img := cat.Images[1]
+		img.Runtimes = append([]catalog.Runtime(nil), img.Runtimes...)
+		img.Runtimes[0].DriverRefs = refs
+		cat.Images[1] = img
+		if err := cat.Validate(); err == nil {
+			t.Errorf("accepted invalid driver refs: %v", refs)
+		}
+	}
+}

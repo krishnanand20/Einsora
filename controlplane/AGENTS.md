@@ -38,7 +38,7 @@ internal/agent/         the node agent: syncs with the control plane and runs wo
   drivers/inventory/    CPUs, memory, and GPUs, per OS behind build tags
   drivers/hostlock/     one agent per machine: an OS lock (flock) on its state directory
   drivers/process/      the process supervisor for native drivers: process groups, log files, start-time checks (Unix)
-  drivers/macosnative/  macos-native (darwin): JupyterLab and MLX endpoints in hashed uv environments under sandbox-exec
+  drivers/macosnative/  macos-native (darwin): JupyterLab (Apple GPU or CPU) and MLX endpoints in hashed uv environments under sandbox-exec
   drivers/docker/       docker (Linux): owner-only JupyterLab and NVIDIA vLLM through a local rootful Engine
   drivers/pythonruntime/ shared embedded Python model policy and workers (regenerate with ml/scripts/bundle_native.py)
 internal/metering/      usage accounting: events → metered intervals → hourly usage records (no money)

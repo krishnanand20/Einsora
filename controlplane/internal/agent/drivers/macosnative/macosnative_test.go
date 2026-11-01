@@ -613,3 +613,55 @@ func TestSandboxProfileQuotesPaths(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeCPUNotebookLifecycleAndRestart(t *testing.T) {
+	d, _ := newDriver(t)
+	ctx := context.Background()
+	w := notebook(1)
+	w.Accelerator, w.Devices = domain.AcceleratorCPU, 0
+	if err := d.Run(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = d.Remove(ctx, w.ID) })
+	status(t, d, w.ID, ready)
+	file := filepath.Join(d.dir(w.ID), "data", "saved.txt")
+	if err := os.WriteFile(file, []byte("saved CPU work"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d.Close()
+	again, err := New(d.opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(again.Close)
+	status(t, again, w.ID, ready)
+	if err := again.Stop(ctx, w.ID); err != nil {
+		t.Fatal(err)
+	}
+	status(t, again, w.ID, func(s protocol.Status) bool { return s.State == protocol.StateStopped })
+	w.Attempt++
+	if err := again.Run(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	status(t, again, w.ID, ready)
+	if saved, err := os.ReadFile(file); err != nil || string(saved) != "saved CPU work" {
+		t.Fatal("CPU notebook lost data across stop/restart")
+	}
+}
+
+func TestNativeCPUDoesNotEnableGuestsOrMLXOnCPU(t *testing.T) {
+	d, _ := newDriver(t)
+	for _, w := range []protocol.Desired{func() protocol.Desired {
+		w := notebook(1)
+		w.Accelerator, w.Devices, w.StrongIsolation = domain.AcceleratorCPU, 0, true
+		return w
+	}(), func() protocol.Desired {
+		w := endpointWorkload()
+		w.Accelerator, w.Devices = domain.AcceleratorCPU, 0
+		return w
+	}()} {
+		if err := d.Run(context.Background(), w); err == nil {
+			t.Fatal("native CPU advertised guest isolation or ran MLX on CPU")
+		}
+	}
+}

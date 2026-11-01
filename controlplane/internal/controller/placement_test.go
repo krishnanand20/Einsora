@@ -17,7 +17,7 @@ func TestClusterPlacementCountsWhatsHeld(t *testing.T) {
 	held := domain.Workload{GPUClass: "a100-80gb", PlacedClass: "l40s-48gb", GPUCount: 3, State: domain.StateRunning}
 	p := newPool(cat, cluster.Capacity{Classes: map[string]int{"l40s-48gb": 4}}, nil, []domain.Workload{held})
 
-	w := domain.Workload{Kind: domain.KindNotebook, GPUClass: "l40s-48gb", GPUCount: 2}
+	w := domain.Workload{Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUClass: "l40s-48gb", GPUCount: 2}
 	if _, free, _, ok := p.choose(w, l40s); ok || free != 1 {
 		t.Fatalf("2 of 4 with 3 held: ok=%v free=%d; want no room, 1 free", ok, free)
 	}
@@ -39,7 +39,7 @@ func TestMissingNVIDIAToolkitDoesNotSilentlyPlaceGPUWorkOnCPU(t *testing.T) {
 	f.capacity.Machines = f.capacity.Machines[1:]
 	f.capacity.Machines[0].Drivers = []cluster.Driver{{Name: domain.DriverDocker, Accelerators: []domain.AcceleratorKind{domain.AcceleratorCPU}}}
 	p := newPool(cat, f.capacity, []domain.Machine{f.pc}, nil)
-	w := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, GPUClass: "l40s-48gb", GPUCount: 1}
+	w := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUClass: "l40s-48gb", GPUCount: 1}
 	gpu, _ := cat.GPUClass(w.GPUClass)
 	if _, _, why, ok := p.choose(w, gpu); ok || !strings.Contains(why, "driver") {
 		t.Errorf("GPU request fell back silently: %v %q", ok, why)
@@ -65,7 +65,7 @@ func machines() fixture {
 	f.pc = domain.Machine{ID: uuid.New(), TenantID: uuid.New(), Name: "box", Region: domain.RegionLocal, Sharing: domain.SharingCommunity}
 	f.capacity = cluster.Capacity{Machines: []cluster.MachineCapacity{
 		{ID: f.mac.ID, Devices: map[string]int{"apple-silicon-32gb": 1}, VCPUs: 9, MemoryMiB: 27 * 1024, Drivers: []cluster.Driver{
-			{Name: domain.DriverMacOSNative, Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple}},
+			{Name: domain.DriverMacOSNative, Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple, domain.AcceleratorCPU}},
 			{Name: domain.DriverMacOSContainer, Accelerators: []domain.AcceleratorKind{domain.AcceleratorCPU}},
 			{Name: domain.DriverMacOSVZ, Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple, domain.AcceleratorCPU}},
 		}},
@@ -88,21 +88,21 @@ func TestMachinePlacementFollowsTheTrustMatrix(t *testing.T) {
 		wantDriver    string
 		wantWhyPrefix string
 	}{
-		{"the owner's notebook on their Mac runs natively", domain.Workload{TenantID: f.owner, Kind: domain.KindNotebook, GPUCount: 1},
+		{"the owner's notebook on their Mac runs natively", domain.Workload{TenantID: f.owner, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUCount: 1},
 			"apple-silicon-32gb", f.mac.ID, domain.DriverMacOSNative, ""},
-		{"the owner's endpoint on their Mac runs natively", domain.Workload{TenantID: f.owner, Kind: domain.KindEndpoint, GPUCount: 1},
+		{"the owner's endpoint on their Mac runs natively", domain.Workload{TenantID: f.owner, Kind: domain.KindEndpoint, ImageID: "openai-endpoint", GPUCount: 1},
 			"apple-silicon-32gb", f.mac.ID, domain.DriverMacOSNative, ""},
-		{"a guest can't use someone's private Mac", domain.Workload{TenantID: f.guest, Kind: domain.KindVM, GPUCount: 1},
+		{"a guest can't use someone's private Mac", domain.Workload{TenantID: f.guest, Kind: domain.KindVM, ImageID: "ubuntu-24.04-cuda", GPUCount: 1},
 			"apple-silicon-32gb", uuid.Nil, "", "waiting for a machine that can run apple-silicon-32gb"},
-		{"a guest's notebook on a community PC can't use plain docker", domain.Workload{TenantID: f.guest, Kind: domain.KindNotebook, GPUCount: 1},
+		{"a guest's notebook on a community PC can't use plain docker", domain.Workload{TenantID: f.guest, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUCount: 1},
 			"l40s-48gb", uuid.Nil, "", "waiting for a machine that can run l40s-48gb"},
 		{"a guest isn't placed on someone else's community PC without choosing to (Phase 4)",
-			domain.Workload{TenantID: f.guest, Kind: domain.KindVM, GPUCount: 2},
+			domain.Workload{TenantID: f.guest, Kind: domain.KindVM, ImageID: "ubuntu-24.04-cuda", GPUCount: 2},
 			"l40s-48gb", uuid.Nil, "", "waiting for a machine that can run l40s-48gb"},
-		{"the owner's CPU notebook fits by CPUs and memory", domain.Workload{TenantID: f.owner, Kind: domain.KindNotebook, GPUCount: 1},
-			"cpu-4c-16g", f.mac.ID, domain.DriverMacOSContainer, ""},
+		{"the owner's CPU notebook fits by CPUs and memory", domain.Workload{TenantID: f.owner, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUCount: 1},
+			"cpu-4c-16g", f.mac.ID, domain.DriverMacOSNative, ""},
 		{"no driver here runs the owner's CPU VM, and the reason says so, not that the Mac is offline",
-			domain.Workload{TenantID: f.owner, Kind: domain.KindVM, GPUCount: 1},
+			domain.Workload{TenantID: f.owner, Kind: domain.KindVM, ImageID: "ubuntu-24.04-cuda", GPUCount: 1},
 			"cpu-4c-16g", uuid.Nil, "", "waiting for a machine with a driver that runs VMs on cpu-4c-16g: none here has one yet"},
 	}
 	for _, tt := range tests {
@@ -126,7 +126,7 @@ func TestMachinePlacementCountsResources(t *testing.T) {
 		GPUCount: 1, State: domain.StateRunning}
 	p := newPool(cat, f.capacity, []domain.Machine{f.mac, f.pc}, []domain.Workload{running})
 
-	w := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, GPUClass: "apple-silicon-32gb", GPUCount: 1}
+	w := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUClass: "apple-silicon-32gb", GPUCount: 1}
 	if _, free, why, ok := p.choose(w, apple); ok || free != 0 || why != "" {
 		t.Errorf("the Mac's GPU is taken: ok=%v free=%d why=%q; want a capacity wait with 0 free", ok, free, why)
 	}
@@ -147,7 +147,7 @@ func TestStoppedWorkloadsReturnToTheirDisk(t *testing.T) {
 	offline := domain.Machine{ID: gone, TenantID: f.guest, Name: "laptop", Region: domain.RegionLocal, Sharing: domain.SharingPrivate}
 	p := newPool(cat, f.capacity, []domain.Machine{f.mac, f.pc, offline}, nil)
 
-	vm := domain.Workload{ID: uuid.New(), TenantID: f.guest, Region: domain.RegionLocal, Kind: domain.KindVM,
+	vm := domain.Workload{ID: uuid.New(), TenantID: f.guest, Region: domain.RegionLocal, Kind: domain.KindVM, ImageID: "ubuntu-24.04-cuda",
 		GPUClass: "l40s-48gb", GPUCount: 1, MachineID: gone}
 	if _, _, why, ok := p.choose(vm, l40s); ok || why != "waiting for its machine to come online: its disk is there" {
 		t.Errorf("a VM whose disk is on an offline machine: ok=%v why=%q", ok, why)
@@ -173,12 +173,12 @@ func TestDriverChoiceFollowsTheTrustMatrix(t *testing.T) {
 			pc = s
 		}
 	}
-	guestVM := domain.Workload{TenantID: f.guest, Region: domain.RegionLocal, Kind: domain.KindVM}
+	guestVM := domain.Workload{TenantID: f.guest, Region: domain.RegionLocal, Kind: domain.KindVM, ImageID: "ubuntu-24.04-cuda"}
 	if d, ok := pc.driverFor(guestVM, l40s); !ok || d != domain.DriverLibvirt {
 		t.Errorf("a guest's VM: %q, %v; want libvirt", d, ok)
 	}
 	guestNotebook := guestVM
-	guestNotebook.Kind = domain.KindNotebook
+	guestNotebook.Kind, guestNotebook.ImageID = domain.KindNotebook, "pytorch-notebook"
 	if d, ok := pc.driverFor(guestNotebook, l40s); ok {
 		t.Errorf("a guest's notebook got %q; plain docker is weak isolation", d)
 	}
@@ -197,7 +197,7 @@ func TestDriversStickToTheirData(t *testing.T) {
 	native := f.capacity.Machines[0].Drivers[0]
 	sim := cluster.Driver{Name: domain.DriverSim, Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple}}
 	f.capacity.Machines[0].Drivers = []cluster.Driver{native, sim}
-	nb := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, GPUClass: apple.ID,
+	nb := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUClass: apple.ID,
 		GPUCount: 1, MachineID: f.mac.ID, Driver: domain.DriverSim}
 	p := newPool(cat, f.capacity, []domain.Machine{f.mac}, nil)
 	if pl, _, _, ok := p.choose(nb, apple); !ok || pl.driver != domain.DriverSim {
@@ -235,7 +235,7 @@ func TestUnknownMachinesAreIgnored(t *testing.T) {
 	f := machines()
 	apple, _ := cat.GPUClass("apple-silicon-32gb")
 	p := newPool(cat, f.capacity, []domain.Machine{f.pc}, nil) // the Mac isn't in this region
-	w := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, GPUClass: "apple-silicon-32gb", GPUCount: 1}
+	w := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUClass: "apple-silicon-32gb", GPUCount: 1}
 	if _, _, _, ok := p.choose(w, apple); ok {
 		t.Error("placed on a machine outside the store's region")
 	}
@@ -250,7 +250,7 @@ func TestUnknownClassesHoldTheirMachine(t *testing.T) {
 	retired := domain.Workload{TenantID: f.owner, MachineID: f.mac.ID, GPUClass: "retired-class", PlacedClass: "retired-class",
 		GPUCount: 1, State: domain.StateRunning, Driver: domain.DriverMacOSNative}
 	p := newPool(cat, f.capacity, []domain.Machine{f.mac}, []domain.Workload{retired})
-	w := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, GPUClass: apple.ID, GPUCount: 1}
+	w := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUClass: apple.ID, GPUCount: 1}
 	if _, _, _, ok := p.choose(w, apple); ok {
 		t.Error("placed beside a workload whose size is unknown")
 	}
@@ -263,9 +263,56 @@ func TestWaitingForAClassOnItsMachine(t *testing.T) {
 	apple, _ := cat.GPUClass("apple-silicon-32gb")
 	f.capacity.Machines[0].Devices = map[string]int{} // the Mac's GPU isn't reported this time
 	p := newPool(cat, f.capacity, []domain.Machine{f.mac}, nil)
-	nb := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, GPUClass: apple.ID,
+	nb := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUClass: apple.ID,
 		GPUCount: 1, MachineID: f.mac.ID, Driver: domain.DriverMacOSNative}
 	if _, _, why, ok := p.choose(nb, apple); ok || why != "waiting for its machine to offer apple-silicon-32gb again: its disk is there" {
 		t.Errorf("ok=%v why=%q", ok, why)
+	}
+}
+
+func TestNativeCPUReservesMetalInBothAdmissionOrders(t *testing.T) {
+	cat := testutil.Catalog(t)
+	for _, cpuFirst := range []bool{true, false} {
+		t.Run(map[bool]string{true: "CPU first", false: "Metal first"}[cpuFirst], func(t *testing.T) {
+			f := machines()
+			f.capacity.Machines = f.capacity.Machines[:1]
+			f.capacity.Machines[0].VCPUs = 64
+			f.capacity.Machines[0].MemoryMiB = 128 * 1024
+			cpu, _ := cat.GPUClass("cpu-2c-8g")
+			apple, _ := cat.GPUClass("apple-silicon-32gb")
+			w := domain.Workload{ID: uuid.New(), TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUCount: 1}
+			first, second := cpu, apple
+			if !cpuFirst {
+				first, second = apple, cpu
+			}
+			p := newPool(cat, f.capacity, []domain.Machine{f.mac}, nil)
+			pl, _, _, ok := p.choose(w, first)
+			if !ok || pl.driver != domain.DriverMacOSNative {
+				t.Fatal("first workload did not select native runtime")
+			}
+			p.take(pl, w)
+			if _, _, _, ok := p.choose(w, second); ok {
+				t.Fatal("CPU-native workload and Apple GPU allocation overlapped")
+			}
+			// The same reservation is reconstructed after a controller restart.
+			w.MachineID, w.Driver, w.PlacedClass = f.mac.ID, pl.driver, first.ID
+			p = newPool(cat, f.capacity, []domain.Machine{f.mac}, []domain.Workload{w})
+			if _, _, _, ok := p.choose(w, second); ok {
+				t.Fatal("restart lost native CPU's Metal reservation")
+			}
+		})
+	}
+}
+
+func TestImageWithoutRuntimeForOfferedDriverWaits(t *testing.T) {
+	cat := testutil.Catalog(t)
+	f := machines()
+	f.capacity.Machines = f.capacity.Machines[:1]
+	f.capacity.Machines[0].Drivers = f.capacity.Machines[0].Drivers[1:2]
+	p := newPool(cat, f.capacity, []domain.Machine{f.mac}, nil)
+	w := domain.Workload{TenantID: f.owner, Region: domain.RegionLocal, Kind: domain.KindNotebook, ImageID: "pytorch-notebook", GPUCount: 1}
+	cpu, _ := cat.GPUClass("cpu-2c-8g")
+	if _, _, why, ok := p.choose(w, cpu); ok || !strings.Contains(why, "driver") {
+		t.Fatalf("incompatible runtime was placed: %v %q", ok, why)
 	}
 }

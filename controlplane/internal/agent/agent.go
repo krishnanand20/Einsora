@@ -444,13 +444,18 @@ func (a *Agent) Apply(ctx context.Context, desired []protocol.Desired) bool {
 			refuse(d.ID, protocol.StateFailed, protocol.CodeInvalid)
 			continue
 		}
-		if d.Devices > 0 {
+		kind, devices := d.Accelerator, d.Devices
+		if d.Driver == domain.DriverMacOSNative && kind == domain.AcceleratorCPU {
+			// Native CPU notebooks can still use Metal; reserve it before starting them too.
+			kind, devices = domain.AcceleratorApple, 1
+		}
+		if devices > 0 {
 			current, err := a.statuses(ctx)
 			if err != nil {
 				refuse(d.ID, protocol.StateProgressing, protocol.CodeDriverProblem)
 				continue
 			}
-			if free := a.freeDevices(d.Accelerator, current, listed); free < d.Devices {
+			if free := a.freeDevices(kind, current, listed); free < devices {
 				refuse(d.ID, protocol.StateProgressing, protocol.CodeDevicesBusy)
 				continue
 			}
@@ -552,6 +557,8 @@ func (a *Agent) freeDevices(kind domain.AcceleratorKind, current map[uuid.UUID]h
 			return 0
 		case d.Accelerator == kind:
 			used += d.Devices
+		case kind == domain.AcceleratorApple && h.driver.Name() == domain.DriverMacOSNative && d.Accelerator == domain.AcceleratorCPU:
+			used++
 		}
 	}
 	return total - used

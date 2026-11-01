@@ -74,6 +74,11 @@ checks each machine:
   changes an allocation to CPU. Unknown owned containers remain visible through parking and explicit
   removal, with durable cleanup records. Outbound network access includes the LAN; this is weak,
   owner-only isolation. Disk quotas and output export are still planned. Linux/CUDA validation is pending.
+- Native CPU notebooks can still use Metal (owner code controls its device choice). The controller
+  and agent therefore reserve the Apple GPU exclusively while one is active, including preparing,
+  stopping, or removing. This also prevents two native CPU notebooks from running together.
+  Their CPU class and usage accounting are unchanged; the admission timeline states the reservation
+  ([ADR-0019](../adr/0019-driver-specific-runtime-selection.md)). CPU endpoints remain blocked.
 - `macos-native` runs each workload as its own process group under `sandbox-exec` (ADR-0017). The profile
   allows writing only to the workload's data, home, and temporary directories. It denies reading or writing
   the Tensora state directory (other than reading the workload's own directory and the shared environment),
@@ -177,7 +182,7 @@ checks each machine:
 | Datacenter admin network not firewalled | Open | Phase 3 |
 | The controller's ServiceAccount can create pods in any namespace | Accepted | Kind allowlist, RBAC limited to listed resources, audit logging |
 | Hosts can see guest data | **Accepted and disclosed** | Product warnings; confidential computing out of scope |
-| Before machines are shared (Phase 4) | Open | Two things to change first: once `macos-native` runs CPU workloads (roadmap step 7), a CPU workload under it can still use the Mac's GPU through Metal, so on an Apple machine any active weak-driver workload must count as holding the GPU; and every driver must refuse to create a fresh disk for a workload that ran before (`macos-native` and `docker` do). Placement uses only the tenant's own machines until then. |
+| Before machines are shared (Phase 4) | Required safeguards implemented for current drivers | Native CPU workloads count as holding Metal access in controller placement and agent checks (ADR-0019). Both `macos-native` and `docker` refuse to replace missing saved notebook data. Future drivers need the same safeguards; placement still uses only the tenant's own machines, and sharing remains planned. |
 | A program listening on a loopback port gets the browser's cookies for that host: cookies ignore ports | Mitigated for workloads | A page sent to `127.0.0.1:7777`, then on to another path there, carries the dashboard's session cookie to whatever listens there (or, at `w-<id>.localhost:7777`, another workload's access session). Native workloads can't listen on any TCP or UDP port: the sandbox denies it, JupyterLab is on a Unix socket in the workload's run directory, and kernels talk over IPC. Other programs on the machine, and other OS users, still can; Solo assumes a machine whose other users are trusted. The cost: native notebooks can't serve their own web apps on a port (TensorBoard, Gradio) or use JupyterLab's debugger, until the access proxy serves them on Unix sockets. |
 | Access-proxy sessions aren't checked against the user's access again | Accepted | A session lasts 12 hours or until its workload stops, so a user whose account is disabled keeps a notebook tab they already opened until then. Stop the workload to end every session for it. Phase 2 (users and teams) ends sessions with the account. |
 | Slow guessing from many addresses, and making sign-in busy | Accepted (mitigated) | Per-caller limits, a cap on concurrent password checks, and refusing common passwords keep guessing slow, but someone with many IPv4 addresses or IPv6 /48s can still guess slowly, or keep the password checks busy so sign-in answers "busy" for a while. Use a long, uncommon password. Before exposing sign-in to the internet, put a rate-limiting proxy in front; Phase 2 adds per-account alerts. |

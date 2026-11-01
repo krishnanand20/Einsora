@@ -156,12 +156,13 @@ vocabulary, never from raw runtime messages, and `service.CleanReason` cleans ev
 - **Capacity** (controller): what the backend reports, minus what the store says is held.
 - **Placement** (controller, `internal/controller/placement.go`, the one place it's decided): on a cluster, the requested class. On agents, a machine and a driver:
   - the machine is the tenant's own, until sharing lets a user choose another's (Phase 4), and it's in the workload's region (`Machine.CanHost`);
-  - the driver runs the workload's kind on the class's accelerator, and **weak isolation** (`macos-native`, plain `docker`, `sim`) is only for the machine owner's own workloads (`Machine.Permits`, the trust matrix). A driver's isolation comes from `domain.LookupDriver`, never from what an agent reports;
+  - the driver and the image runtime both support the workload's kind and class's accelerator (catalog `driver_refs`, ADR-0019), and **weak isolation** (`macos-native`, plain `docker`, `sim`) is only for the machine owner's own workloads (`Machine.Permits`, the trust matrix). A driver's isolation comes from `domain.LookupDriver`, never from what an agent reports;
   - the class's devices, CPUs, and memory are free on the machine. An NVIDIA or AMD device matches the class listing its model (catalog `models`); a Mac's GPU matches the largest Apple class its unified memory holds;
   - a VM or notebook that has run before goes back to the machine holding its disk, with the driver holding its data, and waits for them;
   - a driver's per-machine limit holds (`macos-vz`: two macOS VMs per Mac).
 - **Agents check too:** an agent refuses a driver it doesn't have, weak isolation for a workload that needs strong, a notebook or VM asked to move to another driver, and starting a workload while any other is still active on the GPU it needs. It deletes data only for a workload listed for removal; one it wasn't told about is stopped and kept.
 - **Attempts:** each admission is a new attempt (`workloads.attempt`). An agent starts an attempt at most once, so a workload that failed or stopped by itself isn't restarted until it's started again, and drivers report which attempt a status is about. A workload still running another attempt is stopped first (keeping its data), and its GPU counts as taken until it has; attempts are compared for equality, so a restored database's lower count still runs. A status answers the controller only for the attempt and mode (run, park, or remove) the store expects, and only once the agent has applied them; before that, even no status at all reads as still in progress.
+- **Native CPU on Macs:** CPU notebooks use the pinned native Jupyter environment. Owner code can still use Metal, so controller placement and the agent reserve the Apple GPU exclusively while one is active, including preparing or stopping. Its admission reason explains this; usage stays on its CPU class. CPU endpoints await GGUF validation.
 - **Machine identity:** the in-process agent's machine is found by the ID saved in `machine-id` next to the SQLite database (or in `TENSORA_AGENT_STATE_DIR`), never by hostname, so renaming the Mac changes only its label. Its owner and region never change.
 - **After a restart**, the agent backend reports that it's settling until every machine in its region has reconnected (at most 45 seconds), and the controller admits nothing meanwhile. An unknown status decides nothing, not even the provisioning timeout; a machine that stays away is reported failed after 10 minutes.
 - **The agent backend runs with SQLite** (Solo) until agents join over the network (Phase 2): with Postgres, controllers on several hosts could share a region while each sees only its own machine.
@@ -194,14 +195,14 @@ vocabulary, never from raw runtime messages, and `service.CleanReason` cleans ev
 Every tenant also gets a namespace bundle: PSA baseline, a GPU `ResourceQuota`, a default-deny NetworkPolicy, Gateway ingress, and image-clone RBAC.
 
 **Agents** (ADR-0013, ADR-0017, [ADR-0018](../adr/0018-linux-docker-driver.md)). Built: `macos-native`
-notebooks and MLX endpoints; Linux `docker` notebooks (CPU or NVIDIA) and NVIDIA vLLM endpoints.
+notebooks (Apple GPU or explicit CPU) and MLX endpoints; Linux `docker` notebooks (CPU or NVIDIA) and NVIDIA vLLM endpoints.
 Linux/CUDA hardware validation is pending. VM drivers and networked agents are Phase 2. `sim` runs
 nothing and is for development only.
 
 | Kind | Mac | Linux |
 |---|---|---|
 | vm | macOS guest (`macos-vz`, Metal) or Linux guest (CPU) | KVM guest (`libvirt`, VFIO GPU) |
-| notebook | Native JupyterLab in a sandbox (`macos-native`, Metal; built), or a Linux container in its own VM (`macos-container`, CPU) | Container (`docker`, CUDA or CPU) |
+| notebook | Native JupyterLab in a sandbox (`macos-native`, Metal or explicit CPU; built), or a Linux container in its own VM (`macos-container`, CPU) | Container (`docker`, CUDA or CPU) |
 | endpoint | MLX (`macos-native`, Metal); llama.cpp planned | vLLM (`docker`, NVIDIA); CPU llama.cpp planned |
 
 ## API conventions

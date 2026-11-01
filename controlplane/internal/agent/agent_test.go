@@ -435,3 +435,35 @@ func TestALowerAttemptStillRuns(t *testing.T) {
 		t.Errorf("attempt 2 after attempt 3: %+v; want it running", got)
 	}
 }
+
+func TestNativeCPUAndMetalCannotOverlap(t *testing.T) {
+	for _, cpuFirst := range []bool{true, false} {
+		t.Run(map[bool]string{true: "CPU first", false: "Metal first"}[cpuFirst], func(t *testing.T) {
+			ctx := context.Background()
+			c := &conn{}
+			drv := renamed{sim.New(domain.AcceleratorApple, domain.AcceleratorCPU), domain.DriverMacOSNative}
+			a := agent.New(c, []agent.Driver{drv}, macInventory, "test", slog.New(slog.DiscardHandler))
+			if _, err := a.Sync(ctx, 0, true); err != nil {
+				t.Fatal(err)
+			}
+			cpu, gpu := gpuWorkload(protocol.ModeRun), gpuWorkload(protocol.ModeRun)
+			cpu.Driver, cpu.Accelerator, cpu.Devices = domain.DriverMacOSNative, domain.AcceleratorCPU, 0
+			gpu.Driver = domain.DriverMacOSNative
+			first, second := cpu, gpu
+			if !cpuFirst {
+				first, second = gpu, cpu
+			}
+			a.Apply(ctx, []protocol.Desired{first, second})
+			got := statuses(t, a, c)
+			if got[first.ID].State != protocol.StateReady || got[second.ID].Code != protocol.CodeDevicesBusy {
+				t.Fatalf("native allocations overlap: %+v", got)
+			}
+			first.Mode = protocol.ModePark
+			a.Apply(ctx, []protocol.Desired{first, second})
+			got = statuses(t, a, c)
+			if got[second.ID].State != protocol.StateReady {
+				t.Fatal("stopped workload did not release Metal reservation")
+			}
+		})
+	}
+}

@@ -433,15 +433,12 @@ func (h *Hub) describe(d *protocol.Desired, w domain.Workload) error {
 	if !ok {
 		return fmt.Errorf("image %q isn't in the catalog", w.ImageID)
 	}
-	rt, ok := img.RuntimeFor(g.Accelerator)
+	rt, ok := img.LaunchRuntime(g.Accelerator, w.Driver)
 	if !ok {
 		return fmt.Errorf("image %q has no runtime for %s", w.ImageID, g.Accelerator)
 	}
 	d.ImageID = img.ID
 	d.Runtime = protocol.Runtime{Ref: rt.Ref, Server: rt.Server, ModelFormat: rt.ModelFormat}
-	if w.Driver == domain.DriverDocker && rt.ContainerRef != "" {
-		d.Runtime.Ref = rt.ContainerRef
-	}
 	d.ModelURI, d.SSHPublicKey = w.Params[domain.ParamModelURI], w.Params[domain.ParamSSHPublicKey]
 	return nil
 }

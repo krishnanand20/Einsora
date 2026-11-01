@@ -137,8 +137,12 @@ environment, a download of a few hundred MB (about 750 MB on disk, in `native/` 
 stays provisioning for a minute or more, depending on your connection; later ones start in seconds. Once it's running, **Open** on its page opens
 JupyterLab in a new tab at `w-<id>.localhost:8090`, its own site, through the access proxy. Its files are in
 `native/workloads/<id>/data`, and survive stopping and starting it, and restarting `tensora`. Deleting the
-workload deletes them. CPU classes don't run natively on a Mac yet: such a notebook waits, and its timeline says
-why. A native notebook can't listen on a network port, so web apps started inside it (TensorBoard, Gradio) and
+workload deletes them. You can also explicitly choose a CPU class: the native driver uses the same
+pinned environment and supports normal CPU PyTorch operations. Native code can still use Metal, so
+the controller and agent reserve the Apple GPU exclusively while that CPU notebook runs; the
+admission timeline says so. CPU-native notebooks and GPU workloads wait for each other, even when
+there is spare CPU and memory. Usage remains on the requested CPU class. CPU endpoints still await
+GGUF validation and llama.cpp. A native notebook can't listen on a network port, so web apps started inside it (TensorBoard, Gradio) and
 JupyterLab's debugger don't work yet; this keeps code in a notebook from getting your dashboard session. Its
 sockets and temporary files are in `~/.tensora/run` (`TENSORA_AGENT_RUN_DIR`).
 
@@ -238,3 +242,12 @@ TENSORA_TEST_DOCKER_NOTEBOOK_IMAGE=ghcr.io/your-org/tensora-pytorch-notebook:0.1
 This test creates and removes only its own workload on the existing daemon. The regular Go suite
 uses a local Engine API fixture to test cancellation, ownership, cgroup refusal, exact GPU UUID
 reservations, and recovery, without Docker or a GPU.
+
+On a Mac with an existing driver-built Jupyter environment, the optional notebook integration test
+checks real sandboxed kernels over IPC on both CPU and Metal, without downloading packages:
+
+```bash
+cd controlplane
+TENSORA_TEST_NATIVE_ENV=/absolute/path/to/native/envs/jupyterlab-pytorch-mps-<hash> \
+  go test ./internal/agent/drivers/macosnative -run TestRealNotebook -count=1 -v
+```

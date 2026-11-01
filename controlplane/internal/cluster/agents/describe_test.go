@@ -27,3 +27,17 @@ func TestDescribeDockerUsesContainerImageAndExactPlacedModels(t *testing.T) {
 		t.Fatal("Docker image replaced the Kubernetes runtime identifier")
 	}
 }
+
+func TestDescribeCPURuntimeForNativeAndDocker(t *testing.T) {
+	h := &Hub{catalog: testutil.Catalog(t)}
+	for driver, ref := range map[string]string{domain.DriverMacOSNative: "jupyterlab-pytorch-mps", domain.DriverDocker: "ghcr.io/your-org/tensora-pytorch-notebook:0.1.0"} {
+		w := domain.Workload{ImageID: "pytorch-notebook", PlacedClass: "cpu-2c-8g", GPUCount: 1, Driver: driver}
+		var d protocol.Desired
+		if err := h.describe(&d, w); err != nil {
+			t.Fatal(err)
+		}
+		if d.Runtime.Ref != ref || d.Devices != 0 || d.Accelerator != domain.AcceleratorCPU || d.VCPUs != 2 || d.MemoryMiB != 8*1024 {
+			t.Fatalf("incorrect CPU desired state: %+v", d)
+		}
+	}
+}

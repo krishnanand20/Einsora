@@ -18,18 +18,18 @@ upstream vLLM image.
 - **`regions:`** lists the locations this installation offers. The first is the default; Solo has one, `local`.
 - **Classes** have an `accelerator` (`nvidia`, `apple`, `amd`, `cpu`) and, optionally, the `regions` offering them (none listed means every region). NVIDIA and AMD classes carry the Kubernetes resource names; Apple and CPU classes run on node agents.
 - **Apple Silicon classes** are sized by unified memory (`apple-silicon-16gb` to `apple-silicon-128gb`), because memory decides which models fit; one unit is the whole GPU of one Mac. They're for machines' owners only (rule 4). **CPU classes** are sized by vCPUs and memory (`cpu-4c-16g`, `cpu-16c-64g`).
-- **Images list runtimes in order of preference**, and a workload uses the first that supports its class's accelerator:
+- **Images list runtimes in order of preference**, and a workload uses the first supporting its class's accelerator and, on an agent, its driver:
   - endpoints (`openai-endpoint`): vLLM on NVIDIA, MLX on Apple, llama.cpp on anything, including CPU
-  - notebooks (`pytorch-notebook`): the CUDA container on NVIDIA and CPU, and a uv-managed environment with PyTorch (MPS) on Macs. That environment's lock file, with hashes, is `controlplane/internal/agent/drivers/macosnative/envs/jupyterlab-pytorch-mps.txt`, embedded in the binary; its header says how to regenerate it.
+  - notebooks (`pytorch-notebook`): the CUDA container on NVIDIA and CPU, and a uv-managed environment with PyTorch on Macs for both Apple and explicitly selected CPU classes. That environment's lock file, with hashes, is `controlplane/internal/agent/drivers/macosnative/envs/jupyterlab-pytorch-mps.txt`, embedded in the binary; its header says how to regenerate it.
   - VMs (`ubuntu-24.04-cuda`): NVIDIA passthrough today; macOS guests (Virtualization framework) arrive with the `macos-vz` driver
 - An endpoint runtime names its `server` and the `model_format` it loads. Only formats `tensora-ml validate` checks are accepted (rule 6): safetensors today, GGUF from roadmap step 10, so llama.cpp endpoints wait until then.
-- A runtime's `ref` is what the backend runs: a CDI DataSource, container image, or KServe ServingRuntime on Kubernetes, or a name the node agent's driver understands (`macos-native`: `jupyterlab-pytorch-mps`, an environment whose lock is embedded in the binary). An optional `container_ref` supplies the pinned Docker image when `ref` names a KServe runtime. The API shows accelerators and server, never either ref.
+- A runtime's `ref` is what the backend runs: a CDI DataSource, container image, or KServe ServingRuntime on Kubernetes, or a name the node agent's driver understands (`macos-native`: `jupyterlab-pytorch-mps`, an environment whose lock is embedded in the binary). The optional `driver_refs` map names the supported agent drivers and their refs, such as `docker: <pinned image>` and `macos-native: jupyterlab-pytorch-mps`. A driver absent from a nonempty map cannot use that runtime. Without a map, legacy refs still work; `container_ref` is the older Docker override. The API shows accelerators and server, never runtime refs or the driver map.
 
 ## Adding an image
 
 1. Build it: add a directory under `containers/` or `vm/`.
 2. Pin the base image by digest for releases. Scan it, for example with `trivy image`.
-3. Add it to `catalog.yaml` with the right `kind`, and a runtime (`accelerators`, `ref`, and `server` for endpoints) for each platform it supports.
+3. Add it to `catalog.yaml` with the right `kind`, and a runtime (`accelerators`, `ref`, and `server` for endpoints) for each platform it supports, with `driver_refs` for agent-specific refs.
 4. Run `make test-cp`. The control plane tests load the catalog and fail on mistakes.
 
 Rules for images in user workloads:
@@ -59,3 +59,9 @@ changes. Container commands and auth are set by the driver, overriding image def
 CPU notebooks use the same notebook image with runc and no GPU device request. NVIDIA workloads
 require the NVIDIA container runtime and physical GPU UUID discovery. CPU model endpoints remain
 blocked until GGUF validation and llama.cpp are implemented. Live Linux/CUDA validation is pending.
+
+On Macs, an explicitly selected CPU notebook uses the same pinned environment as a Metal notebook.
+It runs CPU tensor operations normally, but arbitrary native code can still use Metal. The
+controller and agent reserve the Apple GPU while it runs and explain this in the admission timeline;
+CPU-native notebooks therefore serialize with other native CPU and GPU workloads. Usage stays on
+the requested CPU class. CPU model endpoints still require GGUF validation and llama.cpp.

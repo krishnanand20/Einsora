@@ -77,6 +77,9 @@ type Runtime struct {
 	// (notebook), or a KServe ClusterServingRuntime (endpoint). Node agents: interpreted by their
 	// driver (roadmap step 7).
 	Ref string `json:"ref"`
+	// DriverRefs maps supported agent drivers to their runtime refs. When nonempty, an agent
+	// driver must be listed; Ref remains the Kubernetes/default runtime. Never exposed by the API.
+	DriverRefs map[string]string `json:"driver_refs,omitempty"`
 	// ContainerRef is the pinned container image when an endpoint's Ref names a Kubernetes runtime.
 	// It is operator configuration and is never exposed by the API.
 	ContainerRef string `json:"container_ref,omitempty"`
@@ -94,10 +97,33 @@ type Image struct {
 
 // RuntimeFor returns the runtime the image uses on accelerator a.
 func (img Image) RuntimeFor(a domain.AcceleratorKind) (Runtime, bool) {
-	for _, r := range img.Runtimes {
-		if slices.Contains(r.Accelerators, a) {
-			return r, true
+	return img.RuntimeForDriver(a, "")
+}
+
+// RuntimeForDriver selects by accelerator and driver, preserving runtime preference order.
+// Empty driver (Kubernetes/default) and sim use Ref. Legacy catalogs without DriverRefs retain
+// their original agent behavior, including ContainerRef for Docker endpoints.
+func (img Image) RuntimeForDriver(a domain.AcceleratorKind, driver string) (Runtime, bool) {
+	if driver != "" && driver != domain.DriverSim {
+		spec, ok := domain.LookupDriver(driver)
+		if !ok || !slices.Contains(spec.Kinds, img.Kind) || !slices.Contains(spec.Accelerators, a) {
+			return Runtime{}, false
 		}
+	}
+	for _, r := range img.Runtimes {
+		if !slices.Contains(r.Accelerators, a) {
+			continue
+		}
+		if driver != "" && driver != domain.DriverSim {
+			if ref, ok := r.DriverRefs[driver]; ok {
+				r.Ref = ref
+			} else if len(r.DriverRefs) > 0 {
+				continue
+			} else if driver == domain.DriverDocker && r.ContainerRef != "" {
+				r.Ref = r.ContainerRef
+			}
+		}
+		return r, true
 	}
 	return Runtime{}, false
 }
@@ -213,6 +239,18 @@ func validateImage(img Image, seen map[string]bool) error {
 				return fmt.Errorf("image %q runtime %d: unknown accelerator %q", img.ID, i, a)
 			}
 		}
+		for driver, ref := range r.DriverRefs {
+			spec, ok := domain.LookupDriver(driver)
+			if !ok || driver == domain.DriverSim || strings.TrimSpace(ref) == "" || !slices.Contains(spec.Kinds, img.Kind) {
+				return fmt.Errorf("image %q runtime %d: invalid driver ref for %q", img.ID, i, driver)
+			}
+			if !slices.ContainsFunc(r.Accelerators, func(a domain.AcceleratorKind) bool { return slices.Contains(spec.Accelerators, a) }) {
+				return fmt.Errorf("image %q runtime %d: driver %q supports none of its accelerators", img.ID, i, driver)
+			}
+			if driver == domain.DriverDocker && r.ContainerRef != "" && r.ContainerRef != ref {
+				return fmt.Errorf("image %q runtime %d: conflicting Docker refs", img.ID, i)
+			}
+		}
 	}
 	return nil
 }
@@ -220,6 +258,13 @@ func validateImage(img Image, seen map[string]bool) error {
 // validatedFormats are the model formats tensora-ml validate checks (rule 6). GGUF joins when the
 // validator checks GGUF headers (roadmap step 10); until then, runtimes that load it can't be used.
 var validatedFormats = map[string]bool{"safetensors": true}
+
+// LaunchRuntime selects the actual driver runtime and enforces the model-format gate again after
+// placement. A later driver's candidate cannot bypass validation of the default candidate.
+func (img Image) LaunchRuntime(a domain.AcceleratorKind, driver string) (Runtime, bool) {
+	r, ok := img.RuntimeForDriver(a, driver)
+	return r, ok && (img.Kind != domain.KindEndpoint || validatedFormats[r.ModelFormat])
+}
 
 // CheckLaunch decides whether a tenant in tier may run a workload of kind with img on class in
 // region, and returns the runtime it would use. It's checked at create, at start, and again at

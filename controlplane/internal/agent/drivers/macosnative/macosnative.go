@@ -233,7 +233,7 @@ func (d *Driver) Close() {
 }
 
 func (d *Driver) Accelerators() []domain.AcceleratorKind {
-	return []domain.AcceleratorKind{domain.AcceleratorApple} // as domain.LookupDriver says
+	return []domain.AcceleratorKind{domain.AcceleratorApple, domain.AcceleratorCPU}
 }
 
 // Phases of a workload, in its state file.
@@ -332,10 +332,20 @@ func (d *Driver) writeState(id uuid.UUID, st state) error {
 // Run starts attempt w.Attempt of a notebook or endpoint. It returns once the attempt is recorded; building
 // the environment and starting the server happen in the background, shown as progressing.
 func (d *Driver) Run(_ context.Context, w protocol.Desired) error {
+	if w.StrongIsolation {
+		return agent.WithCode(protocol.CodeIsolation, errors.New("native workloads are for the machine owner only"))
+	}
+	if (w.Accelerator != domain.AcceleratorApple && w.Accelerator != domain.AcceleratorCPU) ||
+		(w.Accelerator == domain.AcceleratorCPU && w.Devices != 0) || (w.Accelerator == domain.AcceleratorApple && w.Devices != 1) {
+		return agent.WithCode(protocol.CodeInvalid, errors.New("native workloads need an explicit CPU allocation or the whole Apple GPU"))
+	}
 	if w.Kind != domain.KindNotebook && w.Kind != domain.KindEndpoint {
 		return agent.WithCode(protocol.CodeInvalid, fmt.Errorf("macos-native runs notebooks and endpoints, not %s", w.Kind))
 	}
-	if w.Kind == domain.KindEndpoint && (w.Runtime.Ref != "mlx-lm" || w.Runtime.Server != "mlx" ||
+	if w.Kind == domain.KindNotebook && w.Runtime.Ref != "jupyterlab-pytorch-mps" {
+		return agent.WithCode(protocol.CodeImage, errors.New("native notebooks need the pinned Jupyter environment"))
+	}
+	if w.Kind == domain.KindEndpoint && (w.Accelerator != domain.AcceleratorApple || w.Runtime.Ref != "mlx-lm" || w.Runtime.Server != "mlx" ||
 		w.Runtime.ModelFormat != "safetensors" || w.MemoryMiB <= 0 ||
 		(!strings.HasPrefix(w.ModelURI, "hf://") && !strings.HasPrefix(w.ModelURI, "s3://"))) {
 		return agent.WithCode(protocol.CodeInvalid, errors.New("native endpoints need the MLX safetensors runtime, a model source, and a memory allocation"))

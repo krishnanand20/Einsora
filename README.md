@@ -95,7 +95,7 @@ bin/tensora export <id>                    # download everything recorded about 
 
 For full server logs, run `make dev TENSORA_LOG_LEVEL=debug TENSORA_LOG_FILE=$PWD/tensora.log`.
 
-Real owner workloads are available through the in-process agent: JupyterLab and MLX on Apple Silicon,
+Real owner workloads are available through the in-process agent: JupyterLab (Apple GPU or explicit CPU) and MLX on Apple Silicon,
 and JupyterLab (CPU or NVIDIA) and vLLM (NVIDIA) through a local Linux Docker Engine. See the
 [local setup instructions](docs/runbooks/00-quickstart.md#run-real-workloads-on-linux). Linux/CUDA
 hardware validation is pending.

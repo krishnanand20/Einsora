@@ -141,8 +141,10 @@ func TestCatalogHidesInternalsAndInternalOnlyClasses(t *testing.T) {
 	for _, i := range body["images"].([]any) {
 		img := i.(map[string]any)
 		for _, r := range img["runtimes"].([]any) {
-			if _, ok := r.(map[string]any)["ref"]; ok {
-				t.Errorf("image %v leaks a runtime ref", img["id"])
+			for _, field := range []string{"ref", "driver_refs", "container_ref"} {
+				if _, ok := r.(map[string]any)[field]; ok {
+					t.Errorf("image %v leaks %s", img["id"], field)
+				}
 			}
 		}
 	}
