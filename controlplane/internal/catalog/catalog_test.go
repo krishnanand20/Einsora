@@ -177,7 +177,7 @@ func TestCheckLaunch(t *testing.T) {
 			return g
 		}(), macVM, "local", "", ""},
 		{"hidden class", domain.TierUntrusted, class("apple-silicon-32gb"), image("openai-endpoint"), "local", "isn't available", ""},
-		{"CPU endpoint needs GGUF", domain.TierTrusted, class("cpu-4c-16g"), image("openai-endpoint"), "local", "aren't accepted until", ""},
+		{"CPU endpoint needs llama.cpp", domain.TierTrusted, class("cpu-4c-16g"), image("openai-endpoint"), "local", "isn't available yet", ""},
 		{"NVIDIA endpoint uses vLLM", domain.TierUntrusted, class("l40s-48gb"), image("openai-endpoint"), "local", "", "vllm"},
 		{"unknown region", domain.TierTrusted, func() catalog.GPUClass {
 			g := class("l40s-48gb")
@@ -305,11 +305,11 @@ func TestDriverCandidatesCannotBypassModelPolicy(t *testing.T) {
 	if _, ok := img.LaunchRuntime(domain.AcceleratorApple, domain.DriverMacOSNative); !ok {
 		t.Fatal("validated MLX runtime unavailable")
 	}
-	// An agent candidate with an unvalidated format must fail even though the default is safe.
+	// An agent candidate with a format no driver serves must fail even though the default is safe.
 	img.Runtimes[0].DriverRefs = map[string]string{domain.DriverDocker: "unrelated"}
 	img.Runtimes[1].DriverRefs = map[string]string{domain.DriverMacOSNative: "llama-server"}
 	if r, ok := img.LaunchRuntime(domain.AcceleratorApple, domain.DriverMacOSNative); ok || r.ModelFormat != "gguf" {
-		t.Fatal("driver selection bypassed GGUF validation")
+		t.Fatal("driver selection bypassed the model-format gate")
 	}
 }
 

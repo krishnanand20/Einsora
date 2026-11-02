@@ -40,8 +40,8 @@ user only sends prompts. No user code runs on the host.
 **Enforced in code** by `catalog.CheckLaunch`, at create, at start, and again at admission (so a changed
 catalog or tier can't be bypassed): on Apple Silicon, notebooks and endpoints run natively on macOS, so
 only trusted tenants may launch them; untrusted tenants get macOS VMs there. Endpoints are refused when
-their server would load a model format `einsora-ml validate` doesn't check yet (GGUF, so llama.cpp, until
-roadmap step 10).
+their server loads a model format no driver serves yet: GGUF, until a driver runs llama.cpp and checks
+each model with `einsora-ml validate --format gguf` before loading it (roadmap step 10b).
 
 On agents, placement (`controller/placement.go`, [ADR-0016](../adr/0016-agent-protocol-and-machine-placement.md))
 checks each machine:
@@ -122,7 +122,7 @@ checks each machine:
 | Guest exhausts the host | Hogging RAM, overheating a laptop | Caps; Guaranteed QoS in a datacenter; share only when idle and on AC power; instant reclaim |
 | **Host reads guest data** | An owner inspects a VM disk or process memory | Unavoidable without confidential computing. **Disclosed in the product.** Users shouldn't put secrets on community hosts. |
 | Guest-to-guest access | Reading another user's data or traffic | Tenant-scoped queries (404); a namespace or VM per workload; volumes deleted with the workload; **one untrusted user per Mac GPU** (Metal has no partitioning) |
-| Code execution through model files | A pickle payload, or `auto_map` custom code | `einsora-ml validate` allows safetensors (and GGUF once validated) only; never `trust_remote_code` |
+| Code execution through model files | A pickle payload, or `auto_map` custom code | `einsora-ml validate` allows only safetensors or GGUF, checks their headers, and never loads weights; never `trust_remote_code` |
 | Control plane or agent compromise | Stolen controller or agent credentials | The API has no runtime access; controller RBAC is an allowlist; each agent has its own revocable mTLS certificate; datacenter admin access only over WireGuard |
 | Usage-accounting tampering | Gaming quotas or fair share | Append-only events; metered states must hold capacity |
 | Data leaving its region | A fallback or bug moves data abroad | Rule 9; cross-region fallback only with explicit opt-in |

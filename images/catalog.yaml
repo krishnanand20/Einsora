@@ -171,5 +171,5 @@ images:
           macos-native: mlx-lm
       - accelerators: [nvidia, apple, amd, cpu]
         server: llama.cpp
-        model_format: gguf # refused until einsora-ml validate checks GGUF (rule 6)
+        model_format: gguf # refused until a driver runs llama.cpp (roadmap step 10b)
         ref: llama-server # docker and macos-native drivers (planned)

@@ -25,6 +25,12 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("validate", help="check a local model directory against the model policy")
     p.add_argument("path", type=Path)
     p.add_argument("--max-gb", type=float, default=200)
+    p.add_argument(
+        "--format",
+        choices=["safetensors", "gguf"],
+        default="safetensors",
+        help="the weight format the model's server loads (default: safetensors)",
+    )
 
     p = sub.add_parser("ingest", help="download hf://org/model[@rev], validate, upload to s3://")
     p.add_argument("source")
@@ -32,22 +38,29 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-gb", type=float, default=200)
 
     p = sub.add_parser("bench", help="load-test an OpenAI-compatible endpoint")
-    p.add_argument("base_url")
-    p.add_argument("--model", required=True)
+    p.add_argument("base_url", help="the server's address, or its /v1 base URL")
+    p.add_argument("--model", help="default: the one model the server lists at /v1/models")
     p.add_argument("--requests", type=int, default=64)
     p.add_argument("--concurrency", type=int, default=8)
     p.add_argument("--max-tokens", type=int, default=256)
 
-    p = sub.add_parser("burnin", help="stress every visible GPU and check for errors")
+    p = sub.add_parser(
+        "burnin", help="stress every visible GPU (CUDA or Metal) and check for errors"
+    )
     p.add_argument("--seconds", type=float, default=300)
     p.add_argument("--matrix-size", type=int, default=8192)
+    p.add_argument(
+        "--memory-fraction",
+        type=float,
+        help="share of free GPU memory the pattern test fills (default: 0.85 CUDA, 0.5 Metal)",
+    )
 
     args = parser.parse_args(argv)
 
     if args.command == "validate":
         from einsora_ml.validate import validate_model_dir
 
-        report = validate_model_dir(args.path, int(args.max_gb * GIB))
+        report = validate_model_dir(args.path, int(args.max_gb * GIB), args.format)
         _emit(report.as_dict())
         return 0 if report.ok else 1
 
@@ -73,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
                     concurrency=args.concurrency,
                     max_tokens=args.max_tokens,
                     api_key=os.environ.get("EINSORA_BENCH_API_KEY"),
+                    insecure_http=os.environ.get("EINSORA_INSECURE_HTTP", "").lower()
+                    in ("1", "true"),
                 )
             )
         )
@@ -81,7 +96,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "burnin":
         from einsora_ml import burnin
 
-        results = burnin.run(seconds=args.seconds, matrix_size=args.matrix_size)
+        results = burnin.run(
+            seconds=args.seconds,
+            matrix_size=args.matrix_size,
+            memory_fraction=args.memory_fraction,
+        )
         _emit(results)
         return 0 if all(r["passed"] for r in results) else 1
 

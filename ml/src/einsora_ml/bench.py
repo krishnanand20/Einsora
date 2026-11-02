@@ -1,16 +1,19 @@
-"""Load-test an OpenAI-compatible endpoint (vLLM): time to first token, latency, throughput.
+"""Load-test an OpenAI-compatible endpoint: time to first token, latency, throughput.
 
-Use it to size endpoints before offering a GPU class, and as a post-deploy smoke test.
+Works with vLLM, llama.cpp's llama-server, MLX servers, and Einsora's endpoints. Use it to size
+endpoints before offering a GPU class, and as a post-deploy smoke test.
 """
 
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import json
 import math
 import time
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -47,6 +50,40 @@ def summarize(samples: list[Sample], wall_s: float) -> dict[str, Any]:
         "output_tokens_per_s": tokens / wall_s if wall_s > 0 else 0.0,
         "sample_errors": sorted({s.error for s in samples if s.error})[:5],
     }
+
+
+def api_base(base_url: str) -> str:
+    """The server's /v1 URL, from its root or from its /v1 base URL (as Einsora shows it)."""
+    base = base_url.rstrip("/")
+    return base if base.endswith("/v1") else base + "/v1"
+
+
+def check_key_transport(base_url: str, insecure_http: bool = False) -> None:
+    """Refuse to send an API key over plain HTTP to another machine, as the einsora CLI does.
+    Loopback addresses and *.localhost names (Einsora's endpoints on this machine) are fine."""
+    url = urlsplit(base_url)
+    host = (url.hostname or "").lower()
+    if url.scheme == "https" or insecure_http or host == "localhost" or host.endswith(".localhost"):
+        return
+    try:
+        if ipaddress.ip_address(host).is_loopback:
+            return
+    except ValueError:
+        pass
+    raise ValueError(
+        f"refusing to send EINSORA_BENCH_API_KEY over plain HTTP to {url.netloc}: use https://,"
+        " or set EINSORA_INSECURE_HTTP=true if you trust every network in between"
+    )
+
+
+def only_model(listing: Any) -> str:
+    """The model a server lists at /v1/models, when it serves exactly one."""
+    data = listing.get("data") if isinstance(listing, dict) else None
+    ids = [m.get("id") for m in data if isinstance(m, dict)] if isinstance(data, list) else []
+    names = [i for i in ids if isinstance(i, str) and i]
+    if len(names) != 1:
+        raise ValueError(f"the endpoint lists {len(names)} models; choose one with --model")
+    return names[0]
 
 
 def parse_sse(line: str) -> dict[str, Any] | None:
@@ -92,7 +129,7 @@ async def _one(client: httpx.AsyncClient, url: str, payload: dict[str, Any]) -> 
 
 async def run(
     base_url: str,
-    model: str,
+    model: str | None = None,
     *,
     requests: int = 64,
     concurrency: int = 8,
@@ -100,19 +137,29 @@ async def run(
     max_tokens: int = 256,
     api_key: str | None = None,
     timeout_s: float = 300.0,
+    insecure_http: bool = False,
+    transport: httpx.AsyncBaseTransport | None = None,
 ) -> dict[str, Any]:
-    url = base_url.rstrip("/") + "/v1/chat/completions"
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": max_tokens,
-        "stream": True,
-        "stream_options": {"include_usage": True},
-    }
+    """Send requests, concurrency at a time. Without a model, use the one the server lists."""
+    base = api_base(base_url)
+    if api_key:
+        check_key_transport(base, insecure_http)
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     sem = asyncio.Semaphore(concurrency)
 
-    async with httpx.AsyncClient(timeout=timeout_s, headers=headers) as client:
+    async with httpx.AsyncClient(timeout=timeout_s, headers=headers, transport=transport) as client:
+        if model is None:
+            listing = await client.get(f"{base}/models")
+            listing.raise_for_status()
+            model = only_model(listing.json())
+        url = f"{base}/chat/completions"
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": max_tokens,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
 
         async def bounded() -> Sample:
             async with sem:
@@ -121,4 +168,4 @@ async def run(
         start = time.perf_counter()
         samples = await asyncio.gather(*(bounded() for _ in range(requests)))
         wall = time.perf_counter() - start
-    return summarize(list(samples), wall)
+    return {"model": model, **summarize(list(samples), wall)}

@@ -21,7 +21,7 @@
 | **Export (workload export)** | One JSON file (`einsora.workload-export/v1`) with everything recorded about a workload: inputs, timeline, usage, and redactions. `einsora export <id>`, or **Download full log** in the dashboard (ADR-0015). |
 | **Fallback** | An opt-in substitute (another GPU class, CPU, machine, replica, model, or region) used when the requested one is unavailable (ADR-0010) |
 | **Gateway API** | The Kubernetes ingress API that succeeds Ingress (Datacenter) |
-| **GGUF** | A code-free model file format used by llama.cpp. Allowed once the validator checks it (ADR-0013). |
+| **GGUF** | A code-free model file format used by llama.cpp: one file holds the weights, tokenizer, and chat template. `einsora-ml validate --format gguf` checks it (ADR-0013); endpoints load it once a driver runs llama.cpp. |
 | **GPU class** | A catalog entry for what a workload runs on (`l40s-48gb`, `apple-silicon-32gb`, `cpu-4c-16g`), with its accelerator kind and the regions offering it. CPU classes are classes too. |
 | **GPU Operator** | NVIDIA operator that installs the driver, toolkit, device plugins, vfio-manager, MIG manager, and DCGM (Datacenter) |
 | **Host** | The owner of a machine that runs workloads. Can see guest data on their own machine. |

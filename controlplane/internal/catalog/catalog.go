@@ -271,15 +271,16 @@ func validateImage(img Image, seen map[string]bool) error {
 	return nil
 }
 
-// validatedFormats are the model formats einsora-ml validate checks (rule 6). GGUF joins when the
-// validator checks GGUF headers (roadmap step 10); until then, runtimes that load it can't be used.
-var validatedFormats = map[string]bool{"safetensors": true}
+// servedFormats are the model formats endpoints may load. Every driver that serves one checks the
+// model with einsora-ml validate in that format first (rule 6). The validator checks GGUF, but no
+// driver runs llama.cpp yet (roadmap step 10b), so runtimes that load GGUF can't be used.
+var servedFormats = map[string]bool{"safetensors": true}
 
 // LaunchRuntime selects the actual driver runtime and enforces the model-format gate again after
 // placement. A later driver's candidate cannot bypass validation of the default candidate.
 func (img Image) LaunchRuntime(a domain.AcceleratorKind, driver string) (Runtime, bool) {
 	r, ok := img.RuntimeForDriver(a, driver)
-	return r, ok && (img.Kind != domain.KindEndpoint || validatedFormats[r.ModelFormat])
+	return r, ok && (img.Kind != domain.KindEndpoint || servedFormats[r.ModelFormat])
 }
 
 // CheckLaunch decides whether a tenant in tier may run a workload of kind with img on class in
@@ -310,8 +311,8 @@ func CheckLaunch(tier domain.IsolationTier, class GPUClass, img Image, kind doma
 	if class.Accelerator == domain.AcceleratorApple && img.Kind != domain.KindVM && tier != domain.TierTrusted {
 		return invalid("on Apple Silicon, %ss run natively on macOS, which only the machine's owner may do; use a VM", img.Kind)
 	}
-	if img.Kind == domain.KindEndpoint && !validatedFormats[runtime.ModelFormat] {
-		return invalid("on %s, endpoints are served by %s, which loads %s models; those aren't accepted until einsora-ml validate checks them (rule 6)",
+	if img.Kind == domain.KindEndpoint && !servedFormats[runtime.ModelFormat] {
+		return invalid("on %s, endpoints are served by %s, which loads %s models and isn't available yet",
 			class.Accelerator, runtime.Server, runtime.ModelFormat)
 	}
 	return runtime, nil

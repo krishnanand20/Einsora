@@ -29,7 +29,7 @@ guests from each other, and be honest that hosts can see guest data. See
 | Path | Owns | Language / tooling |
 |---|---|---|
 | `controlplane/` | The `einsora` binary: REST API, controller, usage accounting (`metering`), the node agent (in-process for Solo), and the planned drivers, `einsora up`, and inference gateway. Must build for linux/amd64, linux/arm64, and darwin/arm64. | Go 1.27, stdlib `net/http`, pgx, modernc.org/sqlite (pure Go), client-go, goose, golangci-lint |
-| `ml/` | ML layer: model validation (safetensors; GGUF planned), ingestion, endpoint benchmarking, GPU burn-in (CUDA; Metal planned) | Python 3.12, uv, ruff, mypy, pytest |
+| `ml/` | ML layer: model validation (safetensors and GGUF), ingestion, endpoint benchmarking, GPU burn-in (CUDA and Metal) | Python 3.12, uv, ruff, mypy, pytest |
 | `web/` | Dashboard (to be embedded in the binary for Solo) | TypeScript, React, Vite, TanStack Query |
 | `deploy/` | **Datacenter profile:** cluster add-ons (helmfile), `cluster-config` chart, `einsora` chart | Helm, helmfile, Kustomize |
 | `infra/` | **Datacenter profile:** Linux server bootstrap (OS, IOMMU/VFIO, k3s, WireGuard) | Ansible, bash |
@@ -67,7 +67,7 @@ touched and report the actual output. If a tool is missing, say so — do not cl
 3. **Tenant resources are isolated per tenant.** In a datacenter they live in the namespace `t-<slug>` with the labels in `internal/cluster/labels.go`. On agents, each workload gets its own sandbox or VM, data directory, and network rules. Never share them between tenants.
 4. **Untrusted code runs only behind strong isolation, per the trust matrix** in `docs/architecture/tenancy-and-isolation.md`. Invited and community users get VMs, Kata, or Linux-in-VM containers; native macOS execution and plain runc are for owners only. No GPU time-slicing between different users.
 5. **Usage accounting comes from allocation intervals** (workload lifecycle events), not utilization. It drives quotas, fair share, and reports. **There is no billing** ([ADR-0011](docs/adr/0011-free-for-everyone.md)).
-6. **Model weights must be in a code-free format:** safetensors, or GGUF once `einsora-ml validate` supports it ([ADR-0013](docs/adr/0013-node-agent-and-apple-silicon.md)). Never pickle, and never `trust_remote_code`. The validator (`ml/src/einsora_ml/validate.py`) is the enforcement point.
+6. **Model weights must be in a code-free format:** safetensors or GGUF ([ADR-0013](docs/adr/0013-node-agent-and-apple-silicon.md)), checked by `einsora-ml validate` in the format their server loads. Never pickle, and never `trust_remote_code`. The validator (`ml/src/einsora_ml/validate.py`) is the enforcement point.
 7. **Every workload state change goes through `service.Transition`**, which validates against `domain` state rules and appends a `workload_events` row. Usage accounting depends on those rows. Never write `state` directly.
 8. **Every store query that touches tenant data is scoped by tenant ID.** A request from tenant B for tenant A's object returns 404, never 403 (don't leak existence).
 9. **Every workload belongs to exactly one region, and its data never leaves that region** unless the user explicitly opts in. Solo has one region, `local` ([ADR-0009](docs/adr/0009-regions-global-control-plane-regional-cells.md)). Every workload, machine, and usage record carries its region; each controller reconciles one (`EINSORA_REGION`); a machine hosts only workloads in its own region. New code must not assume a single region.

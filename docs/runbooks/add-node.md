@@ -8,7 +8,7 @@ Every machine belongs to one region (ADR-0009), so use that region's inventory a
 2. In the dashboard: Machines → Add machine → copy the enrolment token.
 3. On the new machine, run `einsora agent --join <token>`. The agent dials out, so no ports need opening.
 4. **Check:** the machine shows Online, with the right CPU, RAM, and accelerators (NVIDIA GPUs, or the Apple GPU and its unified memory).
-5. **Burn-in** if it has a GPU: `einsora-ml burnin` (CUDA today; Metal planned).
+5. **Burn-in** if it has a GPU: `einsora-ml burnin` (CUDA on NVIDIA, Metal on a Mac; see [ml/README.md](../../ml/README.md#burn-in-a-gpu)).
 6. **Sharing level:** new machines are **private**. Change this only if the owner wants to share (ADR-0014).
 
 ## Datacenter: add a Kubernetes node

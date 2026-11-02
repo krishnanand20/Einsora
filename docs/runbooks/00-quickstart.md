@@ -48,7 +48,7 @@ again the next time. Every `EINSORA_*` setting in [.env.example](../../.env.exam
 
 1. **Notebook:** Launch → Notebook → "PyTorch + JupyterLab". It uses Metal on a Mac, CUDA on NVIDIA, or CPU.
 2. **Model endpoint:** Launch → Model endpoint. Pick a small model in safetensors (on a Mac, an MLX
-   model such as `hf://mlx-community/Qwen2.5-0.5B-Instruct-4bit`; GGUF arrives with roadmap step 10).
+   model such as `hf://mlx-community/Qwen2.5-0.5B-Instruct-4bit`; GGUF arrives with llama.cpp, roadmap step 10b).
    Its page shows the OpenAI-compatible base URL under **API connection**; call it with an API token
    (see [Run a model endpoint on your Mac](#run-a-model-endpoint-on-your-mac)).
 
@@ -148,8 +148,8 @@ workload deletes them. You can also explicitly choose a CPU class: the native dr
 pinned environment and supports normal CPU PyTorch operations. Native code can still use Metal, so
 the controller and agent reserve the Apple GPU exclusively while that CPU notebook runs; the
 admission timeline says so. CPU-native notebooks and GPU workloads wait for each other, even when
-there is spare CPU and memory. Usage remains on the requested CPU class. CPU endpoints still await
-GGUF validation and llama.cpp. A native notebook can't listen on a network port, so web apps started inside it (TensorBoard, Gradio) and
+there is spare CPU and memory. Usage remains on the requested CPU class. CPU endpoints await
+llama.cpp (roadmap step 10b). A native notebook can't listen on a network port, so web apps started inside it (TensorBoard, Gradio) and
 JupyterLab's debugger don't work yet; this keeps code in a notebook from getting your dashboard session. Its
 sockets and temporary files are in `~/.einsora/run` (`EINSORA_AGENT_RUN_DIR`).
 
@@ -183,6 +183,8 @@ Use the exact model ID returned by `/models`. `stream: true` enables SSE; `strea
 `temperature`, and `top_p`. The endpoint serves text requests for this single model; tools, images,
 alternate models, and adapters are refused. It serializes generation and returns 503 while busy.
 The API accepts up to 1 MiB per request, 8192 prompt-plus-output tokens, and 4096 output tokens.
+To measure it, run `einsora-ml bench` with the same URL and token, one request at a time
+([Benchmark an endpoint](../../ml/README.md#benchmark-an-endpoint)).
 
 For private model downloads, start `einsora` with `HF_TOKEN` or the standard explicit AWS credential
 environment variables (and `AWS_ENDPOINT_URL_S3` for another S3-compatible store). Credentials never
@@ -221,7 +223,7 @@ NVIDIA GPU's exact catalog model. If no NVIDIA runtime is usable, only CPU is ad
 request waits and is never silently converted to CPU. An NVIDIA model endpoint uses the same API
 connection and local API-token flow as the Mac example, with a vLLM-supported safetensors model
 such as `hf://Qwen/Qwen2.5-0.5B-Instruct`. Only the validated local snapshot is loaded; GGUF and
-CPU endpoints remain blocked until step 10.
+CPU endpoints wait for llama.cpp (roadmap step 10b).
 
 Each workload has a non-root container, resource limits, private directories and network, and no
 published ports. Notebook **Open** and the endpoint API use the existing access proxy and private
