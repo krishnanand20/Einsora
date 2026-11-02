@@ -4,7 +4,7 @@ import { useNavigate } from "react-router";
 
 import { api } from "../api/client";
 import type { CreateWorkload, WorkloadKind } from "../api/types";
-import { launchableClasses, runtimeFor } from "../workloads";
+import { launchableClasses, modelField, runtimeFor } from "../workloads";
 
 const kinds: { value: WorkloadKind; label: string }[] = [
   { value: "endpoint", label: "Model endpoint" },
@@ -37,7 +37,9 @@ export function LaunchPage() {
   const regionId = region || regions[0]?.id || "";
   const gpus = launchableClasses(catalog.data.gpu_classes, image, regionId);
   const gpu = gpus.find((g) => g.id === classId) ?? gpus[0];
-  const server = gpu && kind === "endpoint" ? runtimeFor(image, gpu.accelerator)?.server : undefined;
+  const runtime = gpu && kind === "endpoint" ? runtimeFor(image, gpu.accelerator) : undefined;
+  const server = runtime?.server;
+  const model = modelField(runtime?.model_format);
 
   function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -128,8 +130,8 @@ export function LaunchPage() {
         )}
         {kind === "endpoint" && (
           <label>
-            Model (safetensors only)
-            <input name="model_uri" required placeholder="hf://Qwen/Qwen2.5-0.5B-Instruct" />
+            {model.label}
+            <input name="model_uri" required placeholder={model.placeholder} />
           </label>
         )}
         {create.isError && <p className="error">{create.error.message}</p>}

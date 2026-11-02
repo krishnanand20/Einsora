@@ -1,0 +1,7 @@
+# Native llama.cpp endpoint runtime: the Python worker that fetches a GGUF model and validates it,
+# then execs the pinned llama-server (llamacpp.go). Only pinned wheels from llama-server.txt are
+# installed, at the versions the MLX runtime uses. Rebuild from this directory with:
+# MACOSX_DEPLOYMENT_TARGET=14.0 uv pip compile llama-server.in --python-version 3.12 --python-platform aarch64-apple-darwin \
+#   --generate-hashes --no-header -o llama-server.txt
+huggingface-hub==2.4.0
+boto3==1.43.123

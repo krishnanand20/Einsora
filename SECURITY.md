@@ -29,6 +29,7 @@ The full model, including the trust matrix for each runtime, is in
 - Guest workloads can't reach the host's files or LAN. Community workloads have no internet by default.
 - Sharing a machine is opt-in by its owner, and the owner can reclaim it instantly.
 - Model weights must be code-free: safetensors or GGUF, with their headers checked by `einsora-ml validate`. A model's chat template (in `tokenizer_config.json`, or inside a GGUF file) is a Jinja template the model server renders in a sandboxed engine; the validator doesn't examine it. `trust_remote_code` is never enabled.
+- Model servers are pinned (vLLM by version, MLX and the workers' Python packages by hash, llama.cpp by SHA-256 on Macs and by image digest in Docker) and listen only on a private Unix socket. The access proxy forwards only `/v1/models` and the two completion routes to them.
 - In a datacenter, tenant pods don't mount a ServiceAccount token, and users never get Kubernetes API access.
 - The API has no runtime credentials. Agents use per-machine mTLS certificates that can be revoked.
 - No secrets in git.

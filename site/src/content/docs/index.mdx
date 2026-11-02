@@ -24,8 +24,8 @@ import { Aside, Card, CardGrid, LinkCard, Steps, TabItem, Tabs } from '@astrojs/
 
 <Aside type="caution" title="Early, and built in the open">
 Einsora is **pre-release**. Built from source, `einsora up` runs it today: notebooks and model
-endpoints on Apple Silicon Macs (Metal) and on Linux (Docker with NVIDIA), with the dashboard, API,
-and complete logs. Packages (Homebrew, an install script) and the rest of the CLI are next. See the
+endpoints on Apple Silicon Macs (Metal or CPU) and on Linux (Docker, with NVIDIA or CPU), with the
+dashboard, API, and complete logs. Packages (Homebrew, an install script) and the rest of the CLI are next. See the
 [roadmap](product/roadmap/) for exactly what's built.
 </Aside>
 
@@ -37,8 +37,9 @@ and complete logs. Packages (Homebrew, an install script) and the rest of the CL
 		with CUDA on NVIDIA, or plain CPU. **Built.**
 	</Card>
 	<Card title="Model endpoints" icon="rocket">
-		An OpenAI-compatible API for an open model: MLX on Macs, vLLM on NVIDIA. Only code-free weights
-		(safetensors) are served, never pickle or remote code. **Built.**
+		An OpenAI-compatible API for an open model: MLX on Macs and vLLM on NVIDIA for safetensors, and
+		llama.cpp for GGUF on Macs, NVIDIA, or CPU. Only code-free weights are served, never pickle or
+		remote code. **Built**; llama.cpp's first runs on real hardware are next.
 	</Card>
 	<Card title="GPU VMs" icon="puzzle">
 		A full VM with root over SSH: KVM with whole-GPU passthrough on Linux, macOS guests with Metal on
@@ -130,8 +131,8 @@ Read the [architecture overview](architecture/overview/) for the full picture.
 		([logs and transparency](architecture/logs-and-transparency/)).
 	</Card>
 	<Card title="Safe models" icon="document">
-		Model files are checked before they're served: safetensors only, no pickle, no custom model code,
-		no `trust_remote_code`. Loading is exactly what an attacker wants, so the validator never loads.
+		Model files are checked before they're served: safetensors or GGUF only, no pickle, no custom model
+		code, no `trust_remote_code`. Loading is exactly what an attacker wants, so the validator never loads.
 	</Card>
 	<Card title="Your data stays in its region" icon="information">
 		Every workload belongs to one region and its data never leaves it unless you opt in. Fallbacks are

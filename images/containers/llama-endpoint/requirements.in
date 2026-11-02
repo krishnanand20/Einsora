@@ -1,0 +1,6 @@
+# The llama.cpp endpoint image's Python worker: it fetches a GGUF model and validates it, then execs
+# llama-server. The same versions as the native runtimes. Rebuild from this directory with:
+# uv pip compile requirements.in --python-version 3.12 --universal --generate-hashes --no-header \
+#   -o requirements.txt
+huggingface-hub==2.4.0
+boto3==1.43.123

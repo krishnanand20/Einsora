@@ -694,7 +694,7 @@ func (d *Driver) workerCode(st state, exited bool) protocol.Code {
 	}
 	if exited {
 		switch status.Code {
-		case protocol.CodeModelRejected, protocol.CodeImage, protocol.CodeDriverProblem:
+		case protocol.CodeModelRejected, protocol.CodeModelNotFound, protocol.CodeImage, protocol.CodeDriverProblem:
 			return status.Code
 		}
 		return fallback

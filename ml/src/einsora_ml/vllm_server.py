@@ -8,8 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-from einsora_ml.ingest import ModelRejectedError
-from einsora_ml.local import fetch_model
+from einsora_ml.local import failure, fetch_model
 
 
 def server_command(
@@ -91,15 +90,9 @@ def main() -> int:
         # A fresh process image establishes offline mode before Hub/Transformers are imported.
         os.execvpe(sys.executable, command, environ)  # noqa: S606 - pinned interpreter and fixed module
     except Exception as exc:
-        code = (
-            "model-rejected"
-            if isinstance(exc, ModelRejectedError)
-            else "image-unavailable"
-            if phase == "fetching"
-            else "driver-problem"
-        )
+        code, detail = failure(exc, phase)
         stage("failed", code)
-        print(json.dumps({"stage": phase, "error_type": type(exc).__name__}), file=sys.stderr)
+        print(json.dumps(detail), file=sys.stderr)
         return 1
     return 0
 

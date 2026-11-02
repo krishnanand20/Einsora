@@ -152,10 +152,12 @@ images:
         driver_refs:
           macos-native: jupyterlab-pytorch-mps
 
+  # Endpoints: the image decides the model's format. Both serve one validated model, fetched into
+  # the workload's own storage, behind an OpenAI-compatible API on a private Unix socket.
   - id: openai-endpoint
-    display_name: OpenAI-compatible model endpoint
+    display_name: OpenAI-compatible model endpoint (safetensors)
     kind: endpoint
-    description: Serve a Hugging Face or S3 model behind an OpenAI-compatible API, with vLLM on NVIDIA, MLX on Apple Silicon, or llama.cpp.
+    description: Serve a safetensors model (Hugging Face or S3) behind an OpenAI-compatible API with vLLM on NVIDIA or MLX on Apple Silicon.
     runtimes:
       - accelerators: [nvidia]
         server: vllm
@@ -169,7 +171,25 @@ images:
         ref: mlx-lm # pinned MLX runtime, validated safetensors, private Unix socket
         driver_refs:
           macos-native: mlx-lm
-      - accelerators: [nvidia, apple, amd, cpu]
+
+  - id: gguf-endpoint
+    display_name: OpenAI-compatible model endpoint (GGUF, llama.cpp)
+    kind: endpoint
+    description: >-
+      Serve one GGUF model behind an OpenAI-compatible API with llama.cpp, on Apple Silicon, NVIDIA, or CPU.
+      Name its quantization, as in hf://org/model-GGUF:Q4_K_M, or an S3 prefix holding one model.
+    # Node agents only: no Kubernetes runtime serves GGUF, so the Datacenter catalog doesn't offer it.
+    runtimes:
+      - accelerators: [nvidia]
         server: llama.cpp
-        model_format: gguf # refused until a driver runs llama.cpp (roadmap step 10b)
-        ref: llama-server # docker and macos-native drivers (planned)
+        model_format: gguf
+        ref: llama-server
+        driver_refs:
+          docker: ghcr.io/krishnanand20/einsora-llama-endpoint:0.1.0-cuda # images/containers/llama-endpoint/
+      - accelerators: [apple, cpu]
+        server: llama.cpp
+        model_format: gguf
+        ref: llama-server
+        driver_refs:
+          macos-native: llama-server # pinned llama.cpp release, checked by SHA-256 (ADR-0022)
+          docker: ghcr.io/krishnanand20/einsora-llama-endpoint:0.1.0

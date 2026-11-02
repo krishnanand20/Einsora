@@ -402,3 +402,23 @@ def test_unreadable_file_is_a_problem(tmp_path: Path) -> None:
     finally:
         (tmp_path / "model.gguf").chmod(0o600)
     assert any("can't be read" in p for p in report.problems), report.problems
+
+
+def test_exclude_is_only_for_top_level_files(tmp_path: Path) -> None:
+    write_gguf(tmp_path / "model.gguf")
+    (tmp_path / "einsora-manifest.json").write_text("{}")
+    report = validate_model_dir(tmp_path, model_format="gguf")
+    assert any("einsora-manifest.json" in p for p in report.problems)
+    exclude = frozenset({"einsora-manifest.json"})
+    report = validate_model_dir(tmp_path, model_format="gguf", exclude=exclude)
+    assert report.ok, report.problems
+    assert report.files == ["model.gguf"]
+    # Deeper, the same name is part of the model, and checked as such.
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "einsora-manifest.json").write_text("{}")
+    assert not validate_model_dir(tmp_path, model_format="gguf", exclude=exclude).ok
+    (tmp_path / "sub" / "einsora-manifest.json").unlink()
+    # A symlink by that name is still refused.
+    (tmp_path / "einsora-manifest.json").unlink()
+    (tmp_path / "einsora-manifest.json").symlink_to(tmp_path / "model.gguf")
+    assert not validate_model_dir(tmp_path, model_format="gguf", exclude=exclude).ok

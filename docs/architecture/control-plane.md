@@ -162,7 +162,7 @@ vocabulary, never from raw runtime messages, and `service.CleanReason` cleans ev
   - a driver's per-machine limit holds (`macos-vz`: two macOS VMs per Mac).
 - **Agents check too:** an agent refuses a driver it doesn't have, weak isolation for a workload that needs strong, a notebook or VM asked to move to another driver, and starting a workload while any other is still active on the GPU it needs. It deletes data only for a workload listed for removal; one it wasn't told about is stopped and kept.
 - **Attempts:** each admission is a new attempt (`workloads.attempt`). An agent starts an attempt at most once, so a workload that failed or stopped by itself isn't restarted until it's started again, and drivers report which attempt a status is about. A workload still running another attempt is stopped first (keeping its data), and its GPU counts as taken until it has; attempts are compared for equality, so a restored database's lower count still runs. A status answers the controller only for the attempt and mode (run, park, or remove) the store expects, and only once the agent has applied them; before that, even no status at all reads as still in progress.
-- **Native CPU on Macs:** CPU notebooks use the pinned native Jupyter environment. Owner code can still use Metal, so controller placement and the agent reserve the Apple GPU exclusively while one is active, including preparing or stopping. Its admission reason explains this; usage stays on its CPU class. CPU endpoints await llama.cpp (roadmap step 10b).
+- **Native CPU on Macs:** CPU notebooks use the pinned native Jupyter environment, and CPU endpoints run llama.cpp with no GPU device (`--device none`). Owner code can still use Metal, so controller placement and the agent reserve the Apple GPU exclusively while one is active, including preparing or stopping. Its admission reason explains this; usage stays on its CPU class.
 - **Machine identity:** the in-process agent's machine is found by the ID saved in `machine-id` next to the SQLite database (or in `EINSORA_AGENT_STATE_DIR`), never by hostname, so renaming the Mac changes only its label. Its owner and region never change.
 - **After a restart**, the agent backend reports that it's settling until every machine in its region has reconnected (at most 45 seconds), and the controller admits nothing meanwhile. An unknown status decides nothing, not even the provisioning timeout; a machine that stays away is reported failed after 10 minutes.
 - **The agent backend runs with SQLite** (Solo) until agents join over the network (Phase 2): with Postgres, controllers on several hosts could share a region while each sees only its own machine.
@@ -194,16 +194,16 @@ vocabulary, never from raw runtime messages, and `service.CleanReason` cleans ev
 
 Every tenant also gets a namespace bundle: PSA baseline, a GPU `ResourceQuota`, a default-deny NetworkPolicy, Gateway ingress, and image-clone RBAC.
 
-**Agents** (ADR-0013, ADR-0017, [ADR-0018](../adr/0018-linux-docker-driver.md)). Built: `macos-native`
-notebooks (Apple GPU or explicit CPU) and MLX endpoints; Linux `docker` notebooks (CPU or NVIDIA) and NVIDIA vLLM endpoints.
-Linux/CUDA hardware validation is pending. VM drivers and networked agents are Phase 2. `sim` runs
+**Agents** (ADR-0013, ADR-0017, [ADR-0018](../adr/0018-linux-docker-driver.md), [ADR-0022](../adr/0022-llama-cpp-endpoints.md)). Built: `macos-native`
+notebooks (Apple GPU or explicit CPU), MLX endpoints, and llama.cpp endpoints (Apple GPU or CPU); Linux `docker` notebooks
+(CPU or NVIDIA), NVIDIA vLLM endpoints, and llama.cpp endpoints (NVIDIA or CPU). Linux/CUDA hardware validation is pending. VM drivers and networked agents are Phase 2. `sim` runs
 nothing and is for development only.
 
 | Kind | Mac | Linux |
 |---|---|---|
 | vm | macOS guest (`macos-vz`, Metal) or Linux guest (CPU) | KVM guest (`libvirt`, VFIO GPU) |
 | notebook | Native JupyterLab in a sandbox (`macos-native`, Metal or explicit CPU; built), or a Linux container in its own VM (`macos-container`, CPU) | Container (`docker`, CUDA or CPU) |
-| endpoint | MLX (`macos-native`, Metal); llama.cpp planned | vLLM (`docker`, NVIDIA); CPU llama.cpp planned |
+| endpoint | MLX with safetensors, or llama.cpp with GGUF (`macos-native`, Metal or explicit CPU) | vLLM with safetensors (`docker`, NVIDIA), or llama.cpp with GGUF (`docker`, NVIDIA or CPU) |
 
 ## API conventions
 
@@ -218,6 +218,7 @@ nothing and is for development only.
 - IDs are UUIDv7. Runtime object names derive from IDs, never from user input.
 - Workload responses include `region` and, once admitted, `placed_class`, and on agents `machine_id` and `driver`. `gpu_class` is the class requested; the two differ only after an opt-in fallback.
 - Create takes an optional `region`, checked against the catalog's regions (the first is the default). The class must be offered there, and the image must have a runtime for the class's accelerator.
+- `GET /v1/catalog` lists regions, the classes the tenant may use, and images. Each image runtime shows its accelerators and, for an endpoint, its `server` and the `model_format` it loads (`safetensors` or `gguf`), never a runtime's internal refs. An endpoint's `model_uri` is `hf://org/model`, or `hf://org/model-GGUF:TAG` to name one GGUF quantization, or `s3://bucket/prefix`.
 - `GET /v1/machines` and `GET /v1/machines/{id}` list the caller's own machines: name, region, system, CPUs,
   memory, GPUs, sharing level, how many of the caller's workloads hold each, and `status` (online if its
   agent was seen in the last 3 minutes, from the store's `last_seen_at`: the API never asks a machine).

@@ -4,9 +4,9 @@
 
 | Accelerator | Platforms | How workloads use it | Partitioning | Status |
 |---|---|---|---|---|
-| **NVIDIA** (datacenter and consumer) | Linux | CUDA in containers; VFIO passthrough to VMs | MIG on A100, H100 and newer; vGPU (licensed); time-slicing | Built (Datacenter); agent planned |
-| **Apple Silicon** (M-series GPU, unified memory) | macOS | Metal from native processes (MLX, llama.cpp, PyTorch MPS); paravirtualized Metal in macOS VMs | None | Planned (Phase 1) |
-| **CPU** | All | Everything without a GPU; small-model inference with llama.cpp | — | Planned |
+| **NVIDIA** (datacenter and consumer) | Linux | CUDA in containers; VFIO passthrough to VMs | MIG on A100, H100 and newer; vGPU (licensed); time-slicing | Built (Datacenter, and the agent's `docker` driver; live Linux validation pending) |
+| **Apple Silicon** (M-series GPU, unified memory) | macOS | Metal from native processes (MLX, llama.cpp, PyTorch MPS); paravirtualized Metal in macOS VMs | None | Built (native notebooks and endpoints); macOS VMs planned |
+| **CPU** | All | Everything without a GPU; small-model inference with llama.cpp | — | Built (notebooks, and llama.cpp endpoints on Macs and in Docker) |
 | **AMD** (ROCm) | Linux | Containers with ROCm | — | M5 |
 
 ## NVIDIA: the options

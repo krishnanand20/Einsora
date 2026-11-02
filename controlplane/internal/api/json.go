@@ -53,10 +53,12 @@ type gpuClassView struct {
 	Regions     []domain.Region        `json:"regions"` // where it's offered
 }
 
-// runtimeView says what serves an image on which accelerators, without the internal ref.
+// runtimeView says what serves an image on which accelerators, and the model format an endpoint
+// takes, without the internal ref.
 type runtimeView struct {
 	Accelerators []domain.AcceleratorKind `json:"accelerators"`
 	Server       string                   `json:"server,omitempty"`
+	ModelFormat  string                   `json:"model_format,omitempty"`
 }
 
 type imageView struct {
@@ -125,7 +127,7 @@ func toCatalogView(c catalog.Catalog) catalogView {
 	for i, img := range c.Images {
 		runtimes := make([]runtimeView, len(img.Runtimes))
 		for j, r := range img.Runtimes {
-			runtimes[j] = runtimeView{Accelerators: r.Accelerators, Server: r.Server}
+			runtimes[j] = runtimeView{Accelerators: r.Accelerators, Server: r.Server, ModelFormat: r.ModelFormat}
 		}
 		v.Images[i] = imageView{ID: img.ID, DisplayName: img.DisplayName, Kind: img.Kind, Description: img.Description, Runtimes: runtimes}
 	}

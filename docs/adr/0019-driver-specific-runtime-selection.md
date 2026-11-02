@@ -5,6 +5,10 @@
 - **Deciders:** Krishnanand
 - **Amends:** ADR-0013 (runtime selection), ADR-0018 (Docker image refs)
 
+> **Amended by [ADR-0022](0022-llama-cpp-endpoints.md) (2026-11-02):** the format gate is per driver:
+> GGUF runs with the drivers that serve llama.cpp (`docker`, `macos-native`), never Kubernetes. CPU
+> model endpoints are no longer refused, and native ones reserve the Apple GPU as CPU notebooks do.
+
 ## Context
 
 The same CPU notebook needs a container image on Linux and a pinned Python environment on macOS.

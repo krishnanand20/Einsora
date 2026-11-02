@@ -66,6 +66,8 @@ export interface GpuClass {
 export interface ImageRuntime {
   accelerators: Accelerator[];
   server?: string;
+  /** The model format an endpoint's server loads: "safetensors" or "gguf". */
+  model_format?: string;
 }
 
 export interface CatalogImage {

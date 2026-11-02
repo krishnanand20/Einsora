@@ -72,8 +72,8 @@ own address behind an access proxy and a one-time link. Browsers send cookies to
 host, so a native workload isn't allowed to listen on any network port at all: JupyterLab runs on a
 Unix socket ([ADR-0017](../decisions/0017-local-workload-access-and-native-drivers/)).
 
-**Models are data, not code.** Model files are validated before they're served: safetensors only,
-never pickle, never custom model code, never `trust_remote_code`. The validator inspects headers and
+**Models are data, not code.** Model files are validated before they're served: safetensors or GGUF
+only, never pickle, never custom model code, never `trust_remote_code`. The validator inspects headers and
 never loads weights, because loading is exactly what an attacker wants.
 
 **Every workload belongs to one region.** Its data stays there unless you opt in, and each controller

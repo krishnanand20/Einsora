@@ -32,10 +32,18 @@ def main(argv: list[str] | None = None) -> int:
         help="the weight format the model's server loads (default: safetensors)",
     )
 
-    p = sub.add_parser("ingest", help="download hf://org/model[@rev], validate, upload to s3://")
-    p.add_argument("source")
+    p = sub.add_parser(
+        "ingest", help="download hf://org/model[@rev][:TAG], validate, upload to s3://"
+    )
+    p.add_argument("source", help="a GGUF source names one quantization: hf://org/model:Q4_K_M")
     p.add_argument("dest")
     p.add_argument("--max-gb", type=float, default=200)
+    p.add_argument(
+        "--format",
+        choices=["safetensors", "gguf"],
+        default="safetensors",
+        help="the weight format the model's server loads (default: safetensors)",
+    )
 
     p = sub.add_parser("bench", help="load-test an OpenAI-compatible endpoint")
     p.add_argument("base_url", help="the server's address, or its /v1 base URL")
@@ -65,12 +73,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if report.ok else 1
 
     if args.command == "ingest":
-        from einsora_ml.ingest import ModelRejectedError, ingest
+        from einsora_ml.ingest import ModelRejectedError, ModelSourceError, ingest
 
         try:
-            _emit(ingest(args.source, args.dest, max_total_bytes=int(args.max_gb * GIB)))
+            _emit(
+                ingest(
+                    args.source,
+                    args.dest,
+                    max_total_bytes=int(args.max_gb * GIB),
+                    model_format=args.format,
+                )
+            )
         except ModelRejectedError as exc:
             _emit(exc.report.as_dict())
+            return 1
+        except ModelSourceError as exc:
+            _emit({"ok": False, "problems": [str(exc)]})
             return 1
         return 0
 

@@ -5,6 +5,10 @@
 - **Deciders:** Krishnanand
 - **Amends:** ADR-0013 (drivers), ADR-0016 (agent), ADR-0017 (local access)
 
+> **Amended by [ADR-0022](0022-llama-cpp-endpoints.md) (2026-11-02):** Docker also serves GGUF endpoints
+> with llama.cpp, on NVIDIA or CPU, from `images/containers/llama-endpoint`, so CPU endpoints are no
+> longer refused.
+
 > **Amended by [ADR-0019](0019-driver-specific-runtime-selection.md):** `driver_refs` generalizes
 > the Docker image override for per-driver selection. Legacy `container_ref` catalogs remain supported.
 

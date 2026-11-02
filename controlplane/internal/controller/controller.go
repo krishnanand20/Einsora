@@ -253,7 +253,7 @@ func (c *Controller) admit(ctx context.Context) error {
 		img, _ := c.catalog.Image(w.ImageID)
 		runtime, ok = img.LaunchRuntime(g.Accelerator, pl.driver)
 		if !ok {
-			c.transition(ctx, w, domain.StateFailed, "can't start: its image has no validated runtime for the selected driver")
+			c.transition(ctx, w, domain.StateFailed, "can't start: "+noRuntimeReason(img, g, pl.driver))
 			continue
 		}
 		placed, ok := c.place(ctx, w, pl, runtime.Server)
@@ -654,6 +654,15 @@ func (c *Controller) spec(ctx context.Context, w domain.Workload) (cluster.Spec,
 		return cluster.Spec{}, errors.New("its image has no validated runtime for its driver")
 	}
 	return spec, nil
+}
+
+// noRuntimeReason says why img has no runtime to run with driver on class g. A cluster (no driver)
+// serves only the model formats its runtimes load: GGUF endpoints run on node agents (ADR-0022).
+func noRuntimeReason(img catalog.Image, g catalog.GPUClass, driver string) string {
+	if r, ok := img.RuntimeFor(g.Accelerator); ok && img.Kind == domain.KindEndpoint && driver == "" {
+		return fmt.Sprintf("%s endpoints, which load %s models, run only on node agents, and this installation runs workloads on a cluster", r.Server, r.ModelFormat)
+	}
+	return "its image has no validated runtime for the selected driver"
 }
 
 // errRetryLater means a check couldn't be made this pass; nothing is decided.

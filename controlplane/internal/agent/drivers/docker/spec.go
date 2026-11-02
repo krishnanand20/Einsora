@@ -1,5 +1,6 @@
-// Package docker runs the machine owner's notebooks and vLLM endpoints through a local Docker
-// Engine. Its shared-kernel isolation is never used for guests (ADR-0013, the trust matrix).
+// Package docker runs the machine owner's notebooks and model endpoints (vLLM with safetensors on
+// NVIDIA, llama.cpp with GGUF on NVIDIA or CPU) through a local Docker Engine. Its shared-kernel
+// isolation is never used for guests (ADR-0013, the trust matrix).
 package docker
 
 import (
@@ -24,6 +25,8 @@ const (
 	specLabel       = "einsora.dev/spec-sha256"
 	runLabel        = "einsora.dev/run-id"
 	containerSocket = "/run/einsora/server.sock"
+	// llamaServer is llama.cpp's server in the endpoint image (images/containers/llama-endpoint).
+	llamaServer = "/app/llama-server"
 )
 
 // Device is one physical GPU. IDs are stable NVIDIA UUIDs, never ordinal positions that can change
@@ -118,10 +121,22 @@ func validateDesired(w protocol.Desired, nvidia bool) error {
 		return fmt.Errorf("NVIDIA workloads need the container toolkit and a physical GPU class")
 	case w.Accelerator != domain.AcceleratorCPU && w.Accelerator != domain.AcceleratorNVIDIA:
 		return fmt.Errorf("docker supports CPU and NVIDIA allocations only")
-	case w.Kind == domain.KindEndpoint && (w.Accelerator != domain.AcceleratorNVIDIA || w.Runtime.Server != "vllm" || w.Runtime.ModelFormat != "safetensors"):
-		return fmt.Errorf("docker endpoints need NVIDIA and the vLLM safetensors runtime")
+	case w.Kind == domain.KindEndpoint && !servesEndpoint(w):
+		return fmt.Errorf("docker endpoints need vLLM with safetensors on NVIDIA, or llama.cpp with GGUF on NVIDIA or CPU")
 	}
 	return nil
+}
+
+// servesEndpoint reports whether w is an endpoint this driver serves. The accelerator and its
+// devices are checked already.
+func servesEndpoint(w protocol.Desired) bool {
+	switch {
+	case w.Runtime.Server == "vllm" && w.Runtime.ModelFormat == "safetensors":
+		return w.Accelerator == domain.AcceleratorNVIDIA
+	case w.Runtime.Server == "llama.cpp" && w.Runtime.ModelFormat == "gguf":
+		return true
+	}
+	return false
 }
 
 func labels(instance string, w protocol.Desired) map[string]string {
@@ -169,6 +184,13 @@ func buildContainer(instance, imageID, dir, run, bundle, network, user, token st
 		config.Env = append(config.Env, "PYTHONPATH=/opt/einsora/runtime.zip", "EINSORA_NATIVE_TOKEN="+token,
 			"HF_HOME="+home+"/.cache/huggingface", "AWS_EC2_METADATA_DISABLED=true",
 			"VLLM_CACHE_ROOT="+home+"/.cache/vllm", "CUDA_CACHE_PATH="+home+"/.cache/cuda", "VLLM_NO_USAGE_STATS=1", "DO_NOT_TRACK=1")
+		if w.Runtime.Server == "llama.cpp" {
+			// The worker validates the GGUF model, then becomes llama-server: on exactly the GPUs
+			// in this container, or the CPU only, with a thread for each vCPU it may use.
+			config.Entrypoint[2] = "einsora_ml.llama_server"
+			config.Cmd = append(config.Cmd, "--server", llamaServer, "--accelerator", string(w.Accelerator), "--threads", strconv.Itoa(w.VCPUs))
+			config.Env = slices.DeleteFunc(config.Env, func(e string) bool { return strings.HasPrefix(e, "VLLM_") })
+		}
 		config.Env = append(config.Env, credentials...)
 	}
 	raw, _ := json.Marshal(config)

@@ -9,6 +9,7 @@ import {
   describeChange,
   isSettling,
   launchableClasses,
+  modelField,
   runtimeFor,
 } from "./workloads";
 
@@ -136,6 +137,13 @@ describe("launchableClasses", () => {
   it("names the server for each accelerator", () => {
     expect(runtimeFor(endpoint, "apple")?.server).toBe("mlx");
     expect(runtimeFor(endpoint, "cpu")).toBeUndefined();
+  });
+
+  it("asks for a model in the format the server loads", () => {
+    expect(modelField("gguf").placeholder).toMatch(/^hf:\/\/[^:]+:Q8_0$/);
+    expect(modelField("gguf").label).toContain("quantization");
+    expect(modelField("safetensors").label).toBe("Model (safetensors)");
+    expect(modelField(undefined).label).toBe("Model (safetensors)");
   });
 });
 

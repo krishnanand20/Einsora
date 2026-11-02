@@ -138,6 +138,7 @@ func TestCatalogHidesInternalsAndInternalOnlyClasses(t *testing.T) {
 			t.Errorf("class %v lacks accelerator or regions", class["id"])
 		}
 	}
+	formats := map[string]string{}
 	for _, i := range body["images"].([]any) {
 		img := i.(map[string]any)
 		for _, r := range img["runtimes"].([]any) {
@@ -146,6 +147,13 @@ func TestCatalogHidesInternalsAndInternalOnlyClasses(t *testing.T) {
 					t.Errorf("image %v leaks %s", img["id"], field)
 				}
 			}
+			if format, ok := r.(map[string]any)["model_format"].(string); ok {
+				formats[img["id"].(string)] = format
+			}
 		}
+	}
+	// Endpoints say which model format they take, so the dashboard can ask for the right one.
+	if formats["openai-endpoint"] != "safetensors" || formats["gguf-endpoint"] != "gguf" {
+		t.Errorf("endpoint model formats = %v", formats)
 	}
 }

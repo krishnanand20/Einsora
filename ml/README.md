@@ -6,17 +6,31 @@ The ML-specific work behind the platform, shipped as the `einsora-ml` CLI. It ru
 | Command | What it does | Where it runs |
 |---|---|---|
 | `einsora-ml validate <dir> [--format gguf]` | Enforces the model policy: code-free formats only (safetensors, or GGUF for llama.cpp), no pickle, no custom code, sane headers, a size limit | Anywhere |
-| `einsora-ml ingest hf://org/model[@rev] s3://bucket/prefix` | Downloads only allowed file types, validates them, then stores them with a sha256 manifest | A laptop today; agents and datacenter jobs later |
+| `einsora-ml ingest hf://org/model[@rev][:TAG] s3://bucket/prefix [--format gguf]` | Downloads only allowed file types (for GGUF, only the one quantization `:TAG` names), checks their sizes first, validates them, then stores them with a sha256 manifest | A laptop today; agents and datacenter jobs later |
 | `einsora-ml bench <url>` | Load-tests any OpenAI-compatible endpoint (Einsora's, vLLM, llama.cpp, MLX) and reports TTFT p50/p95 and tokens/s | Anywhere with network access |
 | `einsora-ml burnin` | Sustained matmul (bf16 on NVIDIA, fp16 on Apple GPUs), NaN checks, and a memory pattern test on every visible GPU | NVIDIA GPUs (CUDA) and Apple Silicon (Metal) |
 
 All output is JSON. A failed check exits with code 1.
 
-The native macOS driver also runs `einsora_ml.native`: a single validated MLX model on a private Unix
-socket. `local.py` fetches Hugging Face or S3 files into that workload's own storage, validates them,
-and publishes a checksum manifest. The worker restarts offline without fetch credentials before
-loading; it cannot select another model or enable remote code through an API request. MLX and its
-tokenizer dependencies are the optional `serve` extra and import only inside the serving path.
+The drivers also run this package's endpoint workers. `local.py` fetches Hugging Face or S3 files
+into the workload's own storage, validates them, and publishes a checksum manifest; on a restart it
+re-validates that snapshot instead of downloading again. Then:
+
+- `einsora_ml.native` (macOS) serves a single validated MLX model on a private Unix socket. It restarts
+  offline without fetch credentials before loading, and can't select another model or enable remote
+  code through an API request. MLX and its tokenizer dependencies are the optional `serve` extra and
+  import only inside the serving path.
+- `einsora_ml.vllm_server` (Docker, NVIDIA) execs a pinned vLLM offline.
+- `einsora_ml.llama_server` (macOS, and Docker on NVIDIA or CPU) execs a pinned llama-server
+  ([ADR-0022](../docs/adr/0022-llama-cpp-endpoints.md)) with the validated GGUF file's absolute path,
+  on the allocated devices only, with memory fitting, the host-memory prompt cache, the web UI, and
+  slots off, after removing download credentials and llama.cpp's environment settings.
+
+A GGUF source names one quantization: `hf://Qwen/Qwen3-0.6B-GGUF:Q8_0` takes the model whose file names
+carry `Q8_0`, ignoring case, and all of a split model's parts. A repository with only one model needs no
+tag, and multimodal projectors (`mmproj`) are never taken. A tag that matches no model, or several, is
+refused (status `model-not-found`) with the models the repository has; nothing is guessed. A
+quantization tag on a safetensors endpoint is refused too.
 
 The Go binary embeds these Python sources so it uses the same validator without needing a repository
 checkout at runtime. After changing `ml/src/einsora_ml/*.py`, regenerate the deterministic bundle:
@@ -74,19 +88,21 @@ server's address or its `/v1` base URL. Without `--model`, it uses the one model
 from the server's usage report; if a server doesn't send one, streamed chunks are counted instead,
 which is about one token each for llama.cpp and MLX.
 
-**An Einsora endpoint** (MLX on a Mac, vLLM on NVIDIA): use the base URL from **API connection** on the
+**An Einsora endpoint** (MLX on a Mac, vLLM on NVIDIA, llama.cpp anywhere): use the base URL from **API connection** on the
 workload's page, and an API token from **API tokens**:
 
 ```bash
 EINSORA_BENCH_API_KEY="$EINSORA_TOKEN" uv run einsora-ml bench "$BASE_URL" --concurrency 1 --requests 16
 ```
 
-A Mac endpoint generates one response at a time and answers 503 while it's busy, so keep
+An MLX endpoint on a Mac generates one response at a time and answers 503 while it's busy, so keep
 `--concurrency 1` there: more would count as errors, not load. vLLM batches requests, so on NVIDIA
 raise `--concurrency` step by step to find where latency starts to climb.
 
-**A llama.cpp or MLX server you run yourself**, to compare servers on the same machine (Einsora runs
-llama.cpp from roadmap step 10b):
+**An Einsora GGUF endpoint** (llama.cpp) runs 4 requests at a time and queues the rest, so benchmark it
+at `--concurrency 4` or less.
+
+**A llama.cpp or MLX server you run yourself**, to compare servers on the same machine:
 
 ```bash
 llama-server -m ./model.gguf --port 8081 --parallel 4     # e.g. after `brew install llama.cpp`

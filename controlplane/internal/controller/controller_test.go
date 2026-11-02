@@ -243,6 +243,25 @@ func TestWorkloadWhoseClassLeftTheCatalogFailsWithAReason(t *testing.T) {
 	}
 }
 
+// A cluster has no llama.cpp runtime: a GGUF endpoint placed on one fails, saying why, rather than
+// being handed to a runtime that can't load it (ADR-0022).
+func TestClusterRefusesFormatsOnlyAgentsServe(t *testing.T) {
+	h := newHarness(t, map[string]int{"l40s-48gb": 1})
+	w, err := h.svc.CreateWorkload(context.Background(), testutil.Acme, service.CreateWorkloadInput{
+		Name: "gguf", Kind: domain.KindEndpoint, ImageID: "gguf-endpoint", GPUClass: "l40s-48gb", GPUCount: 1,
+		ModelURI: "hf://org/model-GGUF:Q4_K_M",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.reconcile()
+	h.expect(testutil.Acme, w.ID, domain.StateFailed)
+	reasons := h.reasons(testutil.Acme, w.ID)
+	if got := reasons[len(reasons)-1]; got != "can't start: llama.cpp endpoints, which load gguf models, run only on node agents, and this installation runs workloads on a cluster" {
+		t.Errorf("reason = %q", got)
+	}
+}
+
 func TestUnreadableStatusIsNotedOnceThenTimesOut(t *testing.T) {
 	h := newHarness(t, map[string]int{"l40s-48gb": 1})
 	w := h.create(testutil.Acme, "nb", 1)

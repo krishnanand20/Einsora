@@ -1,10 +1,12 @@
 //go:build darwin
 
 // Package macosnative runs workloads natively on an Apple Silicon Mac, with the GPU through Metal
-// (ADR-0013, ADR-0017): today, JupyterLab with PyTorch (MPS) and MLX. Each workload runs as a
-// supervised process under a sandbox profile, from a uv environment built once per runtime from a
-// lock with hashes. It's weak isolation, for the machine owner's own workloads only (the trust
-// matrix); the control plane places nothing else here, and the agent checks again.
+// (ADR-0013, ADR-0017): today, JupyterLab with PyTorch (MPS) and MLX, and model endpoints with MLX
+// (safetensors) or llama.cpp (GGUF, ADR-0022). Each workload runs as a supervised process under a
+// sandbox profile, from a uv environment built once per runtime from a lock with hashes, plus, for
+// llama.cpp, a pinned release checked by SHA-256. It's weak isolation, for the machine owner's own
+// workloads only (the trust matrix); the control plane places nothing else here, and the agent
+// checks again.
 package macosnative
 
 import (
@@ -76,10 +78,11 @@ type Options struct {
 type Driver struct {
 	opts      Options
 	uv        string
-	home      string // the owner's home directory
-	runs      string // Options.Runs, resolved
-	profile   string // the sandbox profile, with the rules the driver adds
-	sandboxID string // the profile and directory mappings used by this version of the driver
+	download  *http.Client // fetches the pinned llama.cpp release
+	home      string       // the owner's home directory
+	runs      string       // Options.Runs, resolved
+	profile   string       // the sandbox profile, with the rules the driver adds
+	sandboxID string       // the profile and directory mappings used by this version of the driver
 	ctx       context.Context
 	cancel    context.CancelFunc
 	buildWG   sync.WaitGroup
@@ -134,7 +137,7 @@ func New(opts Options) (*Driver, error) {
 	}
 	sandboxSum := sha256.Sum256([]byte(profile + "\x00" + resolved(opts.State) + "\x00" + runs))
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Driver{opts: opts, uv: uv, home: home, runs: runs, profile: profile, sandboxID: hex.EncodeToString(sandboxSum[:]),
+	return &Driver{opts: opts, uv: uv, download: &http.Client{}, home: home, runs: runs, profile: profile, sandboxID: hex.EncodeToString(sandboxSum[:]),
 		ctx: ctx, cancel: cancel,
 		locks: map[uuid.UUID]*sync.Mutex{},
 		envMu: map[string]*sync.Mutex{}, trees: map[uuid.UUID][]process.Proc{}, stopping: map[uuid.UUID]bool{},
@@ -259,6 +262,10 @@ type state struct {
 	Kind      domain.WorkloadKind `json:"kind,omitempty"` // empty in older notebook state files
 	ModelURI  string              `json:"model_uri,omitempty"`
 	MemoryMiB int64               `json:"memory_mib,omitempty"`
+	// Accelerator and VCPUs are an endpoint's allocation, which llama.cpp is started with (Metal or
+	// CPU, and its threads). Empty in older state files, whose endpoints all ran MLX.
+	Accelerator domain.AcceleratorKind `json:"accelerator,omitempty"`
+	VCPUs       int                    `json:"vcpus,omitempty"`
 }
 
 // runNameLen is the length of a run directory's name: short, for socket paths.
@@ -345,10 +352,8 @@ func (d *Driver) Run(_ context.Context, w protocol.Desired) error {
 	if w.Kind == domain.KindNotebook && w.Runtime.Ref != "jupyterlab-pytorch-mps" {
 		return agent.WithCode(protocol.CodeImage, errors.New("native notebooks need the pinned Jupyter environment"))
 	}
-	if w.Kind == domain.KindEndpoint && (w.Accelerator != domain.AcceleratorApple || w.Runtime.Ref != "mlx-lm" || w.Runtime.Server != "mlx" ||
-		w.Runtime.ModelFormat != "safetensors" || w.MemoryMiB <= 0 ||
-		(!strings.HasPrefix(w.ModelURI, "hf://") && !strings.HasPrefix(w.ModelURI, "s3://"))) {
-		return agent.WithCode(protocol.CodeInvalid, errors.New("native endpoints need the MLX safetensors runtime, a model source, and a memory allocation"))
+	if w.Kind == domain.KindEndpoint && !nativeEndpoint(w) {
+		return agent.WithCode(protocol.CodeInvalid, errors.New("native endpoints need MLX with safetensors on the Apple GPU, or llama.cpp with GGUF on the Apple GPU or CPU, and a model source and memory and CPU allocations"))
 	}
 	lock, err := envs.ReadFile("envs/" + w.Runtime.Ref + ".txt")
 	if err != nil {
@@ -384,7 +389,8 @@ func (d *Driver) Run(_ context.Context, w protocol.Desired) error {
 		return err
 	}
 	next := state{Attempt: w.Attempt, Phase: phasePreparing, Run: st.Run, Token: token, Runtime: w.Runtime.Ref, Kind: w.Kind,
-		Sandbox: d.sandboxFingerprint(w.Kind), ModelURI: w.ModelURI, MemoryMiB: w.MemoryMiB}
+		Sandbox: d.sandboxFingerprint(w.Kind, w.Runtime.Ref), ModelURI: w.ModelURI, MemoryMiB: w.MemoryMiB,
+		Accelerator: w.Accelerator, VCPUs: w.VCPUs}
 	if next.Run == "" {
 		if next.Run, err = d.newRunName(); err != nil {
 			return err
@@ -614,8 +620,13 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 			return "", fmt.Errorf("uv %s: %w: %s", args[0], err, tail(out))
 		}
 	}
-	if ref == "mlx-lm" {
+	if ref == "mlx-lm" || ref == llamaRuntime {
 		if err := os.WriteFile(filepath.Join(dir, "einsora-runtime.zip"), pythonruntime.Bytes(), 0o600); err != nil {
+			return "", err
+		}
+	}
+	if ref == llamaRuntime {
+		if err := installLlamaCpp(ctx, d.download, llamaCpp, dir); err != nil {
 			return "", err
 		}
 	}
@@ -625,11 +636,10 @@ func (d *Driver) ensureEnv(ref string, lock []byte) (string, error) {
 	return dir, nil
 }
 
-// envDir is where the environment for a runtime's lock lives.
+// envDir is where the environment for a runtime's lock lives. An endpoint runtime's also holds the
+// embedded Python worker and, for llama.cpp, the pinned release, so it's named after them too.
 func (d *Driver) envDir(ref string, lock []byte) (name, dir string) {
-	if ref == "mlx-lm" {
-		lock = append(append([]byte(nil), lock...), pythonruntime.Bytes()...)
-	}
+	lock = append(append([]byte(nil), lock...), runtimeExtras(ref)...)
 	sum := sha256.Sum256(lock)
 	name = ref + "-" + hex.EncodeToString(sum[:6])
 	return name, filepath.Join(d.opts.Root, "envs", name)
@@ -769,7 +779,7 @@ func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 		// An older sandbox may allow TCP listeners. Stop its processes before reporting a failure;
 		// a new attempt can reuse the saved notebook data under the current sandbox. This also
 		// handles the old TCP state format, which has no run directory or sandbox fingerprint.
-		if (st.Run == "" || st.Sandbox != d.sandboxFingerprint(st.Kind)) && (st.Phase == phaseRunning || st.Phase == phasePreparing) {
+		if (st.Run == "" || st.Sandbox != d.sandboxFingerprint(st.Kind, st.Runtime)) && (st.Phase == phaseRunning || st.Phase == phasePreparing) {
 			d.see(id, st.Proc)
 			st.Phase, st.Code = phaseStopping, protocol.CodeSandboxChanged
 			if err := d.writeState(id, st); err != nil {
@@ -790,7 +800,8 @@ func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 					kind = domain.KindNotebook
 				}
 				d.launchInBackground(protocol.Desired{ID: id, Attempt: st.Attempt, Kind: kind,
-					ModelURI: st.ModelURI, MemoryMiB: st.MemoryMiB, Runtime: protocol.Runtime{Ref: st.Runtime}}, st, lock)
+					ModelURI: st.ModelURI, MemoryMiB: st.MemoryMiB, Accelerator: st.Accelerator, VCPUs: st.VCPUs,
+					Runtime: protocol.Runtime{Ref: st.Runtime}}, st, lock)
 			}
 		case phaseFailed:
 			s.State, s.Code = protocol.StateFailed, st.Code
@@ -811,7 +822,7 @@ func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 				if st.Kind == domain.KindEndpoint {
 					s.Code = d.endpointCode(st, true)
 				}
-			case d.healthy(ctx, d.socket(st)):
+			case d.healthy(ctx, d.socket(st), healthPath(st)):
 				s.State, s.Access = protocol.StateReady, &protocol.Access{Socket: d.socket(st), Token: st.Token}
 			default:
 				s.State, s.Code = protocol.StateProgressing, protocol.CodeStarting
@@ -827,15 +838,16 @@ func (d *Driver) Statuses(ctx context.Context) ([]protocol.Status, error) {
 	return out, nil
 }
 
-// healthy reports whether the server on socket answers. Jupyter answers /api without a token.
-func (d *Driver) healthy(ctx context.Context, socket string) bool {
+// healthy reports whether the server on socket answers at path without a token: /api for Jupyter
+// and the MLX worker, /health for llama.cpp, which answers once its model is loaded.
+func (d *Driver) healthy(ctx context.Context, socket, path string) bool {
 	client := &http.Client{Timeout: healthTimeout, Transport: &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return (&net.Dialer{}).DialContext(ctx, "unix", socket)
 		},
 		DisableKeepAlives: true,
 	}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost/api", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost"+path, nil)
 	if err != nil {
 		return false
 	}

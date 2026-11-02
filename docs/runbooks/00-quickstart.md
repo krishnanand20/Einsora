@@ -47,10 +47,12 @@ again the next time. Every `EINSORA_*` setting in [.env.example](../../.env.exam
 ## Launch something
 
 1. **Notebook:** Launch → Notebook → "PyTorch + JupyterLab". It uses Metal on a Mac, CUDA on NVIDIA, or CPU.
-2. **Model endpoint:** Launch → Model endpoint. Pick a small model in safetensors (on a Mac, an MLX
-   model such as `hf://mlx-community/Qwen2.5-0.5B-Instruct-4bit`; GGUF arrives with llama.cpp, roadmap step 10b).
-   Its page shows the OpenAI-compatible base URL under **API connection**; call it with an API token
-   (see [Run a model endpoint on your Mac](#run-a-model-endpoint-on-your-mac)).
+2. **Model endpoint:** Launch → Model endpoint. The image decides the model's format: **(safetensors)**
+   for vLLM or MLX, with a small model such as `hf://mlx-community/Qwen2.5-0.5B-Instruct-4bit` on a
+   Mac, or **(GGUF, llama.cpp)** with one quantization, such as `hf://Qwen/Qwen3-0.6B-GGUF:Q8_0`, on a
+   Mac's GPU, NVIDIA, or a CPU class. Its page shows the OpenAI-compatible base URL under **API
+   connection**; call it with an API token (see [Run a model endpoint on your Mac](#run-a-model-endpoint-on-your-mac)
+   and [Run a GGUF model with llama.cpp](#run-a-gguf-model-with-llamacpp)).
 
 3. **VM** (Phase 2): Launch → GPU VM.
 
@@ -148,8 +150,8 @@ workload deletes them. You can also explicitly choose a CPU class: the native dr
 pinned environment and supports normal CPU PyTorch operations. Native code can still use Metal, so
 the controller and agent reserve the Apple GPU exclusively while that CPU notebook runs; the
 admission timeline says so. CPU-native notebooks and GPU workloads wait for each other, even when
-there is spare CPU and memory. Usage remains on the requested CPU class. CPU endpoints await
-llama.cpp (roadmap step 10b). A native notebook can't listen on a network port, so web apps started inside it (TensorBoard, Gradio) and
+there is spare CPU and memory. Usage remains on the requested CPU class. A CPU endpoint (GGUF, with
+llama.cpp) reserves the GPU the same way. A native notebook can't listen on a network port, so web apps started inside it (TensorBoard, Gradio) and
 JupyterLab's debugger don't work yet; this keeps code in a notebook from getting your dashboard session. Its
 sockets and temporary files are in `~/.einsora/run` (`EINSORA_AGENT_RUN_DIR`).
 
@@ -164,8 +166,9 @@ With the same local-account setup on macOS 14+ and Apple Silicon, launch a **Mod
 the Apple Silicon class your Mac supports, and supply a safetensors model such as
 [`hf://mlx-community/Qwen2.5-0.5B-Instruct-4bit`](https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit). The first launch installs a separate pinned MLX
 environment. Its timeline shows downloading, validation, and loading. A model must use an MLX-supported
-architecture and code-free safetensors; custom model code, pickle, and GGUF are refused. The model's
-files must fit the workload's memory allocation, and runtime overhead also needs room.
+architecture and code-free safetensors; custom model code and pickle are refused, and GGUF models go
+to the [GGUF endpoint](#run-a-gguf-model-with-llamacpp). The model's files must fit the workload's
+memory allocation, and runtime overhead also needs room.
 
 Once it is running, **API connection** on the workload page shows the OpenAI-compatible base URL.
 Alternatively, request it with `POST /v1/workloads/<id>/access`. Create an API token on **API tokens**
@@ -195,11 +198,37 @@ disablement apply to every inference request. Response headers identify region, 
 and whether a fallback was used. This access path is local to the control plane's machine; remote
 relaying and endpoint-scoped keys are Phase 2.
 
+### Run a GGUF model with llama.cpp
+
+Launch **OpenAI-compatible model endpoint (GGUF, llama.cpp)**
+([ADR-0022](../adr/0022-llama-cpp-endpoints.md)) on an Apple Silicon class (Metal) or a CPU class.
+Name one quantization of a GGUF repository, such as
+[`hf://Qwen/Qwen3-0.6B-GGUF:Q8_0`](https://huggingface.co/Qwen/Qwen3-0.6B-GGUF). The tag matches file
+names ignoring case; a split model's parts all come; a repository with only one model needs no tag;
+multimodal projectors (`mmproj`) are left out. An `s3://` prefix must hold exactly one model, as
+`einsora-ml ingest --format gguf` writes it. A tag that matches no model, or several, fails with a
+reason that says so: nothing is guessed.
+
+The first launch installs the worker's pinned Python environment and llama.cpp v0.5.0, downloaded
+from llama.cpp's GitHub releases (about 11 MB) and checked against its pinned SHA-256. Only the named
+model's files are downloaded, into the workload's own storage, then checked with
+`einsora-ml validate --format gguf` and served by llama-server on a private Unix socket: on the Mac's
+GPU, or on a CPU class with no GPU device at all. Every layer goes on the allocated device, so a model
+that doesn't fit fails instead of running partly on the CPU. A CPU endpoint still reserves the Mac's
+GPU, as a CPU notebook does.
+
+The endpoint answers `/v1/models`, `/v1/completions`, and `/v1/chat/completions`, using the chat
+template inside the GGUF file. Up to 4 requests run at a time, sharing an 8192-token context, with at
+most 4096 output tokens each; more requests wait in line. API connection, tokens, credentials, and
+response headers work as for MLX above. Benchmark it with `einsora-ml bench --concurrency 4` or less,
+so you measure the server rather than its queue.
+
 ### Run real workloads on Linux
 
-The `docker` driver runs the machine owner's notebooks on CPU or NVIDIA, and safetensors model
-endpoints on NVIDIA ([ADR-0018](../adr/0018-linux-docker-driver.md)). Linux/CUDA hardware validation
-is pending; the daemon-backed notebook test below is opt-in.
+The `docker` driver runs the machine owner's notebooks on CPU or NVIDIA, safetensors model endpoints
+on NVIDIA with vLLM, and GGUF endpoints on NVIDIA or CPU with llama.cpp
+([ADR-0018](../adr/0018-linux-docker-driver.md), [ADR-0022](../adr/0022-llama-cpp-endpoints.md)).
+Linux/CUDA hardware validation is pending; the daemon-backed notebook test below is opt-in.
 
 Use an already configured local **rootful Docker Engine**, without `userns-remap`, accepting Engine
 API 1.41–1.47 and enforcing CPU, memory, swap, and PID cgroup limits. The user running `einsora`
@@ -222,8 +251,9 @@ Sign in as the owner and launch a notebook on an available **CPU** class or a cl
 NVIDIA GPU's exact catalog model. If no NVIDIA runtime is usable, only CPU is advertised: a GPU
 request waits and is never silently converted to CPU. An NVIDIA model endpoint uses the same API
 connection and local API-token flow as the Mac example, with a vLLM-supported safetensors model
-such as `hf://Qwen/Qwen2.5-0.5B-Instruct`. Only the validated local snapshot is loaded; GGUF and
-CPU endpoints wait for llama.cpp (roadmap step 10b).
+such as `hf://Qwen/Qwen2.5-0.5B-Instruct`. Only the validated local snapshot is loaded. A GGUF
+endpoint, on NVIDIA or a CPU class, runs the `einsora-llama-endpoint` image (`-cuda` for NVIDIA) with
+a model such as `hf://Qwen/Qwen3-0.6B-GGUF:Q8_0`, as described for Macs above.
 
 Each workload has a non-root container, resource limits, private directories and network, and no
 published ports. Notebook **Open** and the endpoint API use the existing access proxy and private

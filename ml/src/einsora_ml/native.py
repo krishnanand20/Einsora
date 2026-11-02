@@ -23,8 +23,7 @@ from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any, Protocol
 
-from einsora_ml.ingest import ModelRejectedError
-from einsora_ml.local import fetch_model
+from einsora_ml.local import failure, fetch_model
 
 MAX_BODY_BYTES = 1024**2
 MAX_CONTEXT_TOKENS = 8192
@@ -389,15 +388,9 @@ def main() -> int:
             stage("ready")
             server.serve_forever()
     except Exception as exc:
-        code = (
-            "model-rejected"
-            if isinstance(exc, ModelRejectedError)
-            else "image-unavailable"
-            if phase == "fetching"
-            else "driver-problem"
-        )
+        code, detail = failure(exc, phase)
         stage("failed", code)
-        print(json.dumps({"stage": phase, "error_type": type(exc).__name__}), file=sys.stderr)
+        print(json.dumps(detail), file=sys.stderr)
         return 1
     return 0
 

@@ -21,7 +21,7 @@
 | **Export (workload export)** | One JSON file (`einsora.workload-export/v1`) with everything recorded about a workload: inputs, timeline, usage, and redactions. `einsora export <id>`, or **Download full log** in the dashboard (ADR-0015). |
 | **Fallback** | An opt-in substitute (another GPU class, CPU, machine, replica, model, or region) used when the requested one is unavailable (ADR-0010) |
 | **Gateway API** | The Kubernetes ingress API that succeeds Ingress (Datacenter) |
-| **GGUF** | A code-free model file format used by llama.cpp: one file holds the weights, tokenizer, and chat template. `einsora-ml validate --format gguf` checks it (ADR-0013); endpoints load it once a driver runs llama.cpp. |
+| **GGUF** | A code-free model file format used by llama.cpp: one file holds the weights, tokenizer, and chat template. A repository usually holds several quantizations of one model; an endpoint names one, as in `hf://org/model-GGUF:Q4_K_M`. `einsora-ml validate --format gguf` checks it (ADR-0013), and the `gguf-endpoint` image serves it (ADR-0022). |
 | **GPU class** | A catalog entry for what a workload runs on (`l40s-48gb`, `apple-silicon-32gb`, `cpu-4c-16g`), with its accelerator kind and the regions offering it. CPU classes are classes too. |
 | **GPU Operator** | NVIDIA operator that installs the driver, toolkit, device plugins, vfio-manager, MIG manager, and DCGM (Datacenter) |
 | **Host** | The owner of a machine that runs workloads. Can see guest data on their own machine. |
@@ -47,11 +47,12 @@
 | **Preempted** | (Planned) a workload stopped because a shared machine's owner reclaimed it (ADR-0014) |
 | **Profile** | One of three ways to deploy the same product: **Solo**, **Lab**, or **Datacenter** (ADR-0012) |
 | **PSA** | Pod Security Admission: per-namespace `privileged`, `baseline`, or `restricted` enforcement (Datacenter) |
+| **Quantization** | A model stored at lower precision to save memory, such as GGUF's `Q4_K_M` (about 4.8 bits per weight) or `Q8_0`. A GGUF source names one by its tag. |
 | **Reconcile** | One controller pass that makes the runtime match intent: admit, observe, park, remove |
 | **Redaction** | Replacing a secret (a password or token, for example inside a model URI) with `REDACTED` in an export. Every redaction is listed in the export, so nothing is removed silently. |
 | **Region** | One location (a home, an office, a datacenter) within a deployment. Every workload lives in exactly one, and Solo has one called `local` (ADR-0009). |
 | **Request ID** | An ID the server generates for every request, returned in `X-Request-ID` and in error bodies (`request_id`). The same ID is on every log line for that request, with the tenant and subject, so an operator can find exactly what happened and check whose request it was. |
-| **Runtime** | How a catalog image runs on a kind of accelerator: for an endpoint, vLLM on NVIDIA, MLX on Apple Silicon, or llama.cpp on anything |
+| **Runtime** | How a catalog image runs on a kind of accelerator: for an endpoint, its server and the model format it loads, such as vLLM or MLX with safetensors, or llama.cpp with GGUF on Apple Silicon, NVIDIA, or CPU |
 | **safetensors** | A tensor file format that can't execute code when loaded, unlike pickle-based `.bin` and `.pt` files |
 | **Sharing level** | Per machine: **private** (default), **invite-only**, or **community** (ADR-0014) |
 | **Store** | Where business state lives: SQLite (Solo and small Labs) or Postgres |

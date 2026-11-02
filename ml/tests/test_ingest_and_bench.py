@@ -15,7 +15,14 @@ from einsora_ml.bench import (
     percentile,
     summarize,
 )
-from einsora_ml.ingest import HFSource, S3Dest, parse_dest, parse_source
+from einsora_ml.ingest import (
+    HFSource,
+    ModelSourceError,
+    S3Dest,
+    parse_dest,
+    parse_source,
+    select_gguf,
+)
 
 
 def test_parse_source() -> None:
@@ -23,15 +30,74 @@ def test_parse_source() -> None:
         "Qwen/Qwen2.5-0.5B-Instruct", None
     )
     assert parse_source("hf://org/model@3f2a1b9").revision == "3f2a1b9"
+    assert parse_source("hf://org/model-GGUF:Q4_K_M") == HFSource("org/model-GGUF", None, "Q4_K_M")
+    assert parse_source("hf://org/model-GGUF@3f2a1b9:UD-IQ1_S") == HFSource(
+        "org/model-GGUF", "3f2a1b9", "UD-IQ1_S"
+    )
 
 
 @pytest.mark.parametrize(
     "uri",
-    ["http://x/y", "hf://only-org", "hf://org/model/extra", "hf://../etc@x", "hf://org/m@a b"],
+    [
+        "http://x/y",
+        "hf://only-org",
+        "hf://org/model/extra",
+        "hf://../etc@x",
+        "hf://org/m@a b",
+        "hf://org/m:",
+        "hf://org/m:-flag",
+        "hf://org/m:Q4:Q8",
+    ],
 )
 def test_parse_source_rejects(uri: str) -> None:
     with pytest.raises(ValueError, match="hf://"):
         parse_source(uri)
+
+
+REPO = [
+    "README.md",
+    "model-Q4_K_M.gguf",
+    "model-UD-Q4_K_M.gguf",
+    "model-Q4_K_S.gguf",
+    "model-Q8_0.gguf",
+    "mmproj-model-F16.gguf",
+    "BF16/model-BF16-00001-of-00002.gguf",
+    "BF16/model-BF16-00002-of-00002.gguf",
+]
+
+
+@pytest.mark.parametrize(
+    ("tag", "names"),
+    [
+        ("Q8_0", ["model-Q8_0.gguf"]),
+        ("q8_0", ["model-Q8_0.gguf"]),  # tags ignore case, as Hugging Face's do
+        ("Q4_K_S", ["model-Q4_K_S.gguf"]),
+        ("UD-Q4_K_M", ["model-UD-Q4_K_M.gguf"]),
+        ("BF16", ["BF16/model-BF16-00001-of-00002.gguf", "BF16/model-BF16-00002-of-00002.gguf"]),
+    ],
+)
+def test_select_gguf_by_tag(tag: str, names: list[str]) -> None:
+    assert select_gguf(REPO, tag, "hf://org/model-GGUF") == names
+
+
+@pytest.mark.parametrize(
+    ("names", "tag", "error"),
+    [
+        (REPO, "Q4_K_M", "has 2 GGUF models matching Q4_K_M"),  # never a guess between them
+        (REPO, "Q4_K", "no GGUF model in hf://org/m matches Q4_K"),  # a tag is a whole token
+        (REPO, "F16", "matches F16"),  # a projector isn't a model, and BF16 isn't F16
+        (REPO, None, "has 5 GGUF models"),
+        (["README.md", "mmproj-F16.gguf"], None, "has no GGUF model"),
+    ],
+)
+def test_select_gguf_never_guesses(names: list[str], tag: str | None, error: str) -> None:
+    with pytest.raises(ModelSourceError, match=error):
+        select_gguf(names, tag, "hf://org/m")
+
+
+def test_select_gguf_takes_the_only_model() -> None:
+    names = ["README.md", "tiny-00001-of-00002.gguf", "tiny-00002-of-00002.gguf", "mmproj.gguf"]
+    assert select_gguf(names, None, "s") == names[1:3]
 
 
 def test_parse_dest() -> None:

@@ -117,8 +117,8 @@ hardware validation is pending.
 
 | | Built | Planned |
 |---|---|---|
-| Control plane | API, lifecycle, quotas, controller, usage accounting, SQLite, Postgres, and in-memory stores, Kubernetes backend, regions, machines, and placement in the data model, timeline and log export, CLI client, local accounts, `einsora up` (Solo, with the dashboard built in), in-process agent, Mac native and Linux Docker drivers | llama.cpp endpoints, networked agents, VM drivers, packages and installers, choosing a region, fallback placement, sharing, workload output logs, activity log |
-| ML layer | Model validator (safetensors and GGUF), ingestion, benchmarking, GPU burn-in (CUDA and Metal) | GGUF downloads, for llama.cpp endpoints |
+| Control plane | API, lifecycle, quotas, controller, usage accounting, SQLite, Postgres, and in-memory stores, Kubernetes backend, regions, machines, and placement in the data model, timeline and log export, CLI client, local accounts, `einsora up` (Solo, with the dashboard built in), in-process agent, Mac native and Linux Docker drivers, endpoints with vLLM, MLX, and llama.cpp (GGUF, also on CPU) | networked agents, VM drivers, packages and installers, choosing a region, fallback placement, sharing, workload output logs, activity log |
+| ML layer | Model validator (safetensors and GGUF), ingestion and endpoint model fetching (one GGUF quantization per source), benchmarking, GPU burn-in (CUDA and Metal) | Live runs on Linux with CUDA |
 | Dashboard | Workload list, launch form, workload timeline and full-log download, Machines page, built into the binary | Sharing, usage reports |
 | Datacenter | Charts, add-ons, Ansible, runbooks (rendered and linted, not yet run on hardware) | Production validation |
 

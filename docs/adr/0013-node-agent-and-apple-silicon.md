@@ -1,6 +1,6 @@
 # 0013. Node agent and runtime drivers, with Apple Silicon Macs as first-class hosts
 
-- **Status:** Accepted (in code: the `machines` table, catalog accelerators, Apple Silicon and CPU classes, a runtime per platform, the agent backend, the in-process agent with inventory, and placement with the trust matrix; the protocol is [ADR-0016](0016-agent-protocol-and-machine-placement.md). The real drivers are roadmap step 7; agents joining over the network are Phase 2)
+- **Status:** Accepted (in code: the `machines` table, catalog accelerators, Apple Silicon and CPU classes, a runtime per platform, the agent backend, the in-process agent with inventory, and placement with the trust matrix; the protocol is [ADR-0016](0016-agent-protocol-and-machine-placement.md). The `macos-native` and `docker` drivers are built, serving MLX, vLLM, and llama.cpp ([ADR-0022](0022-llama-cpp-endpoints.md)); VM drivers and agents joining over the network are Phase 2)
 - **Date:** 2026-10-23
 - **Amends:** ADR-0001, and AGENTS.md rules 2 and 6
 

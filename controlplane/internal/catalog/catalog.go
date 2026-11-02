@@ -65,14 +65,14 @@ func (g GPUClass) OfferedIn(r domain.Region) bool {
 }
 
 // Runtime is how an image runs on some kinds of accelerator (ADR-0013): for an endpoint, vLLM on
-// NVIDIA, MLX on Apple Silicon, or llama.cpp on anything.
+// NVIDIA or MLX on Apple Silicon (safetensors), or llama.cpp on Metal, NVIDIA, or CPU (GGUF).
 type Runtime struct {
 	Accelerators []domain.AcceleratorKind `json:"accelerators"`
 	// Server names an endpoint's model server (vllm, mlx, llama.cpp), so users can see what
 	// serves them (rule 10). Empty for other kinds.
 	Server string `json:"server,omitempty"`
-	// ModelFormat is the weight format an endpoint's server loads: safetensors or gguf. A format is
-	// accepted only once einsora-ml validate checks it (rule 6).
+	// ModelFormat is the weight format an endpoint's server loads: safetensors or gguf. Its driver
+	// checks every model with einsora-ml validate in that format first (rule 6).
 	ModelFormat string `json:"model_format,omitempty"`
 	// Ref is what the backend runs. Kubernetes: a CDI DataSource (vm), a container image
 	// (notebook), or a KServe ClusterServingRuntime (endpoint). Node agents: interpreted by their
@@ -271,16 +271,25 @@ func validateImage(img Image, seen map[string]bool) error {
 	return nil
 }
 
-// servedFormats are the model formats endpoints may load. Every driver that serves one checks the
-// model with einsora-ml validate in that format first (rule 6). The validator checks GGUF, but no
-// driver runs llama.cpp yet (roadmap step 10b), so runtimes that load GGUF can't be used.
-var servedFormats = map[string]bool{"safetensors": true}
+// formatServed reports whether driver serves endpoints that load format, each model checked with
+// einsora-ml validate in that format first (rule 6). Kubernetes (no driver) serves safetensors
+// with vLLM; llama.cpp, which loads GGUF, runs on node agents' docker and macos-native drivers.
+// The sim driver runs nothing.
+func formatServed(format, driver string) bool {
+	switch format {
+	case "safetensors":
+		return true
+	case "gguf":
+		return driver == domain.DriverDocker || driver == domain.DriverMacOSNative || driver == domain.DriverSim
+	}
+	return false
+}
 
 // LaunchRuntime selects the actual driver runtime and enforces the model-format gate again after
 // placement. A later driver's candidate cannot bypass validation of the default candidate.
 func (img Image) LaunchRuntime(a domain.AcceleratorKind, driver string) (Runtime, bool) {
 	r, ok := img.RuntimeForDriver(a, driver)
-	return r, ok && (img.Kind != domain.KindEndpoint || servedFormats[r.ModelFormat])
+	return r, ok && (img.Kind != domain.KindEndpoint || formatServed(r.ModelFormat, driver))
 }
 
 // CheckLaunch decides whether a tenant in tier may run a workload of kind with img on class in
@@ -310,10 +319,6 @@ func CheckLaunch(tier domain.IsolationTier, class GPUClass, img Image, kind doma
 	// machines' owners only; invited and community users get macOS VMs there.
 	if class.Accelerator == domain.AcceleratorApple && img.Kind != domain.KindVM && tier != domain.TierTrusted {
 		return invalid("on Apple Silicon, %ss run natively on macOS, which only the machine's owner may do; use a VM", img.Kind)
-	}
-	if img.Kind == domain.KindEndpoint && !servedFormats[runtime.ModelFormat] {
-		return invalid("on %s, endpoints are served by %s, which loads %s models and isn't available yet",
-			class.Accelerator, runtime.Server, runtime.ModelFormat)
 	}
 	return runtime, nil
 }

@@ -39,9 +39,10 @@ user only sends prompts. No user code runs on the host.
 
 **Enforced in code** by `catalog.CheckLaunch`, at create, at start, and again at admission (so a changed
 catalog or tier can't be bypassed): on Apple Silicon, notebooks and endpoints run natively on macOS, so
-only trusted tenants may launch them; untrusted tenants get macOS VMs there. Endpoints are refused when
-their server loads a model format no driver serves yet: GGUF, until a driver runs llama.cpp and checks
-each model with `einsora-ml validate --format gguf` before loading it (roadmap step 10b).
+only trusted tenants may launch them; untrusted tenants get macOS VMs there. An endpoint's model format
+is checked again for the driver it's placed with (`catalog.LaunchRuntime`): GGUF only on drivers that run
+llama.cpp (`docker`, `macos-native`), never on Kubernetes. Every driver validates each model with
+`einsora-ml validate` in its format before a server loads it.
 
 On agents, placement (`controller/placement.go`, [ADR-0016](../adr/0016-agent-protocol-and-machine-placement.md))
 checks each machine:
@@ -74,11 +75,20 @@ checks each machine:
   changes an allocation to CPU. Unknown owned containers remain visible through parking and explicit
   removal, with durable cleanup records. Outbound network access includes the LAN; this is weak,
   owner-only isolation. Disk quotas and output export are still planned. Linux/CUDA validation is pending.
-- Native CPU notebooks can still use Metal (owner code controls its device choice). The controller
-  and agent therefore reserve the Apple GPU exclusively while one is active, including preparing,
-  stopping, or removing. This also prevents two native CPU notebooks from running together.
+- Native CPU notebooks and endpoints can still use Metal (owner code controls its device choice; a
+  CPU endpoint's llama.cpp is started with `--device none`, but the sandbox can't enforce that). The
+  controller and agent therefore reserve the Apple GPU exclusively while one is active, including
+  preparing, stopping, or removing. This also prevents two native CPU workloads from running together.
   Their CPU class and usage accounting are unchanged; the admission timeline states the reservation
-  ([ADR-0019](../adr/0019-driver-specific-runtime-selection.md)). CPU endpoints remain blocked.
+  ([ADR-0019](../adr/0019-driver-specific-runtime-selection.md)).
+- llama.cpp endpoints ([ADR-0022](../adr/0022-llama-cpp-endpoints.md)) run one pinned release: on Macs,
+  an archive checked by SHA-256 before it's unpacked (regular files and same-directory links only);
+  in Docker, llama.cpp's own image pinned by digest. The worker validates the GGUF model, then execs
+  llama-server with the validated file's absolute path, a private Unix socket, and its token in the
+  environment, after removing download credentials and llama.cpp's `LLAMA_*`, `AIP_*`, and `GGML_*`
+  settings. The web UI, slots, router, tools, MCP, LoRA, and host-memory prompt cache stay off, and
+  layers go only on the allocated devices with memory fitting off, so a model that doesn't fit fails rather than running partly on the CPU (rule 10). The access
+  proxy forwards only `/v1/models` and the two completion routes.
 - `macos-native` runs each workload as its own process group under `sandbox-exec` (ADR-0017). The profile
   allows writing only to the workload's data, home, and temporary directories. It denies reading or writing
   the Einsora state directory (other than reading the workload's own directory and the shared environment),
@@ -168,7 +178,8 @@ checks each machine:
 | The operator | System logs. In a datacenter, Loki access is limited to on-call staff, and audited. |
 
 **Supply chain**
-- Notebooks run catalog images or environments. Endpoints use pinned runtimes (vLLM, MLX, llama.cpp).
+- Notebooks run catalog images or environments. Endpoints use pinned runtimes: vLLM by version, MLX and
+  the workers' Python packages by hash, llama.cpp by SHA-256 (Macs) and image digest (Docker).
 - Release binaries are signed, and macOS builds are notarized (Phase 1).
 
 ## Open risks

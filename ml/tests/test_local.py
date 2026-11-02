@@ -9,8 +9,10 @@ from typing import Any
 
 import pytest
 
-from einsora_ml.ingest import ModelRejectedError, sha256_file
-from einsora_ml.local import _s3, fetch_model, safe_name
+from einsora_ml.ingest import ModelRejectedError, ModelSourceError, sha256_file
+from einsora_ml.local import _s3, failure, fetch_model, safe_name
+from einsora_ml.validate import Report
+from test_validate import gguf_bytes
 
 
 def model_files() -> dict[str, bytes]:
@@ -139,3 +141,86 @@ def test_s3_prefix_cannot_write_outside_model(
     monkeypatch.setattr("boto3.client", lambda _: client)
     with pytest.raises(ValueError, match="unsafe"):
         _s3("s3://models/tiny", tmp_path, 4096)
+
+
+@pytest.fixture
+def gguf_repo(hf: Any) -> tuple[dict[str, bytes], list[str]]:
+    files, revisions = hf
+    files.clear()
+    files.update(
+        {
+            "README.md": b"# A GGUF repository",
+            "model-Q4_K_M.gguf": gguf_bytes(),
+            "model-Q8_0.gguf": gguf_bytes(),
+            "mmproj-model-F16.gguf": gguf_bytes(architecture="clip"),
+            "config.json": b"{}",
+        }
+    )
+    return files, revisions
+
+
+def test_gguf_fetch_takes_only_the_named_quantization(tmp_path: Path, gguf_repo: Any) -> None:
+    _, downloads = gguf_repo
+    dest = tmp_path / "model"
+    manifest = fetch_model("hf://org/model-GGUF:q4_k_m", dest, 4096, model_format="gguf")
+    assert manifest["model_file"] == "model-Q4_K_M.gguf"
+    assert manifest["model_format"] == "gguf"
+    assert len(downloads) == 1
+    assert sorted(p.name for p in dest.iterdir()) == ["einsora-manifest.json", "model-Q4_K_M.gguf"]
+    # A restart re-validates the snapshot, with its manifest beside the model, and downloads
+    # nothing; the file a server loads comes from that validation.
+    assert fetch_model("hf://org/model-GGUF:q4_k_m", dest, 4096, model_format="gguf") == manifest
+    assert len(downloads) == 1
+    with pytest.raises(ValueError, match="does not match"):
+        fetch_model("hf://org/model-GGUF:q4_k_m", dest, 4096)  # another format
+
+
+@pytest.mark.parametrize(
+    ("source", "model_format", "error"),
+    [
+        ("hf://org/model-GGUF", "gguf", "has 2 GGUF models"),
+        ("hf://org/model-GGUF:Q2_K", "gguf", "matches Q2_K"),
+        ("hf://org/model:Q4_K_M", "safetensors", "names a GGUF quantization"),
+    ],
+)
+def test_gguf_source_must_name_one_model(
+    tmp_path: Path, gguf_repo: Any, source: str, model_format: str, error: str
+) -> None:
+    _, downloads = gguf_repo
+    with pytest.raises(ModelSourceError, match=error):
+        fetch_model(source, tmp_path / "model", 4096, model_format=model_format)
+    assert not downloads
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_gguf_from_s3_must_be_one_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    objects = {"m/a-Q4_K_M.gguf": gguf_bytes(), "m/b-Q8_0.gguf": gguf_bytes(), "m/x.json": b"{}"}
+    client = SimpleNamespace(
+        get_paginator=lambda _: SimpleNamespace(
+            paginate=lambda **_: [
+                {"Contents": [{"Key": k, "Size": len(v)} for k, v in objects.items()]}
+            ]
+        ),
+        get_object=lambda Bucket, Key: {"Body": io.BytesIO(objects[Key])},
+    )
+    monkeypatch.setattr("boto3.client", lambda _: client)
+    with pytest.raises(ModelRejectedError, match="more than one GGUF model"):
+        fetch_model("s3://models/m", tmp_path / "model", 4096, model_format="gguf")
+    del objects["m/b-Q8_0.gguf"]
+    manifest = fetch_model("s3://models/m", tmp_path / "model", 4096, model_format="gguf")
+    assert manifest["model_file"] == "a-Q4_K_M.gguf"
+    assert sorted(manifest["files"]) == ["a-Q4_K_M.gguf"]  # never the .json
+
+
+def test_failures_have_fixed_codes() -> None:
+    rejected = ModelRejectedError(Report(root=Path("/m"), problems=["x.bin: pickle"]))
+    assert failure(rejected, "validating") == (
+        "model-rejected",
+        {"stage": "validating", "error_type": "ModelRejectedError", "problems": ["x.bin: pickle"]},
+    )
+    code, detail = failure(ModelSourceError("no GGUF model matches Q2_K"), "fetching")
+    assert (code, detail["message"]) == ("model-not-found", "no GGUF model matches Q2_K")
+    # Anything else logs only its type: its text could carry a URL with credentials.
+    code, detail = failure(OSError("https://user:secret@host/x"), "fetching")
+    assert code == "image-unavailable" and "secret" not in json.dumps(detail)
+    assert failure(RuntimeError(), "loading")[0] == "driver-problem"

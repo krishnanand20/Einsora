@@ -15,19 +15,32 @@ import (
 	"github.com/krishnanand20/einsora/controlplane/internal/testutil"
 )
 
-// The real catalog: an endpoint is served by vLLM on NVIDIA, MLX on Apple Silicon, and llama.cpp
-// on CPU (ADR-0013).
+// The real catalog: the image decides the model format (ADR-0013, ADR-0022). Safetensors models
+// are served by vLLM on NVIDIA and MLX on Apple Silicon; GGUF models by llama.cpp on Apple Silicon,
+// NVIDIA, and CPU. Nothing serves endpoints on AMD yet.
 func TestEndpointRuntimePerAccelerator(t *testing.T) {
 	cat := testutil.Catalog(t)
-	img, ok := cat.Image("openai-endpoint")
-	if !ok {
-		t.Fatal("openai-endpoint missing from the catalog")
-	}
-	for accel, want := range map[domain.AcceleratorKind]string{
-		domain.AcceleratorNVIDIA: "vllm", domain.AcceleratorApple: "mlx", domain.AcceleratorCPU: "llama.cpp", domain.AcceleratorAMD: "llama.cpp",
+	for _, tt := range []struct {
+		image  string
+		format string
+		want   map[domain.AcceleratorKind]string
+	}{
+		{"openai-endpoint", "safetensors", map[domain.AcceleratorKind]string{
+			domain.AcceleratorNVIDIA: "vllm", domain.AcceleratorApple: "mlx", domain.AcceleratorCPU: "", domain.AcceleratorAMD: "",
+		}},
+		{"gguf-endpoint", "gguf", map[domain.AcceleratorKind]string{
+			domain.AcceleratorNVIDIA: "llama.cpp", domain.AcceleratorApple: "llama.cpp", domain.AcceleratorCPU: "llama.cpp", domain.AcceleratorAMD: "",
+		}},
 	} {
-		if r, ok := img.RuntimeFor(accel); !ok || r.Server != want {
-			t.Errorf("%s: runtime = %+v, want %s", accel, r, want)
+		img, ok := cat.Image(tt.image)
+		if !ok {
+			t.Fatalf("%s missing from the catalog", tt.image)
+		}
+		for accel, want := range tt.want {
+			r, ok := img.RuntimeFor(accel)
+			if ok != (want != "") || ok && (r.Server != want || r.ModelFormat != tt.format) {
+				t.Errorf("%s on %s: runtime = %+v, %v; want %q", tt.image, accel, r, ok, want)
+			}
 		}
 	}
 	if cat.DefaultRegion() != domain.RegionLocal {
@@ -109,6 +122,17 @@ func TestDatacenterCatalog(t *testing.T) {
 			t.Errorf("class %s has no Kubernetes resource, so the Datacenter can't run it", g.ID)
 		}
 	}
+	// Nor an endpoint whose model format Kubernetes doesn't serve, such as GGUF (ADR-0022): it would
+	// be accepted, then fail at admission.
+	for _, img := range cat.Images {
+		for _, r := range img.Runtimes {
+			for _, a := range r.Accelerators {
+				if _, ok := img.LaunchRuntime(a, ""); !ok {
+					t.Errorf("image %s on %s has no runtime Kubernetes serves", img.ID, a)
+				}
+			}
+		}
+	}
 	envs, err := filepath.Glob(filepath.Join(filepath.Dir(repoFile(t, "deploy/catalog.yaml")), "environments", "*.yaml"))
 	if err != nil || len(envs) == 0 {
 		t.Fatalf("environment files: %v, %v", envs, err)
@@ -177,7 +201,14 @@ func TestCheckLaunch(t *testing.T) {
 			return g
 		}(), macVM, "local", "", ""},
 		{"hidden class", domain.TierUntrusted, class("apple-silicon-32gb"), image("openai-endpoint"), "local", "isn't available", ""},
-		{"CPU endpoint needs llama.cpp", domain.TierTrusted, class("cpu-4c-16g"), image("openai-endpoint"), "local", "isn't available yet", ""},
+		{"safetensors endpoint on CPU", domain.TierTrusted, class("cpu-4c-16g"), image("openai-endpoint"), "local", "can't run on gpu_class", ""},
+		{"GGUF endpoint on CPU uses llama.cpp", domain.TierUntrusted, class("cpu-4c-16g"), image("gguf-endpoint"), "local", "", "llama.cpp"},
+		{"owner's GGUF endpoint on a Mac uses llama.cpp", domain.TierTrusted, class("apple-silicon-32gb"), image("gguf-endpoint"), "local", "", "llama.cpp"},
+		{"invited user's GGUF endpoint on a Mac", domain.TierUntrusted, func() catalog.GPUClass {
+			g := class("apple-silicon-32gb")
+			g.InternalOnly = false
+			return g
+		}(), image("gguf-endpoint"), "local", "only the machine's owner", ""},
 		{"NVIDIA endpoint uses vLLM", domain.TierUntrusted, class("l40s-48gb"), image("openai-endpoint"), "local", "", "vllm"},
 		{"unknown region", domain.TierTrusted, func() catalog.GPUClass {
 			g := class("l40s-48gb")
@@ -286,6 +317,12 @@ func TestRuntimeSelectionIncludesDriver(t *testing.T) {
 		{"pytorch-notebook", domain.AcceleratorCPU, domain.DriverMacOSContainer, ""},
 		{"openai-endpoint", domain.AcceleratorNVIDIA, domain.DriverDocker, "ghcr.io/krishnanand20/einsora-vllm-endpoint:0.1.0"},
 		{"openai-endpoint", domain.AcceleratorNVIDIA, "", "einsora-vllm"},
+		{"gguf-endpoint", domain.AcceleratorNVIDIA, domain.DriverDocker, "ghcr.io/krishnanand20/einsora-llama-endpoint:0.1.0-cuda"},
+		{"gguf-endpoint", domain.AcceleratorCPU, domain.DriverDocker, "ghcr.io/krishnanand20/einsora-llama-endpoint:0.1.0"},
+		{"gguf-endpoint", domain.AcceleratorApple, domain.DriverMacOSNative, "llama-server"},
+		{"gguf-endpoint", domain.AcceleratorCPU, domain.DriverMacOSNative, "llama-server"},
+		{"gguf-endpoint", domain.AcceleratorApple, domain.DriverDocker, ""},
+		{"gguf-endpoint", domain.AcceleratorNVIDIA, domain.DriverMacOSNative, ""},
 	} {
 		t.Run(tt.image+"/"+string(tt.accel)+"/"+tt.driver, func(t *testing.T) {
 			img, _ := cat.Image(tt.image)
@@ -299,17 +336,23 @@ func TestRuntimeSelectionIncludesDriver(t *testing.T) {
 
 func TestDriverCandidatesCannotBypassModelPolicy(t *testing.T) {
 	img := catalog.Image{Kind: domain.KindEndpoint, Runtimes: []catalog.Runtime{
-		{Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple}, Ref: "mlx-lm", Server: "mlx", ModelFormat: "safetensors", DriverRefs: map[string]string{domain.DriverMacOSNative: "mlx-lm"}},
-		{Accelerators: []domain.AcceleratorKind{domain.AcceleratorApple}, Ref: "llama-server", Server: "llama.cpp", ModelFormat: "gguf", DriverRefs: map[string]string{domain.DriverMacOSVZ: "llama-server"}},
+		{Accelerators: []domain.AcceleratorKind{domain.AcceleratorNVIDIA}, Ref: "einsora-vllm", Server: "vllm", ModelFormat: "safetensors", DriverRefs: map[string]string{domain.DriverDocker: "vllm:1"}},
+		{Accelerators: []domain.AcceleratorKind{domain.AcceleratorNVIDIA}, Ref: "llama-server", Server: "llama.cpp", ModelFormat: "gguf"},
 	}}
-	if _, ok := img.LaunchRuntime(domain.AcceleratorApple, domain.DriverMacOSNative); !ok {
-		t.Fatal("validated MLX runtime unavailable")
+	if r, ok := img.LaunchRuntime(domain.AcceleratorNVIDIA, domain.DriverDocker); !ok || r.ModelFormat != "safetensors" {
+		t.Fatal("validated vLLM runtime unavailable")
 	}
-	// An agent candidate with a format no driver serves must fail even though the default is safe.
-	img.Runtimes[0].DriverRefs = map[string]string{domain.DriverDocker: "unrelated"}
-	img.Runtimes[1].DriverRefs = map[string]string{domain.DriverMacOSNative: "llama-server"}
-	if r, ok := img.LaunchRuntime(domain.AcceleratorApple, domain.DriverMacOSNative); ok || r.ModelFormat != "gguf" {
-		t.Fatal("driver selection bypassed the model-format gate")
+	// Kubernetes selects the first runtime's default ref. If that's one whose format it doesn't
+	// serve, it must fail, even though another candidate is safe there.
+	img.Runtimes[0], img.Runtimes[1] = img.Runtimes[1], img.Runtimes[0]
+	if r, ok := img.LaunchRuntime(domain.AcceleratorNVIDIA, ""); ok || r.ModelFormat != "gguf" {
+		t.Fatal("Kubernetes was given a GGUF runtime")
+	}
+	for _, driver := range []string{domain.DriverDocker, domain.DriverMacOSNative, domain.DriverSim} {
+		img.Runtimes[0].Accelerators = []domain.AcceleratorKind{domain.AcceleratorCPU}
+		if r, ok := img.LaunchRuntime(domain.AcceleratorCPU, driver); !ok || r.Server != "llama.cpp" {
+			t.Errorf("%s doesn't serve GGUF", driver)
+		}
 	}
 }
 

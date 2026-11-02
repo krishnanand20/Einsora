@@ -42,6 +42,17 @@ export function runtimeFor(image: CatalogImage | undefined, accelerator: Acceler
   return image?.runtimes.find((r) => r.accelerators.includes(accelerator));
 }
 
+/** What the launch form asks for as an endpoint's model, by the format its server loads. */
+export function modelField(format: string | undefined): { label: string; placeholder: string } {
+  if (format === "gguf") {
+    return {
+      label: "Model (GGUF: name one quantization, or an S3 prefix holding one model)",
+      placeholder: "hf://Qwen/Qwen3-0.6B-GGUF:Q8_0",
+    };
+  }
+  return { label: "Model (safetensors)", placeholder: "hf://Qwen/Qwen2.5-0.5B-Instruct" };
+}
+
 /**
  * The classes a launch can use: offered in the region, able to host VMs if it's a VM, and with a
  * runtime for the image. The API checks the same; this only keeps impossible choices off the form.

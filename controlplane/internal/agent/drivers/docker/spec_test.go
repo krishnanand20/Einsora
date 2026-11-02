@@ -85,11 +85,58 @@ func TestInvalidImagesAllocationsAndGuestExecutionAreRefused(t *testing.T) {
 	if err := validateDesired(w, false); err == nil {
 		t.Error("GPU request silently became CPU when the toolkit was absent")
 	}
-	w = desired()
-	w.Kind = domain.KindEndpoint
+	// Each server loads the one format its worker validates, on the accelerators it runs on.
+	for _, tt := range []struct {
+		server, format string
+		accelerator    domain.AcceleratorKind
+		ok             bool
+	}{
+		{"vllm", "safetensors", domain.AcceleratorNVIDIA, true},
+		{"vllm", "safetensors", domain.AcceleratorCPU, false},
+		{"vllm", "gguf", domain.AcceleratorNVIDIA, false},
+		{"llama.cpp", "gguf", domain.AcceleratorCPU, true},
+		{"llama.cpp", "gguf", domain.AcceleratorNVIDIA, true},
+		{"llama.cpp", "safetensors", domain.AcceleratorCPU, false},
+		{"mlx", "safetensors", domain.AcceleratorCPU, false},
+	} {
+		w = desired()
+		w.Kind, w.Accelerator = domain.KindEndpoint, tt.accelerator
+		if tt.accelerator == domain.AcceleratorNVIDIA {
+			w.Devices, w.DeviceModels = 1, []string{"NVIDIA L40S"}
+		}
+		w.Runtime.Server, w.Runtime.ModelFormat = tt.server, tt.format
+		if err := validateDesired(w, true); (err == nil) != tt.ok {
+			t.Errorf("%s with %s on %s: err = %v", tt.server, tt.format, tt.accelerator, err)
+		}
+	}
+}
+
+func TestLlamaEndpointRunsOnlyOnItsAllocation(t *testing.T) {
+	w := desired()
+	w.Kind, w.ModelURI = domain.KindEndpoint, "hf://org/model-GGUF:Q4_K_M"
 	w.Runtime.Server, w.Runtime.ModelFormat = "llama.cpp", "gguf"
-	if err := validateDesired(w, true); err == nil {
-		t.Error("unvalidated model format was accepted")
+	c := buildContainer("instance", "image", "/state/workload", "/run/own", "/state/runtime.zip", "network", "1000:1000", "internal-key", w, nil, []string{"HF_TOKEN=fetch-key"})
+	args := strings.Join(c.Cmd, " ")
+	if c.Entrypoint[len(c.Entrypoint)-1] != "einsora_ml.llama_server" ||
+		!strings.Contains(args, "--server /app/llama-server --accelerator cpu --threads 2") || !strings.Contains(args, "--devices 0") {
+		t.Fatalf("llama.cpp worker = %v %v", c.Entrypoint, c.Cmd)
+	}
+	if c.HostConfig.Runtime != "runc" || len(c.HostConfig.DeviceRequests) != 0 || !slices.Contains(c.Env, "NVIDIA_VISIBLE_DEVICES=void") {
+		t.Fatal("a CPU endpoint was given GPUs")
+	}
+	if strings.Contains(args, "internal-key") || strings.Contains(args, "fetch-key") {
+		t.Fatal("credentials leaked to process arguments")
+	}
+	for _, e := range c.Env {
+		if strings.HasPrefix(e, "VLLM_") {
+			t.Errorf("llama.cpp container has vLLM's %s", e)
+		}
+	}
+	w.Accelerator, w.Devices, w.DeviceModels = domain.AcceleratorNVIDIA, 2, []string{"NVIDIA L40S"}
+	c = buildContainer("instance", "image", "/state/workload", "/run/own", "/state/runtime.zip", "network", "1000:1000", "internal-key", w, []string{"GPU-a", "GPU-b"}, nil)
+	if args := strings.Join(c.Cmd, " "); !strings.Contains(args, "--devices 2") || !strings.Contains(args, "--accelerator nvidia") ||
+		c.HostConfig.Runtime != "nvidia" || !slices.Contains(c.Env, "NVIDIA_VISIBLE_DEVICES=GPU-a,GPU-b") {
+		t.Fatalf("NVIDIA llama.cpp container = %v %v", c.Cmd, c.Env)
 	}
 }
 

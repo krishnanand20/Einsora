@@ -96,8 +96,14 @@ def validate_model_dir(
     root: Path,
     max_total_bytes: int = DEFAULT_MAX_TOTAL_BYTES,
     model_format: str = "safetensors",
+    *,
+    exclude: frozenset[str] = frozenset(),
 ) -> Report:
-    """Check a local model directory. Report.files lists exactly what may be uploaded."""
+    """Check a local model directory. Report.files lists exactly what may be uploaded.
+
+    exclude names regular files at the top of root that aren't part of the model, such as the
+    manifest a download writes beside it: they're neither checked nor listed. Never pass names
+    from the model's source."""
     if model_format not in FORMATS:
         raise ValueError(f"model format must be one of: {', '.join(FORMATS)}")
     report = Report(root=root, model_format=model_format)
@@ -118,6 +124,8 @@ def validate_model_dir(
             rel = (rel_dir / name).as_posix()
             if path.is_symlink():
                 report.problems.append(f"{rel}: symlinks are not allowed")
+                continue
+            if not rel_dir.parts and name in exclude and path.is_file():
                 continue
             if not path.is_file():
                 report.problems.append(f"{rel}: not a regular file")

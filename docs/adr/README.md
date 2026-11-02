@@ -14,15 +14,16 @@ identifiers to Einsora's.
 |---|---|---|
 | [0011](0011-free-for-everyone.md) | **Free for everyone:** no pricing, no billing, open source | Accepted |
 | [0012](0012-deployment-profiles.md) | **Deployment profiles:** Solo, Lab, Datacenter | Accepted (SQLite store and local accounts built; the rest planned) |
-| [0013](0013-node-agent-and-apple-silicon.md) | **Node agent and drivers; Apple Silicon Macs as first-class hosts** | Accepted (machines, accelerators, Apple and CPU classes, per-platform runtimes, and the in-process agent in code; real drivers planned) |
+| [0013](0013-node-agent-and-apple-silicon.md) | **Node agent and drivers; Apple Silicon Macs as first-class hosts** | Accepted (machines, accelerators, Apple and CPU classes, per-platform runtimes, the in-process agent, and the `macos-native` and `docker` drivers in code; VM drivers planned) |
 | [0014](0014-sharing-idle-compute.md) | **Sharing idle compute:** private, invite-only, community pools | Accepted (sharing level stored per machine; enforcement planned) |
 | [0015](0015-logs-and-transparency.md) | **Logs and transparency:** complete, exportable, nothing hidden except secrets | Accepted (timeline, export, CLI built; output and activity logs planned) |
 | [0016](0016-agent-protocol-and-machine-placement.md) | **Agent protocol and machine placement:** one long-polled `Sync`, desired state from the store, a runtime-neutral backend, placement in the controller | Proposed (in-process agent, agent backend, and placement built; network transport Phase 2) |
-| [0017](0017-local-workload-access-and-native-drivers.md) | **Workload access and native drivers:** open workloads through an access proxy at their own `*.localhost` host with one-time tickets; native drivers are supervised, sandboxed processes | Proposed (proxy, process supervisor, and `macos-native` notebooks and MLX endpoints built) |
+| [0017](0017-local-workload-access-and-native-drivers.md) | **Workload access and native drivers:** open workloads through an access proxy at their own `*.localhost` host with one-time tickets; native drivers are supervised, sandboxed processes | Proposed (proxy, process supervisor, and `macos-native` notebooks, MLX endpoints, and llama.cpp endpoints built) |
 | [0018](0018-linux-docker-driver.md) | **Linux Docker driver:** local Engine API, owner-only containers, physical NVIDIA UUIDs, private socket access, durable recovery | Proposed (implemented; live Linux/CUDA validation pending) |
 | [0019](0019-driver-specific-runtime-selection.md) | **Driver-specific runtimes:** choose by accelerator and driver; native CPU notebooks reserve Metal access explicitly | Proposed (implemented; real CPU/Metal notebook tests) |
 | [0020](0020-name-and-licence.md) | **Name and licence:** the product is TensoraFi, renamed everywhere in one change; MIT licence | Accepted (name superseded by 0021; MIT still applies) |
 | [0021](0021-rename-to-einsora.md) | **Rename to Einsora:** a US mark TENSORA is registered in the same class; every identifier renamed in one change | Accepted |
+| [0022](0022-llama-cpp-endpoints.md) | **llama.cpp endpoints:** one pinned release (checked by SHA-256 on Macs, by digest in Docker), a separate GGUF endpoint image, one quantization per source, no silent CPU offload | Proposed (implemented; real Metal and Linux runs pending) |
 | [0001](0001-kubernetes-kubevirt-gpu-operator.md) | Kubernetes, KubeVirt, and the GPU Operator | Accepted; Datacenter profile only (0012) |
 | [0002](0002-k3s-single-node-first.md) | k3s with embedded etcd | Accepted; Datacenter profile only (0012) |
 | [0003](0003-language-split.md) | Go for the core platform, Python for the ML layer, TypeScript for the dashboard | Accepted |

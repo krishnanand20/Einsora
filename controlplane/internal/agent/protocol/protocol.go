@@ -171,6 +171,7 @@ const (
 	CodeValidatingModel Code = "validating-model"
 	CodeLoadingModel    Code = "loading-model"
 	CodeModelRejected   Code = "model-rejected"
+	CodeModelNotFound   Code = "model-not-found" // its source has no model, or a GGUF tag matches none or several
 	CodePullingImage    Code = "pulling-image"
 	CodeRuntimeChanged  Code = "runtime-changed"
 )
@@ -210,9 +211,11 @@ func Reason(code Code) string {
 	case CodeValidatingModel:
 		return "checking its model against the code-free model policy"
 	case CodeLoadingModel:
-		return "loading its validated model on its machine's GPU"
+		return "loading its validated model on its machine"
 	case CodeModelRejected:
-		return "its model failed the code-free model policy; use valid safetensors weights without custom code"
+		return "its model failed the code-free model policy; use safetensors weights without custom code or, for a GGUF endpoint, one GGUF model"
+	case CodeModelNotFound:
+		return "its model source doesn't name exactly one model; check the repository or S3 prefix and, for a GGUF endpoint, the quantization tag (as in :Q4_K_M)"
 	case CodePullingImage:
 		return "preparing its container image on its machine; the first time, this downloads the image"
 	case CodeRuntimeChanged:

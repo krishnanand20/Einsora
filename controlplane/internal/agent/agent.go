@@ -446,7 +446,7 @@ func (a *Agent) Apply(ctx context.Context, desired []protocol.Desired) bool {
 		}
 		kind, devices := d.Accelerator, d.Devices
 		if d.Driver == domain.DriverMacOSNative && kind == domain.AcceleratorCPU {
-			// Native CPU notebooks can still use Metal; reserve it before starting them too.
+			// Native CPU notebooks and endpoints can still use Metal; reserve it before starting them too.
 			kind, devices = domain.AcceleratorApple, 1
 		}
 		if devices > 0 {

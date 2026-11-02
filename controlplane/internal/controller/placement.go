@@ -42,7 +42,7 @@ type slot struct {
 	memMiB    int64
 	running   map[string]int // workloads holding capacity here, per driver (for DriverSpec.MaxPerMachine)
 	appleHeld int
-	nativeCPU bool // a native CPU notebook can still use Metal, so it reserves the Apple GPU
+	nativeCPU bool // a native CPU notebook or endpoint can still use Metal, so it reserves the Apple GPU
 }
 
 // newPool builds the pass's view: capacity from the backend, minus what holding workloads use.
