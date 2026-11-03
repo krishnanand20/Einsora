@@ -35,6 +35,7 @@ guests from each other, and be honest that hosts can see guest data. See
 | `infra/` | **Datacenter profile:** Linux server bootstrap (OS, IOMMU/VFIO, k3s, WireGuard) | Ansible, bash |
 | `images/` | Launch catalog (`catalog.yaml`); notebook and VM image definitions | Dockerfile, cloud-init |
 | `docs/` | Product spec, architecture, ADRs, roadmap, runbooks, playbooks, hardware | Markdown |
+| `packaging/` | Releases ([ADR-0023](docs/adr/0023-releases-and-packaging.md)): `install.sh` (published at einsora.com/install.sh) and its test, and the Homebrew formula (`homebrew/`). GoReleaser's config is `.goreleaser.yaml`; the workflow is `.github/workflows/release.yml` | POSIX sh, GoReleaser |
 | `site/` | The website: landing page, the thinking behind Einsora, the licence, and every doc in this repo, rendered at build time (never copied) | Astro Starlight, published by Cloudflare Pages to einsora.com |
 
 ## Commands
@@ -48,6 +49,7 @@ Run from the repo root (`make help` lists everything):
 - `make test` — all tests (`make test-cp`, `make test-ml`, `make test-web` for one component)
 - `make lint` — gofmt, go vet, golangci-lint, ruff, mypy, tsc, yamllint
 - `make build-all` — cross-compile `einsora` for linux/amd64, linux/arm64, and darwin/arm64
+- `make test-packaging` — test `install.sh` against fake releases on disk, and the Homebrew formula's template; `make release-check` builds a release snapshot (needs GoReleaser; CI runs it too)
 - `make fmt` — auto-format everything
 - `make deploy-check` — render the Datacenter charts and validate with kubeconform (no cluster needed)
 

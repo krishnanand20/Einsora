@@ -1,0 +1,126 @@
+# GoReleaser (https://goreleaser.com) builds Einsora's releases (ADR-0023). The release workflow,
+# .github/workflows/release.yml, runs it for a version tag such as v0.1.0, with GoReleaser's version
+# pinned there; CI and `make release-check` build a snapshot from this file, publishing nothing.
+# How to cut a release: docs/runbooks/release.md.
+version: 2
+project_name: einsora
+
+before:
+  hooks:
+    - make web-embed # the dashboard is built into the binary
+
+builds:
+  - id: einsora
+    dir: controlplane
+    main: ./cmd/einsora
+    binary: einsora
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos: [darwin, linux]
+    goarch: [amd64, arm64]
+    ignore:
+      - goos: darwin
+        goarch: amd64 # Apple Silicon only (ADR-0013)
+    mod_timestamp: "{{ .CommitTimestamp }}" # the same source gives the same files
+
+archives:
+  - id: einsora
+    formats: [tar.gz]
+    # No version in the name, so install.sh finds the latest at releases/latest/download/<name>.
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+# The source, for the Homebrew formula, which builds from it (packaging/homebrew): `git archive` of
+# the tag, listed in the signed checksums like everything else.
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}-{{ .Version }}"
+  prefix_template: "{{ .ProjectName }}-{{ .Version }}/"
+
+checksum:
+  name_template: checksums.txt
+
+# A software bill of materials for each archive (syft, installed by the workflow).
+sboms:
+  - artifacts: archive
+
+# The checksums, which cover every file, are signed with Sigstore: keyless, with the release
+# workflow's GitHub identity, so there's no signing key to leak. install.sh checks the signature
+# when cosign is installed; the release notes say how to check it by hand.
+signs:
+  - cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--bundle=${signature}", "${artifact}", "--yes"]
+    artifacts: checksum
+
+# macOS builds aren't notarized (that needs a paid Apple Developer Program membership; ADR-0023).
+# They're signed ad hoc, as Go signs every Apple Silicon binary, and run when installed with
+# install.sh or Homebrew, which set no quarantine flag, but not from a browser download.
+
+nfpms:
+  - id: packages
+    package_name: einsora
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: Einsora
+    homepage: https://einsora.com
+    maintainer: Krishnanand <krishnanand.dma@gmail.com>
+    description: |-
+      Einsora is a free, self-hosted GPU cloud. Run einsora up to launch notebooks and
+      OpenAI-compatible model endpoints on this machine, and einsora service install to keep it
+      running in the background. Docker runs its workloads on Linux.
+    license: MIT
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    section: utils
+    priority: optional
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/einsora/LICENSE
+        file_info:
+          mode: 0644
+      - src: README.md
+        dst: /usr/share/doc/einsora/README.md
+        file_info:
+          mode: 0644
+
+# No Homebrew cask: Homebrew supports only casks that pass Gatekeeper, which needs notarizing. The
+# release workflow publishes a formula that builds from source instead (packaging/homebrew).
+
+changelog:
+  use: github
+  sort: asc
+
+release:
+  prerelease: auto
+  footer: |
+    ## Install
+
+    On a Mac or Linux:
+
+    ```bash
+    curl -fsSL https://einsora.com/install.sh | sh
+    ```
+
+    The macOS build isn't notarized by Apple, so a copy downloaded with a browser won't open: install
+    it with the script. On Debian or Ubuntu, `sudo apt install ./einsora_{{ .Version }}_<arch>.deb`; on Fedora or RHEL,
+    `sudo dnf install ./einsora-{{ .Version }}-1.<arch>.rpm`. Then
+    [start it](https://einsora.com/runbooks/00-quickstart/).
+
+    ## Verify
+
+    `checksums.txt` lists every file's SHA-256, and is signed by this repository's release workflow with Sigstore:
+
+    ```bash
+    cosign verify-blob --bundle checksums.txt.sigstore.json \
+      --certificate-identity "https://github.com/krishnanand20/Einsora/.github/workflows/release.yml@refs/tags/{{ .Tag }}" \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt
+    sha256sum --check --ignore-missing checksums.txt
+    ```
+
+    Each archive has a software bill of materials beside it (`.sbom.json`).

@@ -69,6 +69,14 @@ jobs:
       - name: ml tests (darwin/arm64)
         working-directory: ml
         run: uv sync --frozen && uv run pytest
+      - name: install script (macOS's own tools)
+        run: make test-packaging
+      - name: Homebrew formula, built and installed from this commit
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+          HOMEBREW_NO_ENV_HINTS: "1"
+        run: sh packaging/homebrew/install_test.sh
 
   ml:
     runs-on: ubuntu-latest
@@ -111,15 +119,56 @@ jobs:
             | sudo tar -xz -C /usr/local/bin kubeconform
       - run: make deploy-check
 
+  # Releases (ADR-0023): the install script, and a snapshot built from .goreleaser.yaml with the
+  # release's pinned GoReleaser, so a broken release config shows up here, not when a tag is pushed.
+  packaging:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx --from shellcheck-py shellcheck packaging/*.sh packaging/homebrew/*.sh
+      - run: make test-packaging
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: controlplane/go.mod
+          cache-dependency-path: controlplane/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: dashboard dependencies
+        working-directory: web
+        run: npm ci
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.18.3
+          args: check
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.18.3
+          args: release --snapshot --clean --skip=sign,sbom
+      - name: the snapshot has what install.sh and the formula download
+        run: |
+          for f in einsora_darwin_arm64.tar.gz einsora_linux_amd64.tar.gz einsora_linux_arm64.tar.gz; do
+            grep -q "  $f\$" dist/checksums.txt || { echo "::error::checksums.txt doesn't list $f"; exit 1; }
+          done
+          grep -Eq '  einsora-[^ ]+\.tar\.gz$' dist/checksums.txt ||
+            { echo "::error::checksums.txt doesn't list the source archive"; exit 1; }
+
   infra:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - run: uvx --from shellcheck-py shellcheck infra/scripts/*.sh
+      # Pinned, so a new Ansible release can't turn main red on its own.
+      - name: ansible collections
+        working-directory: infra/ansible
+        run: uvx --from ansible-core==2.22.0 ansible-galaxy collection install -r requirements.yml
       - name: ansible-lint
         working-directory: infra/ansible
-        run: |
-          uvx --from ansible-core ansible-galaxy collection install -r requirements.yml
-          uvx ansible-lint --offline
+        run: uvx --with ansible-core==2.22.0 ansible-lint==26.10.1 --offline
       - run: uvx yamllint -c .yamllint.yaml .

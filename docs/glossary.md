@@ -40,7 +40,8 @@
 | **Metered** | The workload states whose time is counted by usage accounting (`running`) |
 | **MIG** | Multi-Instance GPU: hardware partitioning of A100, H100, and later cards |
 | **MLX** | Apple's array framework for machine learning on Apple Silicon. Uses safetensors weights. |
-| **Operator** | Whoever runs a Einsora control plane: an individual, a team, a company, or a pool operator |
+| **Notarization** | Apple's check of a macOS program before Gatekeeper lets it run when it arrives with the quarantine flag (from a browser or a Homebrew cask). It needs a paid Apple Developer Program membership, so Einsora's builds aren't notarized: install them with the script or the Homebrew formula (ADR-0023). |
+| **Operator** | Whoever runs an Einsora control plane: an individual, a team, a company, or a pool operator |
 | **Park** | Release a workload's GPUs while keeping its disks (VM halted, notebook scaled to 0) |
 | **Passthrough** | Giving a VM exclusive, direct access to a whole PCI device through VFIO |
 | **Placement** | Where a workload actually runs: region, machine, and `placed_class` |
@@ -55,6 +56,7 @@
 | **Runtime** | How a catalog image runs on a kind of accelerator: for an endpoint, its server and the model format it loads, such as vLLM or MLX with safetensors, or llama.cpp with GGUF on Apple Silicon, NVIDIA, or CPU |
 | **safetensors** | A tensor file format that can't execute code when loaded, unlike pickle-based `.bin` and `.pt` files |
 | **Sharing level** | Per machine: **private** (default), **invite-only**, or **community** (ADR-0014) |
+| **Sigstore** | A public service for signing software without a long-lived key: a release's checksums are signed with the identity of the GitHub workflow that built it, and `cosign` checks that (ADR-0023). |
 | **Store** | Where business state lives: SQLite (Solo and small Labs) or Postgres |
 | **Sync** | The one call between an agent and the control plane: the agent reports what it has, and gets the machine's complete desired state back as soon as it changes (a long poll; ADR-0016) |
 | **Tenant** | A user or organization account. In a datacenter its objects live in namespace `t-<slug>`. |

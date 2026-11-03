@@ -22,6 +22,8 @@ src/content/docs/hardware/
 src/content/docs/product/
 src/content/docs/project/
 src/content/docs/runbooks/
+# Copied from packaging/install.sh, served at /install.sh.
+public/install.sh
 
 # macOS-specific files
 .DS_Store

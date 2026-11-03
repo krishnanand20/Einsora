@@ -180,7 +180,14 @@ checks each machine:
 **Supply chain**
 - Notebooks run catalog images or environments. Endpoints use pinned runtimes: vLLM by version, MLX and
   the workers' Python packages by hash, llama.cpp by SHA-256 (Macs) and image digest (Docker).
-- Release binaries are signed, and macOS builds are notarized (Phase 1).
+- Releases ([ADR-0023](../adr/0023-releases-and-packaging.md)) are built only by the release workflow, from a
+  tag on `main`, with its tools pinned by commit. Their checksums are signed with Sigstore, keyless, by
+  that workflow's identity, and `install.sh` refuses an archive whose SHA-256 doesn't match. macOS builds
+  aren't notarized (that needs a paid Apple membership): they're signed ad hoc, install with the script
+  or with the Homebrew formula, which builds from the signed source archive, and the quarantine flag is
+  never removed to get past Gatekeeper. The tap's token is used only by the job that publishes the formula.
+- `einsora service install` runs `einsora up` as the user, never as root: a launch agent or a systemd user
+  service, whose definition, which can hold variables the user named with `-env`, only they can read.
 
 ## Open risks
 

@@ -1,0 +1,106 @@
+# Builds and publishes a release when a version tag (v0.1.0) is pushed: archives for macOS (Apple
+# Silicon) and Linux, .deb and .rpm packages, the source, checksums signed with Sigstore, and SBOMs,
+# then, for a full release, the Homebrew formula (ADR-0023). How to cut a release:
+# docs/runbooks/release.md. Actions are pinned by commit, since these jobs can publish.
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # creates the GitHub release
+      id-token: write # cosign signs with this workflow's GitHub identity: no key to leak
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0 # tags and history, for the changelog
+          persist-credentials: false
+      - name: released from main only
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main ||
+            { echo "::error::$GITHUB_REF_NAME isn't on main: tag a commit that is"; exit 1; }
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: controlplane/go.mod
+          cache-dependency-path: controlplane/go.sum
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: dashboard dependencies
+        working-directory: web
+        run: npm ci
+      - name: tests
+        working-directory: controlplane
+        run: go test ./...
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.3 # writes the .sigstore.json bundles install.sh checks
+      - uses: anchore/sbom-action/download-syft@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.18.3
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The Homebrew formula (packaging/homebrew), which builds from the release's source archive, goes
+  # to krishnanand20/homebrew-tap for a full release, not a pre-release. Its own job, so the tap's
+  # token never meets the build, and the release's token never meets the tap.
+  homebrew:
+    needs: release
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TAP_TOKEN_SET: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+    steps:
+      - name: no tap token
+        if: env.TAP_TOKEN_SET != 'true'
+        run: echo "::notice::HOMEBREW_TAP_TOKEN isn't set, so the formula wasn't published (docs/runbooks/release.md)"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: env.TAP_TOKEN_SET == 'true'
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        if: env.TAP_TOKEN_SET == 'true'
+        with:
+          repository: krishnanand20/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+      - name: publish the formula
+        if: env.TAP_TOKEN_SET == 'true'
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          release="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          curl -fsSL --proto '=https' --proto-redir '=https' -o checksums.txt "$release/checksums.txt"
+          sha=$(awk -v f="einsora-$version.tar.gz" '$2 == f { print $1 }' checksums.txt)
+          [ -n "$sha" ] || { echo "::error::checksums.txt doesn't list einsora-$version.tar.gz"; exit 1; }
+          mkdir -p tap/Formula
+          sh packaging/homebrew/formula.sh "$release/einsora-$version.tar.gz" "$sha" >tap/Formula/einsora.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/einsora.rb
+          if git diff --cached --quiet; then
+            echo "the tap already has einsora $version"
+          else
+            git commit -m "einsora $version"
+            git push
+          fi
+          echo "Homebrew formula published: brew install krishnanand20/tap/einsora" >>"$GITHUB_STEP_SUMMARY"

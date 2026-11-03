@@ -7,6 +7,8 @@
 //   directory on GitHub, and fails on a link to nothing;
 // - turns ```mermaid blocks into diagrams drawn in the browser (src/components/MarkdownContent.astro).
 //
+// It also publishes the install script, packaging/install.sh, at /install.sh.
+//
 // Run by `npm run dev` and `npm run build`. Its output is gitignored.
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
@@ -92,6 +94,8 @@ for (const dir of generated) {
 }
 // The license page shows LICENSE itself.
 put(join(siteDir, 'src/generated/LICENSE.txt'), readFileSync(join(root, 'LICENSE'), 'utf8'));
+// https://einsora.com/install.sh is packaging/install.sh, as it is in the repository (ADR-0023).
+put(join(siteDir, 'public/install.sh'), readFileSync(join(root, 'packaging/install.sh'), 'utf8'));
 
 if (broken.length) {
 	console.error(`sync-docs: ${broken.length} broken link(s):\n${broken.map((b) => `  ${b}`).join('\n')}`);

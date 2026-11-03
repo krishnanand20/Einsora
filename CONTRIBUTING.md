@@ -27,6 +27,7 @@ flag automatically, but a folder like `~/Code` avoids the problem entirely.
 3. Use [Conventional Commits](https://www.conventionalcommits.org/): `feat(agent): add macOS GPU inventory`.
 4. Fill in the PR template, including the **isolation**, **host safety**, and **usage accounting** sections.
 5. CI must pass on Linux and macOS. At least one human reviews every PR, including those written by an agent.
+6. Maintainers publish a version by tagging a commit on `main`; the release workflow builds it ([release runbook](docs/runbooks/release.md)).
 
 ## Decisions
 
@@ -38,7 +39,8 @@ major component, needs an ADR. See [docs/playbooks/write-an-adr.md](docs/playboo
 Changes to these need a reviewer who knows the trust model:
 
 - `controlplane/internal/{api,service,store,cluster}`: tenant scoping, lifecycle, and manifests
-- agent and driver code (planned): the trust matrix, host protections, sandbox profiles
+- agent and driver code (`controlplane/internal/agent`): the trust matrix, host protections, sandbox profiles
+- releases and installs (`packaging/`, `.goreleaser.yaml`, `.github/workflows/release.yml`, `internal/autostart`): what every user downloads and runs, and how it's verified
 - `controlplane/internal/metering`: usage-accounting correctness (quotas and fairness depend on it)
 - `ml/src/einsora_ml/validate.py`: the code-free model format rule
 - `deploy/charts/cluster-config`, plus anything touching NetworkPolicy, RBAC, or RuntimeClass

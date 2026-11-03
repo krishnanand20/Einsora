@@ -1,4 +1,4 @@
-# Running an Apple Silicon Mac as a Einsora host
+# Running an Apple Silicon Mac as an Einsora host
 
 > **Status: planned (Phases 1–2, sharing in Phase 4).** This describes how the agent will use a Mac
 > ([ADR-0013](../adr/0013-node-agent-and-apple-silicon.md)). Verify each step once the agent ships.
@@ -17,8 +17,11 @@ The trust matrix in [tenancy-and-isolation.md](../architecture/tenancy-and-isola
 
 ## Set up the Mac
 
-1. **Install and join:** `brew install einsora/tap/einsora`. Then either run `einsora up` (Solo), or
-   `einsora agent --join <enrolment token from your Lab's dashboard>`. The agent dials out, so no ports need opening.
+1. **Install and join:** `curl -fsSL https://einsora.com/install.sh | sh`, or
+   `brew install krishnanand20/tap/einsora`, which builds from source ([quickstart](00-quickstart.md#install)).
+   Then either run `einsora up` (Solo), and `einsora service install` to keep it running at login, or
+   (Phase 2) `einsora agent --join <enrolment token from your Lab's dashboard>`. The agent dials out,
+   so no ports need opening.
 2. **Power:**
    - Desktops (Mac mini, Mac Studio): set "Prevent automatic sleeping when the display is off" if you want it available overnight.
    - Laptops: the agent shares only while on AC power.

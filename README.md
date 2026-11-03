@@ -27,7 +27,7 @@ the CLI or dashboard and download a complete copy. Only secrets are redacted, an
 
 | Profile | For | Install |
 |---|---|---|
-| **Solo** | One person, one machine | One binary: `einsora up` (built from source today; packages planned) |
+| **Solo** | One person, one machine | One binary: `einsora up` (built from source today; an install script and packages from the first release) |
 | **Lab** | Classes, teams, home labs, small companies, with mixed Mac and Linux machines | `einsora up` on one machine and `einsora agent` on the rest (planned) |
 | **Datacenter** | Startups at scale, enterprises, big tech | Kubernetes with KubeVirt, KServe, and the GPU Operator ([deploy/](deploy/), [infra/](infra/)) |
 
@@ -66,6 +66,9 @@ docs/           Product spec, architecture, ADRs, roadmap, runbooks, playbooks, 
 
 ## Run it on your machine
 
+From the first release, on a Mac (Apple Silicon) or Linux: `curl -fsSL https://einsora.com/install.sh | sh`,
+which checks what it downloads before installing it, or `brew install krishnanand20/tap/einsora`, then
+`einsora up`. Until then, build it from source.
 Prerequisites: Go 1.27+, [uv](https://docs.astral.sh/uv/), and Node 22+. On a Mac: `brew install go uv node`.
 
 ```bash
@@ -75,7 +78,8 @@ controlplane/bin/einsora up     # asks for your owner account, then opens the da
 
 It keeps everything in one private directory (macOS: `~/Library/Application Support/Einsora`; Linux:
 `~/.local/share/einsora`) and listens on `127.0.0.1` only. Notebooks and model endpoints run on your Mac's
-GPU (Metal) or, on Linux, in Docker with NVIDIA. See the [quickstart](docs/runbooks/00-quickstart.md).
+GPU (Metal) or, on Linux, in Docker with NVIDIA. `einsora service install` keeps it running in the
+background, starting at login. See the [quickstart](docs/runbooks/00-quickstart.md).
 
 ## Develop it (no GPU needed; runs on macOS and Linux)
 
@@ -117,7 +121,7 @@ hardware validation is pending.
 
 | | Built | Planned |
 |---|---|---|
-| Control plane | API, lifecycle, quotas, controller, usage accounting, SQLite, Postgres, and in-memory stores, Kubernetes backend, regions, machines, and placement in the data model, timeline and log export, CLI client, local accounts, `einsora up` (Solo, with the dashboard built in), in-process agent, Mac native and Linux Docker drivers, endpoints with vLLM, MLX, and llama.cpp (GGUF, also on CPU) | networked agents, VM drivers, packages and installers, choosing a region, fallback placement, sharing, workload output logs, activity log |
+| Control plane | API, lifecycle, quotas, controller, usage accounting, SQLite, Postgres, and in-memory stores, Kubernetes backend, regions, machines, and placement in the data model, timeline and log export, CLI client, local accounts, `einsora up` (Solo, with the dashboard built in), in-process agent, Mac native and Linux Docker drivers, endpoints with vLLM, MLX, and llama.cpp (GGUF, also on CPU), `einsora service` (launchd and systemd), and the release pipeline (install script, .deb and .rpm, a Homebrew formula, Sigstore-signed checksums) | the first release, networked agents, VM drivers, choosing a region, fallback placement, sharing, workload output logs, activity log |
 | ML layer | Model validator (safetensors and GGUF), ingestion and endpoint model fetching (one GGUF quantization per source), benchmarking, GPU burn-in (CUDA and Metal) | Live runs on Linux with CUDA |
 | Dashboard | Workload list, launch form, workload timeline and full-log download, Machines page, built into the binary | Sharing, usage reports |
 | Datacenter | Charts, add-ons, Ansible, runbooks (rendered and linted, not yet run on hardware) | Production validation |

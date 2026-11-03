@@ -1,7 +1,8 @@
 # 00: Quickstart (Solo: one Mac or Linux machine)
 
-> **Status: `einsora up` works today, built from source** (below). The one-line installs (Homebrew and an
-> install script) arrive with packaging, roadmap step 11. The development stack is at the end of this page.
+> **Status: `einsora up` works today, built from source** (below). The one-line install, packages, and
+> background service are built ([ADR-0023](../adr/0023-releases-and-packaging.md)); they work from the
+> first release, which hasn't been cut yet. The development stack is at the end of this page.
 
 ## Requirements
 
@@ -13,7 +14,30 @@
 
 ## Install
 
-**Today, from source** (Go, Node, and uv: `make doctor` checks them; `brew install go node uv` on a Mac):
+**With the install script**, on a Mac or Linux (from the first release):
+
+```bash
+curl -fsSL https://einsora.com/install.sh | sh
+```
+
+It downloads the release for this machine over HTTPS (it needs curl), checks its SHA-256 against
+the release's checksums and, if [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
+is installed, their signature, then installs `einsora` to `/usr/local/bin` (asking for sudo if
+needed). It changes nothing else. `EINSORA_VERSION=v0.1.0` picks a release; `EINSORA_INSTALL_DIR=$HOME/.local/bin`
+picks another directory. Read it first at [packaging/install.sh](../../packaging/install.sh) if
+you like.
+
+**With a package** on Linux: download the `.deb` or `.rpm` for your machine from the
+[releases](https://github.com/krishnanand20/Einsora/releases), then `sudo apt install ./einsora_*.deb`
+or `sudo dnf install ./einsora-*.rpm`. It installs `/usr/bin/einsora`.
+
+**With Homebrew** on a Mac or Linux, from the first full release: `brew install krishnanand20/tap/einsora`.
+It builds from source, so it takes a few minutes and installs Go and Node to build with.
+
+Einsora's macOS builds aren't notarized by Apple, so a copy downloaded with a browser won't open.
+Install it one of these ways instead.
+
+**From source** (Go, Node, and uv: `make doctor` checks them; `brew install go node uv` on a Mac):
 
 ```bash
 git clone https://github.com/krishnanand20/Einsora.git && cd Einsora
@@ -21,8 +45,7 @@ make build                      # the einsora binary, with its dashboard built i
 sudo cp controlplane/bin/einsora /usr/local/bin/
 ```
 
-**Planned** (roadmap step 11): `brew install krishnanand20/tap/einsora` on a Mac, and
-`curl -fsSL https://einsora.com/install.sh | sh` on Linux.
+`einsora version` says which release you have.
 
 ## Start
 
@@ -43,6 +66,34 @@ einsora up
 
 Ctrl+C stops it. Notebooks and endpoints that are running keep running, and `einsora up` finds them
 again the next time. Every `EINSORA_*` setting in [.env.example](../../.env.example) still applies.
+
+## Keep it running in the background
+
+After the first `einsora up` has created your account, stop it with Ctrl+C and run:
+
+```bash
+einsora service install
+```
+
+It runs `einsora up` for you only, starting now, at every login, and again if it crashes:
+
+- **On a Mac,** as a launch agent in your session, where Metal is
+  (`~/Library/LaunchAgents/com.einsora.up.plist`). Its output goes to `service.log` in the data
+  directory.
+- **On Linux,** as a systemd user service (`~/.config/systemd/user/einsora.service`). Its output goes
+  to `journalctl --user -u einsora.service`. To keep it running after you log out, and start it at
+  boot, run `sudo loginctl enable-linger "$USER"`; Einsora doesn't do that for you. At boot, it finds
+  Docker through Docker's socket, which systemd starts Docker for when it's first used on most
+  distributions. If its log says the docker driver isn't available because Docker wasn't running yet,
+  `systemctl --user restart einsora.service` once Docker is.
+
+It runs with your shell's PATH, so it finds `uv` and `docker` as `einsora up` does in a terminal, and
+with the same data directory. Other settings stay at their defaults unless you copy them in:
+`einsora service install -env HF_TOKEN -env EINSORA_HTTP_ADDR` copies those variables, as they're set
+now, into the service's definition, a file only you can read. Run `einsora service install` again
+after changing them, or after moving the `einsora` binary. `einsora service status` shows whether it's
+running, and `einsora service uninstall` stops it and removes it; notebooks and endpoints keep
+running, as when you stop `einsora up`.
 
 ## Launch something
 
@@ -263,7 +314,7 @@ The default socket directory is `docker-state/run/`; set `EINSORA_AGENT_RUN_DIR`
 private persistent path if the default exceeds the socket path limit.
 
 Stopping keeps notebook files; deletion removes them. Endpoints' files are removed on stop by the
-controller's explicit removal intent. Running containers survive a Einsora restart and are adopted
+controller's explicit removal intent. Running containers survive an Einsora restart and are adopted
 again; interrupted preparation and cleanup resume. Changed worker policies stop old endpoints and
 ask for a restart. Lost saved notebook disks fail rather than creating empty replacements.
 These containers are only for the owner's own workloads: runc shares the host kernel and outbound

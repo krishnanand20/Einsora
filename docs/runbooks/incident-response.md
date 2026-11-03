@@ -1,6 +1,6 @@
 # Incident response
 
-For whoever operates a Einsora instance: an individual, a team, a company, or a pool operator.
+For whoever operates an Einsora instance: an individual, a team, a company, or a pool operator.
 In Solo, most of this collapses into "check the dashboard and `einsora` logs".
 
 ## Severity

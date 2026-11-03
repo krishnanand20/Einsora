@@ -67,7 +67,8 @@ func runUp(ctx context.Context, args []string, stdin io.Reader, stdout io.Writer
 		return err
 	}
 	url := "http://" + l.Addr().String()
-	_, _ = fmt.Fprintf(stdout, "\nEinsora is running at %s\n  data: %s\n  log:  %s\nPress Ctrl+C to stop.\n\n", url, dir, cfg.LogFile)
+	_, _ = fmt.Fprintf(stdout, "\nEinsora %s is running at %s\n  data: %s\n  log:  %s\nPress Ctrl+C to stop.\n\n", version, url, dir, cfg.LogFile)
+	log.Info("einsora up", "version", version, "address", url)
 	if !webui.Built(webui.Files()) {
 		_, _ = fmt.Fprintln(stdout, "This binary was built without its dashboard (make build adds it); the API works.")
 	} else if interactive && !*noOpen {

@@ -24,6 +24,7 @@ identifiers to Einsora's.
 | [0020](0020-name-and-licence.md) | **Name and licence:** the product is TensoraFi, renamed everywhere in one change; MIT licence | Accepted (name superseded by 0021; MIT still applies) |
 | [0021](0021-rename-to-einsora.md) | **Rename to Einsora:** a US mark TENSORA is registered in the same class; every identifier renamed in one change | Accepted |
 | [0022](0022-llama-cpp-endpoints.md) | **llama.cpp endpoints:** one pinned release (checked by SHA-256 on Macs, by digest in Docker), a separate GGUF endpoint image, one quantization per source, no silent CPU offload | Proposed (implemented; real Metal and Linux runs pending) |
+| [0023](0023-releases-and-packaging.md) | **Releases and packaging:** GoReleaser from tags on `main`, checksums signed with Sigstore (keyless), an install script that checks them, packages, a Homebrew formula built from source (no notarization), and `einsora service` as the user | Proposed (built; no release cut yet) |
 | [0001](0001-kubernetes-kubevirt-gpu-operator.md) | Kubernetes, KubeVirt, and the GPU Operator | Accepted; Datacenter profile only (0012) |
 | [0002](0002-k3s-single-node-first.md) | k3s with embedded etcd | Accepted; Datacenter profile only (0012) |
 | [0003](0003-language-split.md) | Go for the core platform, Python for the ML layer, TypeScript for the dashboard | Accepted |

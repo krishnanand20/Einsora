@@ -33,6 +33,9 @@ The full model, including the trust matrix for each runtime, is in
 - In a datacenter, tenant pods don't mount a ServiceAccount token, and users never get Kubernetes API access.
 - The API has no runtime credentials. Agents use per-machine mTLS certificates that can be revoked.
 - No secrets in git.
+- Releases are built only by the release workflow, from a tag on `main`, and their checksums are signed
+  with Sigstore. To check a download, follow the **Verify** section of its release notes;
+  `install.sh` checks the SHA-256 itself, and the signature when cosign is installed.
 
 ## Supported versions
 

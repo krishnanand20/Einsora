@@ -45,6 +45,9 @@ __pycache__/
 node_modules/
 web/dist/
 
+# GoReleaser's output (make release-check, and the release workflow)
+/dist/
+
 # Ansible
 *.retry
 

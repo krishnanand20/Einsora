@@ -12,6 +12,7 @@ macOS (Apple Silicon) and Linux.
 | `web/**` | `make lint-web test-web` and `cd web && npm run build` |
 | `deploy/**` | `make deploy-check` |
 | `infra/**` | `cd infra/ansible && uvx ansible-lint --offline`, plus `shellcheck infra/scripts/*.sh` |
+| `packaging/**`, `.goreleaser.yaml`, `.github/workflows/release.yml` | `make test-packaging`, `uvx --from shellcheck-py shellcheck packaging/*.sh packaging/homebrew/*.sh`, and `make release-check` if GoReleaser is installed (CI's `packaging` job runs it otherwise: say which). CI's `macos` job builds and installs the Homebrew formula; don't run `packaging/homebrew/install_test.sh` locally, since it changes the machine's Homebrew |
 | Any `*.yaml` | `make lint-yaml` |
 | Docs only | Check that links resolve and that code references (paths, function names) still exist |
 

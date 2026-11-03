@@ -8,12 +8,13 @@ darwin/arm64** (rule 11): run `make build-all` from the repo root.
 ## Layout and dependency direction
 
 ```
-cmd/einsora/            main: wiring only. Server subcommands: up (Solo: everything in one process) | api | controller |
+cmd/einsora/            main: wiring only. Server subcommands: up (Solo: everything in one process) | service | api | controller |
                         metering | migrate | seed | dev (planned: agent | gateway | backup | restore). up.go: the
                         data directory per OS, Solo's defaults, and the first-run account
                         client.go: CLI client commands workloads | events | export (planned: logs)
 internal/domain/        types, the state machine, and error codes. Imports nothing internal.
 internal/config/        EINSORA_* env parsing and production guards
+internal/autostart/     the launchd agent and systemd user service that run `einsora up` in the background (einsora service; ADR-0023)
 internal/catalog/       loads the catalog: a file, or the copy of images/catalog.yaml built into the binary (make catalog)
 internal/store/         Store/Queries interfaces
   memstore/             in-memory implementation (dev and tests)

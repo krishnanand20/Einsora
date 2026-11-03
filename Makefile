@@ -20,6 +20,8 @@ CRD_SCHEMAS   := https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{
 KUBECONFORM   := kubeconform -strict -summary -ignore-missing-schemas -schema-location default -schema-location '$(CRD_SCHEMAS)'
 IMAGE_REPO    ?= ghcr.io/krishnanand20
 VERSION       ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+# `einsora version` reports it; releases set it from their tag the same way (.goreleaser.yaml).
+LDFLAGS       := -X main.version=$(patsubst v%,%,$(VERSION))
 
 .PHONY: help
 help: ## List targets
@@ -80,8 +82,8 @@ migrate: ## Apply DB migrations to $$EINSORA_DATABASE_URL
 	cd $(CP) && go run ./cmd/einsora migrate
 
 # ---------------------------------------------------------------- test
-.PHONY: test test-cp test-cp-pg test-ml test-web
-test: test-cp test-ml test-web ## Run all tests
+.PHONY: test test-cp test-cp-pg test-ml test-web test-packaging release-check
+test: test-cp test-ml test-web test-packaging ## Run all tests
 
 test-cp: ## Go tests (in-memory store; Postgres tests skip without EINSORA_TEST_DATABASE_URL)
 	cd $(CP) && go test ./...
@@ -96,6 +98,14 @@ test-ml: ## Python ML layer tests
 
 test-web: ## Dashboard tests
 	cd $(WEB) && npm test
+
+test-packaging: ## The install script, against a fake release on disk (no network), and the Homebrew formula's template
+	sh packaging/install_test.sh
+	sh packaging/homebrew/formula_test.sh
+
+release-check: ## Check .goreleaser.yaml and build a release snapshot into dist/, publishing nothing (needs goreleaser)
+	goreleaser check
+	goreleaser release --snapshot --clean --skip=sign,sbom
 
 # ---------------------------------------------------------------- lint / format
 .PHONY: lint lint-cp lint-ml lint-web lint-yaml fmt
@@ -141,7 +151,7 @@ PLATFORMS := linux/amd64 linux/arm64 darwin/arm64
 
 .PHONY: build build-all web-embed catalog
 build: web-embed ## Build einsora for this machine, with its dashboard, into controlplane/bin/einsora
-	cd $(CP) && CGO_ENABLED=0 go build -trimpath -o bin/einsora ./cmd/einsora
+	cd $(CP) && CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o bin/einsora ./cmd/einsora
 
 web-embed: ## Build the dashboard and copy it into the binary's sources (controlplane/internal/webui/dist)
 	cd $(WEB) && npm run build
@@ -154,7 +164,7 @@ build-all: web-embed ## Cross-compile einsora, with its dashboard, for linux/amd
 	cd $(CP) && for p in $(PLATFORMS); do \
 	  os=$${p%/*}; arch=$${p#*/}; \
 	  echo "building einsora for $$os/$$arch"; \
-	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -o bin/einsora-$$os-$$arch ./cmd/einsora || exit 1; \
+	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o bin/einsora-$$os-$$arch ./cmd/einsora || exit 1; \
 	done
 
 # ---------------------------------------------------------------- images

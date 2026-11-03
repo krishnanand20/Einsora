@@ -59,6 +59,11 @@ Server commands:
               controller with this machine's agent, and usage accounting, with the data in one private
               directory (EINSORA_DATA_DIR, or the usual place on this OS). The first time, it asks
               for the owner's account. Any EINSORA_* setting overrides its default.
+  service install [-env NAME]... | uninstall | status
+              run einsora up in the background, starting at login and again after a crash: a
+              launchd agent on macOS, a systemd user service on Linux, for you only. It runs with
+              this shell's PATH and data directory; -env copies another variable into it, such as
+              HF_TOKEN, in a file only you can read
   api         serve the REST API
   controller  reconcile workloads with the runtime (Kubernetes today; node agents planned)
   metering    usage accounting: turn workload events into hourly usage records (no money)
@@ -80,6 +85,9 @@ Client commands (talk to a running API):
                         save everything recorded about a workload as one JSON file, readable by
                         you only (default einsora-<name>-<id>.json; -o - writes to stdout;
                         -f replaces an existing file)
+
+Other commands:
+  version     print this binary's release, commit, and platform
 
 Server configuration: EINSORA_* environment variables (see .env.example). Set EINSORA_LOG_LEVEL=debug
 for detailed logs and EINSORA_LOG_FILE=path to keep a complete copy on disk.
@@ -104,6 +112,10 @@ func main() {
 		err = runSetup(ctx, args, os.Stdin, os.Stdout)
 	case cmd == "up":
 		err = runUp(ctx, args, os.Stdin, os.Stdout)
+	case cmd == "service":
+		err = runService(ctx, args, osServiceEnv(runtime.GOOS), os.Stdout)
+	case cmd == "version" || cmd == "--version" || cmd == "-version":
+		err = runVersion(os.Stdout)
 	case len(args) > 0:
 		err = fmt.Errorf("%s takes no arguments (see einsora help)", cmd)
 	default:

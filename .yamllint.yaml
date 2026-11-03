@@ -6,6 +6,7 @@ ignore: |
   **/node_modules/
   **/.venv/
   web/dist/
+  dist/
 
 rules:
   line-length:
