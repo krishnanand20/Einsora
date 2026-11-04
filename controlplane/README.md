@@ -19,9 +19,18 @@ The same binary is a **CLI client** for a running API ([logs and transparency](.
 
 | Command | Does |
 |---|---|
-| `einsora workloads [-all]` | Lists your workloads (`-all` includes deleted ones) |
-| `einsora events <id> [-json]` | Prints the full timeline: every state change and note, when, why, and by whom |
-| `einsora export <id> [-o file] [-f]` | Saves everything recorded about the workload to a JSON file, owner-only (`0600`). It never replaces an existing file without `-f`; `-o -` writes to stdout. Works for deleted workloads too. |
+| `einsora workloads [-all] [-json]` | Lists your workloads (`-all` includes deleted ones) |
+| `einsora machines [-json]` | Lists your machines: online or not, region, CPUs, memory, GPUs, and your workloads on each |
+| `einsora catalog [-json]` | Lists what you can launch: regions (the first is the default), GPU and CPU classes, and images with what runs them |
+| `einsora launch <notebook\|endpoint\|vm> <name> -image <id> -class <id> [-gpus n] [-region id] [-model uri] [-ssh-key key-or-file] [-json]` | Launches a workload, pending until it's placed. `-ssh-key` takes a public key or a `.pub` file, and refuses anything else before sending it, so a private key never leaves the machine. |
+| `einsora stop <workload> [-json]`, `start <workload> [-json]` | Releases its GPUs (a notebook or VM keeps its disk), or queues a stopped or failed workload again |
+| `einsora delete <workload> [-y] [-json]` | Removes it with its disk and data, after asking on the terminal; without a terminal it needs `-y`. Its timeline and export stay. |
+| `einsora events <workload> [-json]` | Prints the full timeline: every state change and note, when, why, and by whom |
+| `einsora export <workload> [-o file] [-f]` | Saves everything recorded about the workload to a JSON file, owner-only (`0600`). It never replaces an existing file without `-f`; `-o -` writes to stdout. Works for deleted workloads too. |
+
+`<workload>` is a workload's ID, or its name when only one of your workloads has it (`events` and
+`export` look among deleted ones too, after the rest); several with one name are refused with their IDs.
+`-json` prints the API's objects as it sent them, every field included.
 
 The client reads `EINSORA_API_URL` (default `http://127.0.0.1:8080`), `EINSORA_TOKEN` (an API token from the
 dashboard's **API tokens** page, `tsk_…`),
@@ -34,7 +43,7 @@ with status 1.
 ```bash
 go run ./cmd/einsora dev
 curl -s localhost:8080/v1/workloads -H 'X-Dev-Tenant: acme'
-EINSORA_DEV_TENANT=acme go run ./cmd/einsora events <id>     # in another terminal
+EINSORA_DEV_TENANT=acme go run ./cmd/einsora workloads      # in another terminal
 ```
 
 Logs go to stderr. `EINSORA_LOG_LEVEL=debug` adds detail, such as each admission check and authenticated

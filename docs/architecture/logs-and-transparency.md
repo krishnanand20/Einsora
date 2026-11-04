@@ -8,8 +8,8 @@ Nothing is hidden except secrets, and every redaction is reported ([ADR-0015](..
 | You are | You can see | CLI | Dashboard | API |
 |---|---|---|---|---|
 | **A user** | Your workloads, including deleted ones | `einsora workloads -all` | Workloads → **Show deleted** | `GET /v1/workloads?include_deleted=true` |
-| **A user** | Your workloads' full timeline: every state change and note, when, why, and by whom | `einsora events <id>` (`-json` for raw) | Workload page → Timeline | `GET /v1/workloads/{id}/events` |
-| **A user** | A complete copy of everything recorded about a workload, including deleted ones | `einsora export <id> [-o file] [-f]` | Workload page → **Download full log** | `GET /v1/workloads/{id}/export` |
+| **A user** | Your workloads' full timeline: every state change and note, when, why, and by whom | `einsora events <workload>` (`-json` for raw) | Workload page → Timeline | `GET /v1/workloads/{id}/events` |
+| **A user** | A complete copy of everything recorded about a workload, including deleted ones | `einsora export <workload> [-o file] [-f]` | Workload page → **Download full log** | `GET /v1/workloads/{id}/export` |
 | **A user** | Your workloads' output (stdout and stderr; never collected from inside VMs, see below) | `einsora logs <id> --follow` (planned) | Planned | Planned |
 | **A tenant admin** | The activity log: everything anyone in the tenant did | Planned | Planned | Planned |
 | **An operator** | Every log line from the control plane and agents, at any detail level | `EINSORA_LOG_LEVEL=debug`, `EINSORA_LOG_FILE=/path` | — | — |

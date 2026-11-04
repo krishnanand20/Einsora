@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -18,26 +20,39 @@ import (
 
 func isClientCommand(cmd string) bool {
 	switch cmd {
-	case "workloads", "events", "export", "machines":
+	case "workloads", "machines", "catalog", "launch", "stop", "start", "delete", "events", "export":
 		return true
 	}
 	return false
 }
 
+// cli is where a client command reads and writes: the terminal, or a test's buffers.
+type cli struct {
+	in          io.Reader
+	out         io.Writer
+	errOut      io.Writer // prompts, so they never mix with output a script reads
+	interactive bool      // in is a terminal someone can answer a prompt at
+}
+
 // runClient implements the CLI commands that talk to a running API.
-func runClient(ctx context.Context, cmd string, args []string, stdout io.Writer) error {
+func runClient(ctx context.Context, cmd string, args []string, term cli) error {
 	c := client.FromEnv(os.Getenv)
+	stdout := term.out
 	switch cmd {
 	case "workloads":
 		fs := flag.NewFlagSet("workloads", flag.ContinueOnError)
 		fs.SetOutput(io.Discard)
 		all := fs.Bool("all", false, "include deleted workloads")
+		asJSON := fs.Bool("json", false, "print the workloads as JSON")
 		if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
-			return errors.New("usage: einsora workloads [-all]")
+			return errors.New("usage: einsora workloads [-all] [-json]")
 		}
 		ws, err := c.ListWorkloads(ctx, *all)
 		if err != nil {
 			return err
+		}
+		if *asJSON {
+			return printJSONList(stdout, ws, func(w client.Workload) json.RawMessage { return w.JSON })
 		}
 		tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
 		// tabwriter buffers: write errors surface from Flush below.
@@ -49,12 +64,18 @@ func runClient(ctx context.Context, cmd string, args []string, stdout io.Writer)
 		return tw.Flush()
 
 	case "machines":
-		if len(args) > 0 {
-			return errors.New("usage: einsora machines")
+		fs := flag.NewFlagSet("machines", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		asJSON := fs.Bool("json", false, "print the machines as JSON")
+		if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
+			return errors.New("usage: einsora machines [-json]")
 		}
 		ms, err := c.ListMachines(ctx)
 		if err != nil {
 			return err
+		}
+		if *asJSON {
+			return printJSONList(stdout, ms, func(m client.Machine) json.RawMessage { return m.JSON })
 		}
 		tw := tabwriter.NewWriter(stdout, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(tw, "NAME\tSTATUS\tREGION\tSYSTEM\tCPUS\tMEMORY\tGPUS\tWORKLOADS\tLAST SEEN")
@@ -68,10 +89,99 @@ func runClient(ctx context.Context, cmd string, args []string, stdout io.Writer)
 		}
 		return tw.Flush()
 
+	case "catalog":
+		fs := flag.NewFlagSet("catalog", flag.ContinueOnError)
+		fs.SetOutput(io.Discard)
+		asJSON := fs.Bool("json", false, "print the catalog as JSON")
+		if err := fs.Parse(args); err != nil || fs.NArg() > 0 {
+			return errors.New("usage: einsora catalog [-json]")
+		}
+		cat, err := c.Catalog(ctx)
+		if err != nil {
+			return err
+		}
+		if *asJSON {
+			return printJSON(stdout, cat.JSON)
+		}
+		return printCatalog(stdout, cat)
+
+	case "launch":
+		fs := flag.NewFlagSet("launch", flag.ContinueOnError)
+		image := fs.String("image", "", "the image to run (einsora catalog lists them)")
+		class := fs.String("class", "", "the GPU or CPU class to run on")
+		gpus := fs.Int("gpus", 1, "how many of the class")
+		region := fs.String("region", "", "where it runs and its data stays (default: the catalog's first)")
+		model := fs.String("model", "", "an endpoint's model: hf://org/model[:TAG] or s3://bucket/prefix")
+		sshKey := fs.String("ssh-key", "", "a VM's SSH public key, or a file holding one")
+		asJSON := fs.Bool("json", false, "print the new workload as JSON")
+		const usage = "einsora launch <notebook|endpoint|vm> <name> -image <id> -class <id> [-gpus n] [-region id] " +
+			"[-model uri] [-ssh-key key-or-file] [-json]"
+		pos, err := parseArgs(fs, args, 2, usage)
+		if err != nil {
+			return err
+		}
+		if *image == "" || *class == "" {
+			return errors.New("-image and -class are required (einsora catalog lists them)\nusage: " + usage)
+		}
+		key, err := sshPublicKey(*sshKey)
+		if err != nil {
+			return err
+		}
+		w, err := c.Launch(ctx, client.LaunchInput{Kind: pos[0], Name: pos[1], ImageID: *image, GPUClass: *class,
+			GPUCount: *gpus, Region: *region, ModelURI: *model, SSHPublicKey: key})
+		if err != nil {
+			return err
+		}
+		if *asJSON {
+			return printJSON(stdout, w.JSON)
+		}
+		_, err = fmt.Fprintf(stdout, "Launched %s (%s): %s, %d × %s in %s.\nFollow it with: einsora events %s\n",
+			printable(w.Name), printable(w.ID), printable(w.State), w.GPUCount, printable(w.GPUClass), printable(w.Region), printable(w.ID))
+		return err
+
+	case "stop", "start", "delete":
+		fs := flag.NewFlagSet(cmd, flag.ContinueOnError)
+		asJSON := fs.Bool("json", false, "print the workload as JSON")
+		yes := fs.Bool("y", false, "delete without asking")
+		usage := "einsora " + cmd + " <workload> [-json]"
+		if cmd == "delete" {
+			usage = "einsora delete <workload> [-y] [-json]"
+		}
+		ref, err := parseWithID(fs, args, usage)
+		if err != nil {
+			return err
+		}
+		if *yes && cmd != "delete" {
+			return errors.New("-y is only for delete\nusage: " + usage)
+		}
+		id, err := c.WorkloadID(ctx, ref, false)
+		if err != nil {
+			return err
+		}
+		if cmd == "delete" && !*yes {
+			if err := confirmDelete(ctx, c, id, term); err != nil {
+				return err
+			}
+		}
+		act := map[string]func(context.Context, string) (client.Workload, error){"stop": c.Stop, "start": c.Start, "delete": c.Delete}[cmd]
+		w, err := act(ctx, id)
+		if err != nil {
+			return err
+		}
+		if *asJSON {
+			return printJSON(stdout, w.JSON)
+		}
+		_, err = fmt.Fprintf(stdout, "%s (%s): %s\n", printable(w.Name), printable(w.ID), printable(w.State))
+		return err
+
 	case "events":
 		fs := flag.NewFlagSet("events", flag.ContinueOnError)
 		asJSON := fs.Bool("json", false, "print the raw JSON events")
-		id, err := parseWithID(fs, args, "einsora events <workload-id> [-json]")
+		ref, err := parseWithID(fs, args, "einsora events <workload> [-json]")
+		if err != nil {
+			return err
+		}
+		id, err := c.WorkloadID(ctx, ref, true)
 		if err != nil {
 			return err
 		}
@@ -103,7 +213,11 @@ func runClient(ctx context.Context, cmd string, args []string, stdout io.Writer)
 		fs := flag.NewFlagSet("export", flag.ContinueOnError)
 		out := fs.String("o", "", "file to write (default: einsora-<name>-<id>.json; - for stdout)")
 		force := fs.Bool("f", false, "replace the file if it exists")
-		id, err := parseWithID(fs, args, "einsora export <workload-id> [-o file] [-f]")
+		ref, err := parseWithID(fs, args, "einsora export <workload> [-o file] [-f]")
+		if err != nil {
+			return err
+		}
+		id, err := c.WorkloadID(ctx, ref, true)
 		if err != nil {
 			return err
 		}
@@ -179,21 +293,171 @@ func gpus(m client.Machine) string {
 	return strings.Join(parts, ", ")
 }
 
-// parseWithID accepts flags before or after the workload ID (`export <id> -o f` and `export -o f <id>`).
+// parseWithID accepts flags before or after the workload's name or ID (`export <id> -o f` and
+// `export -o f <id>`).
 func parseWithID(fs *flag.FlagSet, args []string, usage string) (string, error) {
+	pos, err := parseArgs(fs, args, 1, usage)
+	if err != nil {
+		if errors.Is(err, errMissingArgs) {
+			return "", errors.New("missing workload name or ID\nusage: " + usage)
+		}
+		return "", err
+	}
+	return pos[0], nil
+}
+
+var errMissingArgs = errors.New("missing arguments")
+
+// parseArgs parses flags anywhere among want positional arguments, which it returns in order.
+func parseArgs(fs *flag.FlagSet, args []string, want int, usage string) ([]string, error) {
 	fs.SetOutput(io.Discard)
-	if err := fs.Parse(args); err != nil {
-		return "", fmt.Errorf("%w\nusage: %s", err, usage)
+	var pos []string
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, fmt.Errorf("%w\nusage: %s", err, usage)
+		}
+		if fs.NArg() == 0 {
+			break
+		}
+		if len(pos) == want {
+			return nil, fmt.Errorf("unexpected argument %q\nusage: %s", printable(fs.Arg(0)), usage)
+		}
+		pos = append(pos, fs.Arg(0))
+		args = fs.Args()[1:]
 	}
-	if fs.NArg() == 0 {
-		return "", errors.New("missing workload ID\nusage: " + usage)
+	if len(pos) < want {
+		return nil, fmt.Errorf("%w\nusage: %s", errMissingArgs, usage)
 	}
-	id, rest := fs.Arg(0), fs.Args()[1:]
-	if err := fs.Parse(rest); err != nil {
-		return "", fmt.Errorf("%w\nusage: %s", err, usage)
+	return pos, nil
+}
+
+// confirmDelete asks before a delete, since a workload's disk and data go with it. With no
+// terminal to ask at, the command needs -y instead.
+func confirmDelete(ctx context.Context, c *client.Client, id string, term cli) error {
+	if !term.interactive {
+		return errors.New("delete removes the workload with its disk and data; add -y to confirm")
 	}
-	if fs.NArg() > 0 {
-		return "", fmt.Errorf("unexpected argument %q\nusage: %s", fs.Arg(0), usage)
+	w, err := c.GetWorkload(ctx, id)
+	if err != nil {
+		return err
 	}
-	return id, nil
+	_, _ = fmt.Fprintf(term.errOut, "Delete %s (%s)? It's removed with its disk and data; its timeline and export stay. [y/N] ",
+		printable(w.Name), printable(w.ID))
+	answer, _ := bufio.NewReader(term.in).ReadString('\n')
+	switch strings.ToLower(strings.TrimSpace(answer)) {
+	case "y", "yes":
+		return nil
+	}
+	return errors.New("not deleted")
+}
+
+// sshPublicKey is -ssh-key's value: a public key line, or a file holding one. A file that isn't
+// one public key line is refused before anything is sent, so a private key never leaves this
+// machine, and its contents are never printed.
+func sshPublicKey(v string) (string, error) {
+	isKey := func(s string) bool {
+		for _, prefix := range []string{"ssh-", "ecdsa-", "sk-"} {
+			if strings.HasPrefix(s, prefix) {
+				return !strings.ContainsAny(s, "\r\n")
+			}
+		}
+		return false
+	}
+	if v == "" || isKey(v) {
+		return v, nil
+	}
+	path := v
+	if rest, ok := strings.CutPrefix(v, "~/"); ok {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		path = filepath.Join(home, rest)
+	}
+	f, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return "", fmt.Errorf("-ssh-key: %w", err)
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, 16<<10))
+	if err != nil {
+		return "", fmt.Errorf("-ssh-key: %w", err)
+	}
+	key := strings.TrimSpace(string(data))
+	switch {
+	case bytes.Contains(data, []byte("PRIVATE KEY")) || bytes.Contains(data, []byte("Private-Lines")):
+		return "", fmt.Errorf("-ssh-key: %s is a private key; give its public key instead (usually %s.pub)", path, path)
+	case !isKey(key):
+		return "", fmt.Errorf("-ssh-key: %s isn't one OpenSSH public key line", path)
+	}
+	return key, nil
+}
+
+// printJSON prints JSON as the server sent it, indented for reading.
+func printJSON(out io.Writer, raw json.RawMessage) error {
+	var b bytes.Buffer
+	if err := json.Indent(&b, raw, "", "  "); err != nil {
+		return fmt.Errorf("the server's response isn't valid JSON: %w", err)
+	}
+	b.WriteByte('\n')
+	_, err := out.Write(b.Bytes())
+	return err
+}
+
+// printJSONList prints items as a JSON array of the objects the server sent.
+func printJSONList[T any](out io.Writer, items []T, raw func(T) json.RawMessage) error {
+	parts := make([][]byte, len(items))
+	for i, item := range items {
+		parts[i] = raw(item)
+	}
+	return printJSON(out, append(append([]byte{'['}, bytes.Join(parts, []byte{','})...), ']'))
+}
+
+// printCatalog prints the regions, classes, and images the caller can launch.
+func printCatalog(out io.Writer, cat client.Catalog) error {
+	tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "REGION\tNAME") // errors surface from Flush
+	for i, r := range cat.Regions {
+		name := printable(r.DisplayName)
+		if i == 0 {
+			name += " (default)"
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\n", printable(r.ID), name)
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	tw = tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "\nCLASS\tACCELERATOR\tMEMORY\tVMS\tREGIONS")
+	for _, g := range cat.GPUClasses {
+		memory, vms := "-", "no"
+		if g.VRAMGB > 0 {
+			memory = fmt.Sprintf("%d GB", g.VRAMGB)
+		}
+		if g.SupportsVM {
+			vms = "yes"
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", printable(g.ID), printable(g.Accelerator), memory, vms,
+			printable(strings.Join(g.Regions, ", ")))
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	tw = tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "\nIMAGE\tKIND\tRUNS ON")
+	for _, img := range cat.Images {
+		var runs []string
+		for _, rt := range img.Runtimes {
+			r := strings.Join(rt.Accelerators, ", ")
+			if rt.Server != "" {
+				r += ": " + rt.Server
+				if rt.ModelFormat != "" {
+					r += " (" + rt.ModelFormat + ")"
+				}
+			}
+			runs = append(runs, r)
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", printable(img.ID), printable(img.Kind), printable(strings.Join(runs, "; ")))
+	}
+	return tw.Flush()
 }

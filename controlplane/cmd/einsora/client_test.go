@@ -32,7 +32,7 @@ func TestParseWithIDAcceptsFlagsEitherSide(t *testing.T) {
 		}
 	}
 	fs := flag.NewFlagSet("events", flag.ContinueOnError)
-	if _, err := parseWithID(fs, nil, "usage"); err == nil || !strings.Contains(err.Error(), "missing workload ID") {
+	if _, err := parseWithID(fs, nil, "usage"); err == nil || !strings.Contains(err.Error(), "missing workload name or ID") {
 		t.Errorf("missing ID: %v", err)
 	}
 }
@@ -54,7 +54,7 @@ func TestCLIEventsAndExport(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	if err := runClient(ctx, "events", []string{w.ID.String()}, &out); err != nil {
+	if err := runClient(ctx, "events", []string{w.ID.String()}, cli{out: &out}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "∅ → pending") || !strings.Contains(out.String(), "created by") {
@@ -63,7 +63,7 @@ func TestCLIEventsAndExport(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), "export.json")
 	out.Reset()
-	if err := runClient(ctx, "export", []string{w.ID.String(), "-o", path}, &out); err != nil {
+	if err := runClient(ctx, "export", []string{w.ID.String(), "-o", path}, cli{out: &out}); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(path)
@@ -81,11 +81,11 @@ func TestCLIEventsAndExport(t *testing.T) {
 	if err := os.Chmod(path, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	err = runClient(ctx, "export", []string{w.ID.String(), "-o", path}, &out)
+	err = runClient(ctx, "export", []string{w.ID.String(), "-o", path}, cli{out: &out})
 	if data, _ := os.ReadFile(path); err == nil || !strings.Contains(err.Error(), "already exists") || string(data) != "keep me" {
 		t.Fatalf("export over an existing file without -f: err = %v, file = %q", err, data)
 	}
-	if err := runClient(ctx, "export", []string{w.ID.String(), "-o", path, "-f"}, &out); err != nil {
+	if err := runClient(ctx, "export", []string{w.ID.String(), "-o", path, "-f"}, cli{out: &out}); err != nil {
 		t.Fatal(err)
 	}
 	if info, _ := os.Stat(path); info.Mode().Perm() != 0o600 {
@@ -122,7 +122,7 @@ func TestCLIMachines(t *testing.T) {
 	}
 	var out bytes.Buffer
 	t.Setenv("EINSORA_DEV_TENANT", "acme")
-	if err := runClient(ctx, "machines", nil, &out); err != nil {
+	if err := runClient(ctx, "machines", nil, cli{out: &out}); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"studio", "online", "darwin/arm64", "36 GiB", "1 × Apple M3 Pro"} {
@@ -132,7 +132,7 @@ func TestCLIMachines(t *testing.T) {
 	}
 	out.Reset()
 	t.Setenv("EINSORA_DEV_TENANT", "globex")
-	if err := runClient(ctx, "machines", nil, &out); err != nil || strings.Contains(out.String(), "studio") {
+	if err := runClient(ctx, "machines", nil, cli{out: &out}); err != nil || strings.Contains(out.String(), "studio") {
 		t.Errorf("another tenant sees: %q, %v", out.String(), err)
 	}
 }

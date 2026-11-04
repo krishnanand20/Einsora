@@ -11,7 +11,7 @@ One Go binary (`controlplane/`), `einsora`, whose subcommand picks the role.
 | `einsora agent` | Node agent on other machines, joining over the network (ADR-0013, ADR-0016) | Lab | Planned (Phase 2). The agent itself is built and runs in-process (below). |
 | `einsora migrate` | Applies the embedded SQL migrations | Lab (Postgres), Datacenter | Built |
 | `einsora dev` | Development all-in-one: in-memory store (or SQLite or Postgres via `EINSORA_DATABASE_URL`), fake backend (or the agent backend with `EINSORA_CLUSTER_BACKEND=agent`), seeded users | Development | Built; runs on macOS and Linux |
-| `einsora workloads [-all]`, `events <id>`, `export <id>` | CLI client for a running API: list, full timeline, complete log export ([logs](logs-and-transparency.md)) | Every profile | Built (launch, stop, and `logs --follow` planned) |
+| `einsora catalog`, `launch`, `stop`, `start`, `delete`, `workloads`, `machines`, `events`, `export` | CLI client for a running API: every workload action, the full timeline, and the complete log export ([API](#api), [logs](logs-and-transparency.md)) | Every profile | Built (`logs --follow` planned) |
 
 ## Sources of truth ([ADR-0008](../adr/0008-postgres-intent-kubernetes-runtime.md), [ADR-0012](../adr/0012-deployment-profiles.md))
 
@@ -204,6 +204,32 @@ nothing and is for development only.
 | vm | macOS guest (`macos-vz`, Metal) or Linux guest (CPU) | KVM guest (`libvirt`, VFIO GPU) |
 | notebook | Native JupyterLab in a sandbox (`macos-native`, Metal or explicit CPU; built), or a Linux container in its own VM (`macos-container`, CPU) | Container (`docker`, CUDA or CPU) |
 | endpoint | MLX with safetensors, or llama.cpp with GGUF (`macos-native`, Metal or explicit CPU) | vLLM with safetensors (`docker`, NVIDIA), or llama.cpp with GGUF (`docker`, NVIDIA or CPU) |
+
+## API
+
+Every path is the caller's tenant's own. The dashboard uses the same API, and the CLI reaches it with the
+commands listed.
+
+| Method and path | Does | CLI |
+|---|---|---|
+| `GET /v1/catalog` | Regions (the first is the default), the GPU and CPU classes the tenant may use, and images with what runs them | `einsora catalog` |
+| `GET /v1/machines`, `GET /v1/machines/{id}` | The caller's machines (read-only: machines register through their agent) | `einsora machines` |
+| `GET /v1/workloads` | The caller's workloads; `include_deleted=true` adds deleted ones | `einsora workloads [-all]` |
+| `POST /v1/workloads` | Launch: `name`, `kind`, `image_id`, `gpu_class`, `gpu_count`, and optionally `region`, `model_uri` (endpoints), and `ssh_public_key` (VMs). **201**, pending. | `einsora launch` |
+| `GET /v1/workloads/{id}` | One workload; `include_deleted=true` finds a deleted one | (`einsora workloads`) |
+| `POST /v1/workloads/{id}/stop` | Release a provisioning or running workload's GPUs; a notebook or VM keeps its disk. **202** | `einsora stop` |
+| `POST /v1/workloads/{id}/start` | Queue a stopped or failed workload again; it must fit the quota. **202** | `einsora start` |
+| `DELETE /v1/workloads/{id}` | Remove it, with what it stored; its timeline and export stay. **202** | `einsora delete` |
+| `GET /v1/workloads/{id}/events` | Its timeline | `einsora events` |
+| `GET /v1/workloads/{id}/export` | Everything recorded about it, as one JSON file | `einsora export` |
+| `POST /v1/workloads/{id}/access` | A one-time link that opens a running notebook ([access proxy](#opening-workloads-the-access-proxy)) | (the dashboard's **Open**) |
+| `GET /v1/auth/me` | Who the caller is, and their tenant | |
+| `POST /v1/auth/login`, `POST /v1/auth/logout`, `POST /v1/auth/password` | Sign in, sign out, and change the password (local accounts) | (the dashboard) |
+| `GET /v1/tokens`, `POST /v1/tokens`, `DELETE /v1/tokens/{id}` | The caller's API tokens: list, create (shown once), and revoke (local accounts) | (the dashboard) |
+| `GET /healthz`, `GET /readyz` | Alive, and ready (the store answers) | |
+
+CLI commands take a workload's name or ID: a name is looked up among the caller's workloads (`GET
+/v1/workloads`), and one shared by several is refused with their IDs. `-json` prints what the API returned.
 
 ## API conventions
 

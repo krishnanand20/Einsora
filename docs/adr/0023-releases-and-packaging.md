@@ -1,6 +1,6 @@
 # 0023. Release with GoReleaser, sign with Sigstore, and run in the background as the user
 
-- **Status:** Proposed (roadmap step 11; built, no release cut yet)
+- **Status:** Proposed (roadmap step 11; built, and `v0.1.0-rc.1` released on 2026-11-03)
 - **Date:** 2026-11-03
 - **Deciders:** Krishnanand
 - **Builds on:** ADR-0003 (one Go binary), ADR-0012 (Solo runs as one process), ADR-0013 (Apple

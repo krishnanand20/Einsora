@@ -108,9 +108,9 @@ release:
     ```
 
     The macOS build isn't notarized by Apple, so a copy downloaded with a browser won't open: install
-    it with the script. On Debian or Ubuntu, `sudo apt install ./einsora_{{ .Version }}_<arch>.deb`; on Fedora or RHEL,
-    `sudo dnf install ./einsora-{{ .Version }}-1.<arch>.rpm`. Then
-    [start it](https://einsora.com/runbooks/00-quickstart/).
+    it with the script. On Debian or Ubuntu, download the `.deb` for your machine and
+    `sudo apt install ./einsora_*.deb`; on Fedora or RHEL, the `.rpm` and `sudo dnf install ./einsora-*.rpm`.
+    Then [start it](https://einsora.com/runbooks/00-quickstart/).
 
     ## Verify
 

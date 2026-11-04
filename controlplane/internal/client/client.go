@@ -1,8 +1,9 @@
-// Package client is a small Go client for the Einsora API, used by the `einsora` CLI commands
-// (workloads, events, export). It only speaks the public /v1 API.
+// Package client is a small Go client for the Einsora API, used by the `einsora` CLI's client
+// commands (workloads, launch, stop, events, export, and the rest). It only speaks the public /v1 API.
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -110,6 +111,18 @@ type Workload struct {
 	GPUCount    int       `json:"gpu_count"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	// JSON is the workload exactly as the server sent it, with every field, for -json output.
+	JSON json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON keeps the server's JSON beside the fields this client knows.
+func (w *Workload) UnmarshalJSON(b []byte) error {
+	type fields Workload
+	if err := json.Unmarshal(b, (*fields)(w)); err != nil {
+		return err
+	}
+	w.JSON = append(json.RawMessage(nil), b...)
+	return nil
 }
 
 type Event struct {
@@ -120,10 +133,23 @@ type Event struct {
 	At     time.Time `json:"at"`
 }
 
-func (c *Client) get(ctx context.Context, path string) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+path, nil)
+// do sends a request, with in as its JSON body if it isn't nil, and returns the response if it
+// succeeded, or the API's error.
+func (c *Client) do(ctx context.Context, method, path string, in any) (*http.Response, error) {
+	var reqBody io.Reader
+	if in != nil {
+		b, err := json.Marshal(in)
+		if err != nil {
+			return nil, err
+		}
+		reqBody = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.BaseURL+path, reqBody)
 	if err != nil {
 		return nil, err
+	}
+	if in != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	if c.Token != "" {
 		if !c.tokenSafe(req.URL) {
@@ -161,13 +187,18 @@ func (c *Client) get(ctx context.Context, path string) (*http.Response, error) {
 	return nil, apiErr
 }
 
-func (c *Client) getJSON(ctx context.Context, path string, dst any) error {
-	resp, err := c.get(ctx, path)
+// doJSON sends a request (see do) and decodes the response into dst.
+func (c *Client) doJSON(ctx context.Context, method, path string, in, dst any) error {
+	resp, err := c.do(ctx, method, path, in)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 	return json.NewDecoder(resp.Body).Decode(dst)
+}
+
+func (c *Client) getJSON(ctx context.Context, path string, dst any) error {
+	return c.doJSON(ctx, http.MethodGet, path, nil, dst)
 }
 
 // ListWorkloads lists the caller's workloads; includeDeleted adds deleted ones.
@@ -197,6 +228,18 @@ type Machine struct {
 	Status       string        `json:"status"`
 	LastSeenAt   *time.Time    `json:"last_seen_at"`
 	Workloads    int           `json:"workloads"`
+	// JSON is the machine exactly as the server sent it, for -json output.
+	JSON json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON keeps the server's JSON beside the fields this client knows.
+func (m *Machine) UnmarshalJSON(b []byte) error {
+	type fields Machine
+	if err := json.Unmarshal(b, (*fields)(m)); err != nil {
+		return err
+	}
+	m.JSON = append(json.RawMessage(nil), b...)
+	return nil
 }
 
 // Accelerator is a machine's GPU (or Apple Silicon GPU), as its agent reported it.
@@ -243,7 +286,7 @@ func (c *Client) Export(ctx context.Context, id string) (body []byte, filename s
 	if err != nil {
 		return nil, "", err
 	}
-	resp, err := c.get(ctx, path)
+	resp, err := c.do(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, "", err
 	}
@@ -263,4 +306,165 @@ func (c *Client) Export(ctx context.Context, id string) (body []byte, filename s
 		filename = "einsora-workload-" + uuid.MustParse(id).String() + ".json" // id was checked by workloadPath
 	}
 	return body, filename, nil
+}
+
+// GetWorkload returns one of the caller's workloads, deleted or not.
+func (c *Client) GetWorkload(ctx context.Context, id string) (Workload, error) {
+	path, err := workloadPath(id, "?include_deleted=true")
+	if err != nil {
+		return Workload{}, err
+	}
+	var w Workload
+	err = c.getJSON(ctx, path, &w)
+	return w, err
+}
+
+// LaunchInput is a new workload, as POST /v1/workloads takes it.
+type LaunchInput struct {
+	Name         string `json:"name"`
+	Kind         string `json:"kind"`
+	ImageID      string `json:"image_id"`
+	GPUClass     string `json:"gpu_class"`
+	GPUCount     int    `json:"gpu_count"`
+	Region       string `json:"region,omitempty"`         // empty: the catalog's default
+	ModelURI     string `json:"model_uri,omitempty"`      // endpoints only
+	SSHPublicKey string `json:"ssh_public_key,omitempty"` // VMs only
+}
+
+// Launch creates a workload. It starts pending: the controller places it and starts it.
+func (c *Client) Launch(ctx context.Context, in LaunchInput) (Workload, error) {
+	var w Workload
+	err := c.doJSON(ctx, http.MethodPost, "/v1/workloads", in, &w)
+	return w, err
+}
+
+// Stop releases a workload's GPUs; a VM or notebook keeps its disk.
+func (c *Client) Stop(ctx context.Context, id string) (Workload, error) {
+	return c.act(ctx, http.MethodPost, id, "/stop")
+}
+
+// Start queues a stopped or failed workload to run again.
+func (c *Client) Start(ctx context.Context, id string) (Workload, error) {
+	return c.act(ctx, http.MethodPost, id, "/start")
+}
+
+// Delete removes a workload and everything it stored; its timeline and export stay.
+func (c *Client) Delete(ctx context.Context, id string) (Workload, error) {
+	return c.act(ctx, http.MethodDelete, id, "")
+}
+
+// act asks for a change to a workload and returns its state once the request is accepted.
+func (c *Client) act(ctx context.Context, method, id, suffix string) (Workload, error) {
+	path, err := workloadPath(id, suffix)
+	if err != nil {
+		return Workload{}, err
+	}
+	var w Workload
+	err = c.doJSON(ctx, method, path, nil, &w)
+	return w, err
+}
+
+// workloadName is the shape of a workload's name, so only a name or an ID is ever looked up.
+var workloadName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$`)
+
+// WorkloadID returns the ID of the workload ref names: ref itself if it's an ID, or the ID of the
+// caller's one workload with that name. Names can repeat, so a name shared by several is refused
+// with their IDs. withDeleted also looks among deleted workloads, after the ones that aren't.
+func (c *Client) WorkloadID(ctx context.Context, ref string, withDeleted bool) (string, error) {
+	if id, err := uuid.Parse(ref); err == nil {
+		return id.String(), nil
+	}
+	if !workloadName.MatchString(ref) {
+		return "", fmt.Errorf("%q is neither a workload's name nor its ID (run `einsora workloads` to list them)", Printable(ref))
+	}
+	ws, err := c.ListWorkloads(ctx, withDeleted)
+	if err != nil {
+		return "", err
+	}
+	var live, deleted []string
+	for _, w := range ws {
+		switch {
+		case w.Name != ref:
+		case w.State == "deleted":
+			deleted = append(deleted, w.ID)
+		default:
+			live = append(live, w.ID)
+		}
+	}
+	found := live
+	if len(found) == 0 {
+		found = deleted
+	}
+	switch len(found) {
+	case 0:
+		if withDeleted {
+			return "", fmt.Errorf("you have no workload named %q (run `einsora workloads -all` to list them)", ref)
+		}
+		return "", fmt.Errorf("you have no workload named %q (run `einsora workloads` to list them; a deleted one needs its ID)", ref)
+	case 1:
+		return found[0], nil
+	}
+	return "", fmt.Errorf("%d workloads are named %q; give one of their IDs: %s", len(found), ref, strings.Join(found, ", "))
+}
+
+// Catalog is what this installation offers the caller: regions (the first is the default), the
+// GPU classes they may use, and images.
+type Catalog struct {
+	Regions    []Region   `json:"regions"`
+	GPUClasses []GPUClass `json:"gpu_classes"`
+	Images     []Image    `json:"images"`
+	// JSON is the catalog exactly as the server sent it, for -json output.
+	JSON json.RawMessage `json:"-"`
+}
+
+// Region is where workloads run and their data stays.
+type Region struct {
+	ID          string `json:"id"`
+	DisplayName string `json:"display_name"`
+}
+
+// GPUClass is a kind of accelerator a workload asks for, or a CPU class (VRAMGB 0).
+type GPUClass struct {
+	ID          string   `json:"id"`
+	DisplayName string   `json:"display_name"`
+	Accelerator string   `json:"accelerator"`
+	VRAMGB      int      `json:"vram_gb"`
+	SupportsVM  bool     `json:"supports_vm"`
+	Regions     []string `json:"regions"`
+}
+
+// Image is something to launch, with what runs it on which accelerators.
+type Image struct {
+	ID          string    `json:"id"`
+	DisplayName string    `json:"display_name"`
+	Kind        string    `json:"kind"`
+	Description string    `json:"description"`
+	Runtimes    []Runtime `json:"runtimes"`
+}
+
+// Runtime is how an image runs on some accelerators: for an endpoint, its server and the model
+// format it loads.
+type Runtime struct {
+	Accelerators []string `json:"accelerators"`
+	Server       string   `json:"server"`
+	ModelFormat  string   `json:"model_format"`
+}
+
+// Catalog returns what the caller can launch.
+func (c *Client) Catalog(ctx context.Context) (Catalog, error) {
+	resp, err := c.do(ctx, http.MethodGet, "/v1/catalog", nil)
+	if err != nil {
+		return Catalog{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+	if err != nil {
+		return Catalog{}, err
+	}
+	var cat Catalog
+	if err := json.Unmarshal(raw, &cat); err != nil {
+		return Catalog{}, fmt.Errorf("the server's catalog isn't valid JSON: %w", err)
+	}
+	cat.JSON = raw
+	return cat, nil
 }

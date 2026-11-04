@@ -1,8 +1,9 @@
 # 00: Quickstart (Solo: one Mac or Linux machine)
 
 > **Status: `einsora up` works today, built from source** (below). The one-line install, packages, and
-> background service are built ([ADR-0023](../adr/0023-releases-and-packaging.md)); they work from the
-> first release, which hasn't been cut yet. The development stack is at the end of this page.
+> background service are built ([ADR-0023](../adr/0023-releases-and-packaging.md)). The first release
+> candidate, `v0.1.0-rc.1`, is out: the install script installs it with `EINSORA_VERSION=v0.1.0-rc.1` until
+> `v0.1.0`, the first full release. The development stack is at the end of this page.
 
 ## Requirements
 
@@ -14,11 +15,14 @@
 
 ## Install
 
-**With the install script**, on a Mac or Linux (from the first release):
+**With the install script**, on a Mac or Linux:
 
 ```bash
 curl -fsSL https://einsora.com/install.sh | sh
 ```
+
+Until `v0.1.0`, the first full release, is out, install the release candidate:
+`curl -fsSL https://einsora.com/install.sh | EINSORA_VERSION=v0.1.0-rc.1 sh`.
 
 It downloads the release for this machine over HTTPS (it needs curl), checks its SHA-256 against
 the release's checksums and, if [cosign](https://docs.sigstore.dev/cosign/system_config/installation/)
@@ -107,14 +111,29 @@ running, as when you stop `einsora up`.
 
 3. **VM** (Phase 2): Launch → GPU VM.
 
+**From the CLI,** with an API token from the dashboard's **API tokens** page in `EINSORA_TOKEN`:
+
+```bash
+einsora catalog                 # what you can launch: regions, GPU and CPU classes, and images
+einsora launch notebook lab -image pytorch-notebook -class apple-silicon-32gb
+einsora launch endpoint chat -image gguf-endpoint -class apple-silicon-32gb -model hf://Qwen/Qwen3-0.6B-GGUF:Q8_0
+einsora workloads               # pending → queued → provisioning → running
+einsora stop lab                # releases its GPU; a notebook keeps its disk
+einsora start lab
+einsora delete chat             # asks first (-y doesn't); its timeline and export stay
+```
+
+Commands take a workload's name, or its ID when several share a name, and `-json` prints what the API
+returned, for scripts.
+
 ## See what happened
 
 Every workload keeps a full timeline: each state change, when, why, and by whom. Open the workload in
 the dashboard and click **Download full log** to save everything about it, or use the CLI:
 
 ```bash
-einsora events <id>      # the timeline
-einsora export <id>      # a complete copy, as JSON
+einsora events lab       # the timeline
+einsora export lab       # a complete copy, as JSON
 einsora workloads -all   # deleted workloads too: their history stays available
 ```
 
@@ -138,13 +157,15 @@ make setup && make dev        # API on :8080
 make web-dev                  # dashboard on :5173
 ```
 
-The CLI's read commands work today against `make dev`:
+The CLI works against `make dev` too:
 
 ```bash
 cd controlplane && go build -o bin/einsora ./cmd/einsora
-EINSORA_DEV_TENANT=acme bin/einsora workloads
-EINSORA_DEV_TENANT=acme bin/einsora events <id>
-EINSORA_DEV_TENANT=acme bin/einsora export <id>
+export EINSORA_DEV_TENANT=acme
+bin/einsora launch notebook nb -image pytorch-notebook -class l40s-48gb
+bin/einsora workloads
+bin/einsora events nb
+bin/einsora export nb
 ```
 
 To try local accounts (sign-in and API tokens) instead of the dev header, keep the data in a SQLite file:
@@ -173,9 +194,9 @@ and the timeline says so.
 cd controlplane
 EINSORA_CLUSTER_BACKEND=agent EINSORA_AGENT_DRIVERS=sim EINSORA_MACHINE_OWNER=internal go run ./cmd/einsora dev
 # in another terminal: a notebook on this Mac's GPU (use the tier its memory holds, or a CPU class such as cpu-2c-8g)
-curl -s -X POST -H 'X-Dev-Tenant: internal' localhost:8080/v1/workloads \
-  -d '{"name":"nb","kind":"notebook","image_id":"pytorch-notebook","gpu_class":"apple-silicon-32gb","gpu_count":1}'
-EINSORA_DEV_TENANT=internal go run ./cmd/einsora events <id>   # admitted: 1 × apple-silicon-32gb on <this machine> with sim
+export EINSORA_DEV_TENANT=internal
+go run ./cmd/einsora launch notebook nb -image pytorch-notebook -class apple-silicon-32gb
+go run ./cmd/einsora events nb   # admitted: 1 × apple-silicon-32gb on <this machine> with sim
 ```
 
 ### Run a real notebook on your Mac

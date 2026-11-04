@@ -27,7 +27,7 @@ the CLI or dashboard and download a complete copy. Only secrets are redacted, an
 
 | Profile | For | Install |
 |---|---|---|
-| **Solo** | One person, one machine | One binary: `einsora up` (built from source today; an install script and packages from the first release) |
+| **Solo** | One person, one machine | One binary: `einsora up`, installed with a script or a package (the first release candidate, `v0.1.0-rc.1`, is out), or built from source |
 | **Lab** | Classes, teams, home labs, small companies, with mixed Mac and Linux machines | `einsora up` on one machine and `einsora agent` on the rest (planned) |
 | **Datacenter** | Startups at scale, enterprises, big tech | Kubernetes with KubeVirt, KServe, and the GPU Operator ([deploy/](deploy/), [infra/](infra/)) |
 
@@ -68,7 +68,8 @@ docs/           Product spec, architecture, ADRs, roadmap, runbooks, playbooks, 
 
 From the first release, on a Mac (Apple Silicon) or Linux: `curl -fsSL https://einsora.com/install.sh | sh`,
 which checks what it downloads before installing it, or `brew install krishnanand20/tap/einsora`, then
-`einsora up`. Until then, build it from source.
+`einsora up`. Until `v0.1.0` is out, install the release candidate with
+`curl -fsSL https://einsora.com/install.sh | EINSORA_VERSION=v0.1.0-rc.1 sh`, or build it from source.
 Prerequisites: Go 1.27+, [uv](https://docs.astral.sh/uv/), and Node 22+. On a Mac: `brew install go uv node`.
 
 ```bash
@@ -103,9 +104,12 @@ The same binary is a CLI client. In a third terminal:
 ```bash
 cd controlplane && go build -o bin/einsora ./cmd/einsora
 export EINSORA_DEV_TENANT=acme              # dev mode; EINSORA_API_URL defaults to http://127.0.0.1:8080
+bin/einsora catalog                        # what you can launch
+bin/einsora launch notebook nb -image pytorch-notebook -class l40s-48gb
 bin/einsora workloads                      # your workloads (-all includes deleted ones)
-bin/einsora events <id>                    # full timeline: every state change and note, when, why, and by whom
-bin/einsora export <id>                    # download everything recorded about it to a JSON file
+bin/einsora events nb                      # full timeline: every state change and note, when, why, and by whom
+bin/einsora export nb                      # download everything recorded about it to a JSON file
+bin/einsora stop nb                        # then start, or delete; names or IDs, and -json for scripts
 ```
 
 For full server logs, run `make dev EINSORA_LOG_LEVEL=debug EINSORA_LOG_FILE=$PWD/einsora.log`.
@@ -121,7 +125,7 @@ hardware validation is pending.
 
 | | Built | Planned |
 |---|---|---|
-| Control plane | API, lifecycle, quotas, controller, usage accounting, SQLite, Postgres, and in-memory stores, Kubernetes backend, regions, machines, and placement in the data model, timeline and log export, CLI client, local accounts, `einsora up` (Solo, with the dashboard built in), in-process agent, Mac native and Linux Docker drivers, endpoints with vLLM, MLX, and llama.cpp (GGUF, also on CPU), `einsora service` (launchd and systemd), and the release pipeline (install script, .deb and .rpm, a Homebrew formula, Sigstore-signed checksums) | the first release, networked agents, VM drivers, choosing a region, fallback placement, sharing, workload output logs, activity log |
+| Control plane | API, lifecycle, quotas, controller, usage accounting, SQLite, Postgres, and in-memory stores, Kubernetes backend, regions, machines, and placement in the data model, timeline and log export, CLI client, local accounts, `einsora up` (Solo, with the dashboard built in), in-process agent, Mac native and Linux Docker drivers, endpoints with vLLM, MLX, and llama.cpp (GGUF, also on CPU), `einsora service` (launchd and systemd), and the release pipeline (install script, .deb and .rpm, a Homebrew formula, Sigstore-signed checksums) | the first full release, `v0.1.0` (`v0.1.0-rc.1` is out), networked agents, VM drivers, choosing a region, fallback placement, sharing, workload output logs, activity log |
 | ML layer | Model validator (safetensors and GGUF), ingestion and endpoint model fetching (one GGUF quantization per source), benchmarking, GPU burn-in (CUDA and Metal) | Live runs on Linux with CUDA |
 | Dashboard | Workload list, launch form, workload timeline and full-log download, Machines page, built into the binary | Sharing, usage reports |
 | Datacenter | Charts, add-ons, Ansible, runbooks (rendered and linted, not yet run on hardware) | Production validation |

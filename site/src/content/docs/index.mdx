@@ -25,8 +25,9 @@ import { Aside, Card, CardGrid, LinkCard, Steps, TabItem, Tabs } from '@astrojs/
 <Aside type="caution" title="Early, and built in the open">
 Einsora is **pre-release**. Built from source, `einsora up` runs it today: notebooks and model
 endpoints on Apple Silicon Macs (Metal or CPU) and on Linux (Docker, with NVIDIA or CPU), with the
-dashboard, API, and complete logs. The release pipeline (an install script, Linux packages, signed
-checksums) is built; the first release, and the rest of the CLI, are next. See the
+dashboard, API, CLI, and complete logs. The release pipeline (an install script, Linux packages, signed
+checksums) is built, and the first release candidate, `v0.1.0-rc.1`, is out; `v0.1.0` and workload
+output logs are next. See the
 [roadmap](product/roadmap/) for exactly what's built.
 </Aside>
 
@@ -211,12 +212,15 @@ Response headers say what served each request: region, compute class, and whethe
 The `einsora` binary is also a client for a running API.
 
 ```bash
-einsora workloads -all        # your workloads, including deleted ones
-einsora events <id>           # a workload's full timeline
-einsora export <id> -o log.json   # everything recorded about it, as one JSON file
+einsora catalog                   # what you can launch
+einsora launch notebook lab -image pytorch-notebook -class apple-silicon-32gb
+einsora workloads -all            # your workloads, including deleted ones
+einsora events lab                # a workload's full timeline
+einsora export lab -o log.json    # everything recorded about it, as one JSON file
+einsora stop lab                  # then start, or delete
 ```
 
-Write commands (`launch`, `stop`, `start`, `delete`) are on the roadmap.
+Commands take a workload's name or ID, and `-json` prints what the API returned.
 
 </TabItem>
 </Tabs>
@@ -239,7 +243,7 @@ commercially.
 | Phase | What it delivers | Status |
 |---|---|---|
 | **0. Foundations** | Architecture, core platform, ML validator, dashboard, logs and transparency | <span class="status-built">Done</span> |
-| **1. Solo** | One-command install on a Mac or Linux box; notebooks and model endpoints on the local GPU | <span class="status-next">In progress</span>: `einsora up`, the drivers, and the release pipeline done; the first release next |
+| **1. Solo** | One-command install on a Mac or Linux box; notebooks and model endpoints on the local GPU | <span class="status-next">In progress</span>: `einsora up`, the drivers, and the release pipeline done, and `v0.1.0-rc.1` out; `v0.1.0` next |
 | **2. Lab** | Mixed Mac and Linux machines; users, invites, quotas; VMs; fallbacks; a relay for remote access | <span class="status-later">Planned</span> |
 | **3. Datacenter** | Kubernetes in production: KubeVirt, KServe, Ceph, Postgres HA, SSO, audit logs | <span class="status-later">Planned</span> |
 | **4. Sharing** | Invite-only and community pools: idle detection, preemption, managed inference, fair share | <span class="status-later">Planned</span> |

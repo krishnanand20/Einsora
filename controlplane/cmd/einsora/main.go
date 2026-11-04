@@ -77,11 +77,27 @@ Server commands:
   dev         api + controller + metering in one process with seeded data; uses an in-memory
               store unless EINSORA_DATABASE_URL is set (postgres://… or sqlite:<path>)
 
-Client commands (talk to a running API):
-  workloads [-all]      list your workloads (-all includes deleted ones)
-  machines              list your machines: online or not, region, CPUs, memory, GPUs, your workloads on them
-  events <id> [-json]   show a workload's complete timeline: every state change and note, when, and why
-  export <id> [-o file] [-f]
+Client commands (talk to a running API; <workload> is a workload's name or ID; -json prints
+what the API returned):
+  workloads [-all] [-json]
+                        list your workloads (-all includes deleted ones)
+  machines [-json]      list your machines: online or not, region, CPUs, memory, GPUs, your workloads on them
+  catalog [-json]       list what you can launch: regions, GPU and CPU classes, and images
+  launch <notebook|endpoint|vm> <name> -image <id> -class <id> [-gpus n] [-region id]
+         [-model uri] [-ssh-key key-or-file] [-json]
+                        launch a workload; it's pending until it's placed. An endpoint needs -model
+                        (hf://org/model, hf://org/model-GGUF:TAG, or s3://bucket/prefix); a VM
+                        needs -ssh-key (a public key, or a .pub file)
+  stop <workload> [-json]
+                        release its GPUs; a notebook or VM keeps its disk
+  start <workload> [-json]
+                        queue a stopped or failed workload to run again
+  delete <workload> [-y] [-json]
+                        remove it with its disk and data, after asking (-y doesn't ask); its
+                        timeline and export stay
+  events <workload> [-json]
+                        show a workload's complete timeline: every state change and note, when, and why
+  export <workload> [-o file] [-f]
                         save everything recorded about a workload as one JSON file, readable by
                         you only (default einsora-<name>-<id>.json; -o - writes to stdout;
                         -f replaces an existing file)
@@ -107,7 +123,7 @@ func main() {
 	var err error
 	switch {
 	case isClientCommand(cmd):
-		err = runClient(ctx, cmd, args, os.Stdout)
+		err = runClient(ctx, cmd, args, cli{in: os.Stdin, out: os.Stdout, errOut: os.Stderr, interactive: isTerminal(os.Stdin)})
 	case cmd == "setup":
 		err = runSetup(ctx, args, os.Stdin, os.Stdout)
 	case cmd == "up":

@@ -6,7 +6,8 @@ formula in the tap ([ADR-0023](../adr/0023-releases-and-packaging.md)).
 `.github/workflows/release.yml` does the work when a version tag is pushed; nothing is built on a
 laptop.
 
-> **Status:** written; no release has been cut yet. The pipeline is checked on every pull request
+> **Status:** used for `v0.1.0-rc.1` (2026-11-03), which was checked on a Mac with `install.sh` and its
+> Sigstore signature. The pipeline is checked on every pull request
 > by a snapshot build (the `packaging` job in CI), which publishes nothing, and the formula is
 > built and installed from every commit (the `macos` job).
 
