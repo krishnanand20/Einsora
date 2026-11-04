@@ -99,6 +99,29 @@ export interface WorkloadEvent {
   at: string;
 }
 
+/**
+ * A piece of a workload's output (ADR-0024): from its stdout or stderr, or a note from Einsora
+ * itself (stream "einsora"), such as output that was lost.
+ */
+export interface OutputChunk {
+  id: number;
+  stream: "stdout" | "stderr" | "einsora";
+  at: string;
+  text: string;
+  /** How many values that may be credentials were replaced with REDACTED. */
+  redactions?: number;
+}
+
+/** A page of a workload's output (GET /v1/workloads/{id}/logs). Read on with after=next. */
+export interface OutputPage {
+  items: OutputChunk[];
+  next: number;
+  /** False when this workload's output isn't collected; notes say why. */
+  collected: boolean;
+  /** What isn't collected, or was lost or removed: never left unsaid. */
+  notes: string[];
+}
+
 /** Who's signed in (GET /v1/auth/me). */
 export interface Me {
   subject: string;

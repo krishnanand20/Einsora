@@ -56,7 +56,7 @@ Run from the repo root (`make help` lists everything):
 With `EINSORA_AUTH_MODE=local`, create the owner account once with `einsora setup -email you@example.com`,
 then sign in on the dashboard and make API tokens there. The `einsora` binary is also a CLI client for a
 running API (set `EINSORA_TOKEN`): `einsora catalog`, `einsora launch`, `stop`, `start`, `delete`,
-`einsora workloads [-all]`, `einsora machines`, `einsora events <workload>`, and `einsora export <workload>`
+`einsora workloads [-all]`, `einsora machines`, `einsora events <workload>`, `einsora logs <workload> [-f]`, and `einsora export <workload>`
 (`-json` prints the API's JSON; [logs and transparency](docs/architecture/logs-and-transparency.md)). For full
 server logs, set `EINSORA_LOG_LEVEL=debug` and `EINSORA_LOG_FILE=<path>`.
 

@@ -57,7 +57,7 @@ runtime name; choosing runtimes by both driver and accelerator is the next roadm
   daemon access, which grants substantial host authority; containers never receive that access.
 - These containers have outbound network access, including the LAN. Bridge networks and runc are
   insufficient for guests; strong isolation and network policy remain prerequisites for sharing.
-- Memory, CPU, and PID limits are enforced; disk quotas and workload output export remain planned.
+- Memory, CPU, and PID limits are enforced; disk quotas remain planned, and its workload output comes in roadmap step 14b ([ADR-0024](0024-workload-output.md)).
   Only curated pinned images should be used. GPU memory is bounded by allocating whole devices.
 - CPU notebooks work without NVIDIA. CPU endpoints await GGUF validation and llama.cpp (step 10).
   Rootless/userns support requires a design for remapped bind-mount ownership and is deferred.

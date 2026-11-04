@@ -113,8 +113,18 @@ var uriInText = regexp.MustCompile("[A-Za-z][A-Za-z0-9+.-]*://[^\\s\"<>`]+")
 // Secrets removes credentials from every URI inside free text. Use it on anything that may echo
 // user input before it reaches a log line or a timeline reason.
 func Secrets(text string) string {
-	return uriInText.ReplaceAllStringFunc(text, func(u string) string {
-		clean, _ := URI(u)
+	clean, _ := CountSecrets(text)
+	return clean
+}
+
+// CountSecrets is Secrets, also saying how many values it removed, so a record of the text can
+// list them (ADR-0015: never silently).
+func CountSecrets(text string) (string, int) {
+	n := 0
+	clean := uriInText.ReplaceAllStringFunc(text, func(u string) string {
+		clean, reasons := URI(u)
+		n += len(reasons)
 		return clean
 	})
+	return clean, n
 }

@@ -1,13 +1,19 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import { Link, useParams } from "react-router";
 
 import { api } from "../api/client";
 import { machineName } from "../machines";
+import { mergeOutput, type OutputView, outputText } from "../output";
 import { canOpen, classShown, describeChange, isSettling } from "../workloads";
 
+/** How many pages of output one refresh reads at most; the next refresh reads on. */
+const OUTPUT_ROUNDS = 20;
+const OUTPUT_PAGE = 500;
+
 /**
- * One workload: its complete timeline, and a download of everything recorded about it (ADR-0015).
- * Deleted workloads open too, so their history is never out of reach.
+ * One workload: its complete timeline, its output, and a download of everything recorded about it
+ * (ADR-0015, ADR-0024). Deleted workloads open too, so their history is never out of reach.
  */
 export function WorkloadDetailPage() {
   const { id = "" } = useParams();
@@ -22,6 +28,31 @@ export function WorkloadDetailPage() {
     queryFn: () => api.workloadEvents(id),
     refetchInterval: workload.data && isSettling(workload.data.state) ? 2000 : false,
   });
+  // Output reads on from where it got to, so each refresh fetches only what's new. It refreshes
+  // while the workload runs, since that's when there's new output.
+  const queryClient = useQueryClient();
+  const output = useQuery({
+    queryKey: ["workload-output", id],
+    queryFn: async (): Promise<OutputView> => {
+      let view = queryClient.getQueryData<OutputView>(["workload-output", id]);
+      let page = await api.workloadOutput(id, view?.next ?? 0);
+      view = mergeOutput(view, page);
+      for (let round = 1; round < OUTPUT_ROUNDS && page.items.length >= OUTPUT_PAGE; round++) {
+        page = await api.workloadOutput(id, view.next);
+        view = mergeOutput(view, page);
+      }
+      return view;
+    },
+    refetchInterval: workload.data && (workload.data.state === "running" || isSettling(workload.data.state)) ? 2000 : false,
+  });
+  // Keep the newest output in sight, unless the reader has scrolled up.
+  const outputBox = useRef<HTMLPreElement>(null);
+  const followOutput = useRef(true);
+  const shownChunks = output.data?.chunks.length ?? 0;
+  useEffect(() => {
+    const box = outputBox.current;
+    if (box && followOutput.current) box.scrollTop = box.scrollHeight;
+  }, [shownChunks]);
   const download = useMutation({
     mutationFn: () => api.exportWorkload(id),
     onSuccess: ({ blob, filename }) => {
@@ -132,6 +163,41 @@ export function WorkloadDetailPage() {
           </tbody>
         </table>
       </div>
+
+      <h2>Output</h2>
+      <p className="muted">
+        What it printed (stdout and stderr), with anything that looks like a credential in a URL replaced by REDACTED.
+        It's kept for a limited time (14 days by default); <strong>Download full log</strong> has all of it that's kept.
+      </p>
+      {output.isError && <p className="error">{output.error.message}</p>}
+      {output.data?.notes.map((note) => (
+        <p key={note} className="muted">
+          {note}
+        </p>
+      ))}
+      {output.data && output.data.hiddenChars > 0 && (
+        <p className="muted">
+          Showing the most recent output. Earlier output this page leaves out is in <strong>Download full log</strong>.
+        </p>
+      )}
+      {output.data && (output.data.collected || output.data.chunks.length > 0) && (
+        <pre
+          className="output"
+          ref={outputBox}
+          onScroll={(e) => {
+            const box = e.currentTarget;
+            followOutput.current = box.scrollHeight - box.scrollTop - box.clientHeight < 24;
+          }}
+        >
+          {output.data.chunks.length === 0
+            ? "No output yet."
+            : output.data.chunks.map((c) => (
+                <span key={c.id} className={`output-${c.stream}`}>
+                  {c.stream === "einsora" ? `[einsora] ${outputText(c.text)}` : outputText(c.text)}
+                </span>
+              ))}
+        </pre>
+      )}
     </section>
   );
 }

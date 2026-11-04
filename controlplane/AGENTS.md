@@ -11,7 +11,7 @@ darwin/arm64** (rule 11): run `make build-all` from the repo root.
 cmd/einsora/            main: wiring only. Server subcommands: up (Solo: everything in one process) | service | api | controller |
                         metering | migrate | seed | dev (planned: agent | gateway | backup | restore). up.go: the
                         data directory per OS, Solo's defaults, and the first-run account
-                        client.go: CLI client commands workloads | machines | catalog | launch | stop | start | delete | events | export (planned: logs)
+                        client.go: CLI client commands workloads | machines | catalog | launch | stop | start | delete | events | logs | export
 internal/domain/        types, the state machine, and error codes. Imports nothing internal.
 internal/config/        EINSORA_* env parsing and production guards
 internal/autostart/     the launchd agent and systemd user service that run `einsora up` in the background (einsora service; ADR-0023)
@@ -46,6 +46,7 @@ internal/agent/         the node agent: syncs with the control plane and runs wo
   drivers/docker/       docker (Linux): owner-only JupyterLab, NVIDIA vLLM, and llama.cpp (NVIDIA or CPU) through a local rootful Engine
   drivers/pythonruntime/ shared embedded Python model policy and workers (regenerate with ml/scripts/bundle_native.py)
 internal/metering/      usage accounting: events → metered intervals → hourly usage records (no money)
+internal/output/        workload output (ADR-0024): stores what agents ship, credentials removed, and trims and expires it, counting what's removed
 internal/devseed/       dev tenants (acme and globex untrusted, internal trusted)
 internal/testutil/      fixtures: real catalog, seeded store, manual clock
 migrations/             goose SQL files embedded into the binary: postgres/ and sqlite/, one file per version in each

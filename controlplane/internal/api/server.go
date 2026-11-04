@@ -57,6 +57,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /v1/workloads/{id}", s.authed(s.workloadAction(s.svc.DeleteWorkload)))
 	mux.Handle("GET /v1/workloads/{id}/events", s.authed(s.workloadEvents))
 	mux.Handle("GET /v1/workloads/{id}/export", s.authed(s.exportWorkload))
+	mux.Handle("GET /v1/workloads/{id}/logs", s.authed(s.workloadOutput))
 	mux.Handle("POST /v1/workloads/{id}/access", s.authed(s.openWorkload))
 	mux.Handle("GET /v1/auth/me", s.authed(s.me))
 	if s.local != nil {

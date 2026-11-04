@@ -1,6 +1,6 @@
 # 0015. Logs and transparency: complete, exportable, nothing hidden except secrets
 
-- **Status:** Accepted (timeline, export, CLI, request IDs, and log file built; output logs and activity log planned)
+- **Status:** Accepted (timeline, export, CLI, request IDs, and log file built; output logs built for macos-native, [ADR-0024](0024-workload-output.md); activity log planned)
 - **Date:** 2026-10-24
 
 ## Context

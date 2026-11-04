@@ -172,7 +172,7 @@ checks each machine:
 
 | Who | Sees |
 |---|---|
-| A user | Their own workloads' timeline, usage, and export (output logs planned). Never another tenant's. |
+| A user | Their own workloads' timeline, output, usage, and export. Never another tenant's. Output is accepted only from the machine a workload is placed on, and stored under its tenant from the store, never anything the agent says, and numbered per workload, so it shows nothing of anyone else's ([ADR-0024](../adr/0024-workload-output.md)). Once sharing exists, a host's agent could send made-up output for a guest's workload on its machine, as it could misreport anything else about it. |
 | A tenant admin | The tenant's activity log (planned, Phase 2) |
 | A host | Their machine's status and which workloads ran on it. Never a guest's output through the product, though as root a host could technically read guest data (disclosed). |
 | The operator | System logs. In a datacenter, Loki access is limited to on-call staff, and audited. |

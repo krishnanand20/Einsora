@@ -11,7 +11,7 @@ One Go binary (`controlplane/`), `einsora`, whose subcommand picks the role.
 | `einsora agent` | Node agent on other machines, joining over the network (ADR-0013, ADR-0016) | Lab | Planned (Phase 2). The agent itself is built and runs in-process (below). |
 | `einsora migrate` | Applies the embedded SQL migrations | Lab (Postgres), Datacenter | Built |
 | `einsora dev` | Development all-in-one: in-memory store (or SQLite or Postgres via `EINSORA_DATABASE_URL`), fake backend (or the agent backend with `EINSORA_CLUSTER_BACKEND=agent`), seeded users | Development | Built; runs on macOS and Linux |
-| `einsora catalog`, `launch`, `stop`, `start`, `delete`, `workloads`, `machines`, `events`, `export` | CLI client for a running API: every workload action, the full timeline, and the complete log export ([API](#api), [logs](logs-and-transparency.md)) | Every profile | Built (`logs --follow` planned) |
+| `einsora catalog`, `launch`, `stop`, `start`, `delete`, `workloads`, `machines`, `events`, `logs`, `export` | CLI client for a running API: every workload action, the full timeline, workload output, and the complete log export ([API](#api), [logs](logs-and-transparency.md)) | Every profile | Built |
 
 ## Sources of truth ([ADR-0008](../adr/0008-postgres-intent-kubernetes-runtime.md), [ADR-0012](../adr/0012-deployment-profiles.md))
 
@@ -221,6 +221,7 @@ commands listed.
 | `POST /v1/workloads/{id}/start` | Queue a stopped or failed workload again; it must fit the quota. **202** | `einsora start` |
 | `DELETE /v1/workloads/{id}` | Remove it, with what it stored; its timeline and export stay. **202** | `einsora delete` |
 | `GET /v1/workloads/{id}/events` | Its timeline | `einsora events` |
+| `GET /v1/workloads/{id}/logs` | Its output after the chunk `after`, with `notes`; `follow=true` waits up to 20 seconds for more ([ADR-0024](../adr/0024-workload-output.md)) | `einsora logs [-f]` |
 | `GET /v1/workloads/{id}/export` | Everything recorded about it, as one JSON file | `einsora export` |
 | `POST /v1/workloads/{id}/access` | A one-time link that opens a running notebook ([access proxy](#opening-workloads-the-access-proxy)) | (the dashboard's **Open**) |
 | `GET /v1/auth/me` | Who the caller is, and their tenant | |
@@ -285,5 +286,5 @@ CLI commands take a workload's name or ID: a name is looked up among the caller'
 - **Models:** `einsora-ml ingest` validates, then caches per machine or region (Phases 2–3)
 - **Access:** on the control plane's machine, the access proxy opens notebooks and serves endpoints to API tokens (built, ADR-0017). A relay through the control plane to workloads on other machines, and VM SSH (Phase 2).
 - **Usage API:** `GET /v1/usage`, for reports and fairness, never money (Phase 2)
-- **Logs** ([ADR-0015](../adr/0015-logs-and-transparency.md)): `GET /v1/workloads/{id}/logs` for workload output (Phase 1), and the per-tenant activity log (Phase 2)
+- **Logs** ([ADR-0015](../adr/0015-logs-and-transparency.md)): workload output (built, [ADR-0024](../adr/0024-workload-output.md); the docker driver's next), and the per-tenant activity log (Phase 2)
 - **Operations:** `/metrics`, admission aging (Phase 3). Leader election is the region lease (built).

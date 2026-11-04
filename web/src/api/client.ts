@@ -8,6 +8,7 @@ import type {
   List,
   Machine,
   Me,
+  OutputPage,
   PasswordChanged,
   Workload,
   WorkloadEvent,
@@ -114,6 +115,9 @@ export const api = {
   getWorkload: (id: string, includeDeleted = false) =>
     request<Workload>("GET", workloadPath(id, includeDeleted ? "?include_deleted=true" : "")),
   workloadEvents: (id: string) => request<List<WorkloadEvent>>("GET", workloadPath(id, "/events")),
+  /** Output after the chunk ID after (ADR-0024). */
+  workloadOutput: (id: string, after: number) =>
+    request<OutputPage>("GET", workloadPath(id, `/logs?after=${encodeURIComponent(String(after))}`)),
   exportWorkload,
   /** A notebook's one-time link or an endpoint's API base URL (ADR-0017). */
   openWorkload: (id: string) => request<AccessGrant>("POST", workloadPath(id, "/access")),

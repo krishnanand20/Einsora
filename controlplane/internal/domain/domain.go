@@ -101,6 +101,48 @@ type Event struct {
 	At         time.Time
 }
 
+// OutputStream is where a piece of a workload's output came from (ADR-0024): its stdout or stderr,
+// or Einsora itself, for a note in the output such as output that was lost.
+type OutputStream string
+
+const (
+	StreamStdout  OutputStream = "stdout"
+	StreamStderr  OutputStream = "stderr"
+	StreamEinsora OutputStream = "einsora"
+)
+
+func (s OutputStream) Valid() bool {
+	return s == StreamStdout || s == StreamStderr || s == StreamEinsora
+}
+
+// OutputChunk is a piece of a workload's output as the control plane stored it.
+type OutputChunk struct {
+	ID int64 // the store's own, across all output: never shown to readers
+	// Seq counts the workload's own output from 1, and is never used twice: readers keep their
+	// place by it. A count across all workloads would show how much output other people's produce.
+	Seq        int64
+	WorkloadID uuid.UUID
+	Stream     OutputStream
+	At         time.Time // when the control plane received it
+	Text       string    // valid UTF-8, with credentials removed
+	Redactions int       // how many credentials were removed from it
+}
+
+// OutputState is where one of a workload's streams stands: how far it's stored, and how much of it
+// was never received or has been removed, so readers can be told (ADR-0024).
+type OutputState struct {
+	WorkloadID uuid.UUID
+	Stream     OutputStream
+	// Source is the agent's identity for the stream; the stream's offsets start over when it changes.
+	Source string
+	// Next is the offset in the stream up to which output has been received.
+	Next         int64
+	StoredBytes  int64 // kept now
+	LostBytes    int64 // never received: gone from the machine before it was sent
+	TrimmedBytes int64 // removed to keep the workload within its size limit
+	ExpiredBytes int64 // removed after the retention period
+}
+
 // UsageRecord is the metered time of one workload within one UTC clock hour (usage accounting, never money).
 type UsageRecord struct {
 	WorkloadID  uuid.UUID

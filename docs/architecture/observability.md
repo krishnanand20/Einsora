@@ -8,7 +8,7 @@
 | NVIDIA GPU use and memory | NVML, through the agent | Planned |
 | Apple GPU use and unified memory | macOS IOKit, through the agent (no root needed) | Planned (approach to validate) |
 | Workload timeline | Every state change and note with its reason; readable and exportable by the owner ([logs and transparency](logs-and-transparency.md)) | **Built** |
-| Workload output logs | The agent ships the driver's stdout and stderr to the control plane, for the workload's owner only | Planned (Phase 1) |
+| Workload output logs | The agent ships the driver's stdout and stderr to the control plane, for the workload's owner only, kept 14 days and up to 64 MiB per workload ([ADR-0024](../adr/0024-workload-output.md)) | **Built** for macos-native; docker next (roadmap step 14b) |
 | Control plane logs | `slog` to stderr; `EINSORA_LOG_LEVEL=debug` for detail and `EINSORA_LOG_FILE` for a complete copy on disk; `request_id` on every request line | **Built** |
 | Alerts | Dashboard notifications: machine offline, disk nearly full, workload failed | Planned (Phase 2) |
 | Prometheus | `/metrics` on the control plane and agents, for people who already run Prometheus | Planned (Phase 3) |
@@ -45,5 +45,5 @@ Each region runs its own stack, so logs stay in-region. A central Grafana can qu
 
 Workload logs are **user data** in every profile.
 
-- **Visibility:** only the workload's owner sees them in the dashboard, CLI, and export ([logs and transparency](logs-and-transparency.md)). Another tenant gets 404. In a datacenter, Loki access is limited to on-call staff for operational reasons, and audited. Retention is 14 days (`loki.yaml`).
+- **Visibility:** only the workload's owner sees them in the dashboard, CLI, and export ([logs and transparency](logs-and-transparency.md)). Another tenant gets 404. In a datacenter, Loki access is limited to on-call staff for operational reasons, and audited. Retention is 14 days (`EINSORA_OUTPUT_RETENTION` in the store, `loki.yaml` in a datacenter), and credentials in URLs are replaced with `REDACTED` before output is stored.
 - **Never collected:** logs from inside VMs, and anything from guest workloads on community hosts beyond the driver's own status lines.

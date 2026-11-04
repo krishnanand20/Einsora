@@ -10,10 +10,40 @@ Nothing is hidden except secrets, and every redaction is reported ([ADR-0015](..
 | **A user** | Your workloads, including deleted ones | `einsora workloads -all` | Workloads → **Show deleted** | `GET /v1/workloads?include_deleted=true` |
 | **A user** | Your workloads' full timeline: every state change and note, when, why, and by whom | `einsora events <workload>` (`-json` for raw) | Workload page → Timeline | `GET /v1/workloads/{id}/events` |
 | **A user** | A complete copy of everything recorded about a workload, including deleted ones | `einsora export <workload> [-o file] [-f]` | Workload page → **Download full log** | `GET /v1/workloads/{id}/export` |
-| **A user** | Your workloads' output (stdout and stderr; never collected from inside VMs, see below) | `einsora logs <id> --follow` (planned) | Planned | Planned |
+| **A user** | Your workloads' output: stdout and stderr, kept 14 days ([below](#workload-output)) | `einsora logs <workload> [-f]` | Workload page → Output | `GET /v1/workloads/{id}/logs` |
 | **A tenant admin** | The activity log: everything anyone in the tenant did | Planned | Planned | Planned |
 | **An operator** | Every log line from the control plane and agents, at any detail level | `EINSORA_LOG_LEVEL=debug`, `EINSORA_LOG_FILE=/path` | — | — |
 | **Anyone with an error** | A request ID that finds the exact log lines | Printed with every CLI error | Shown in error messages | `X-Request-ID` header, `request_id` in error bodies |
+
+## Workload output
+
+What a notebook or model server prints, stdout and stderr, as it printed it
+([ADR-0024](../adr/0024-workload-output.md)). The machine's agent sends it to the control plane within a
+second or two, whole lines at a time, and the control plane keeps it in its store, for the workload's
+owner only.
+
+- **Credentials are removed on the way in**: a value in a URL that may be a credential, such as a
+  notebook server's `?token=`, becomes `REDACTED`, as everywhere else. The export lists how many.
+  Output is sent in whole lines, so a URL arrives whole; one in a line longer than 256 KiB, or in a
+  line printed in parts more than two seconds apart, can be missed.
+- **Kept 14 days** (`EINSORA_OUTPUT_RETENTION`), **and up to 64 MiB per workload**
+  (`EINSORA_OUTPUT_MAX_MIB`, at most 256); past that, the oldest output goes. Whatever is removed, or never arrived
+  from the machine, is said: the API's `notes`, the CLI, the dashboard, and the export all say how much,
+  and a note in the output marks where output was lost.
+- **Deleted workloads** keep their output until it expires. Deleting one waits until its last output
+  has reached the control plane (its status says so meanwhile), so nothing it printed is lost unsaid.
+- **Not collected:** the inside of VMs (below), and runtimes that don't send it yet: Kubernetes
+  (Loki, Phase 3) and, for now, the Linux docker driver (roadmap step 14b). Reading those says so.
+
+```bash
+einsora logs lab           # everything kept
+einsora logs lab -f        # and new output as it comes, until Ctrl+C
+einsora logs lab -json     # one JSON object per piece: id, stream, at, text, redactions
+```
+
+`einsora logs` removes terminal escape sequences (colours, titles, cursor movement) before printing,
+so output can't control your terminal; `-json` keeps them, escaped. The dashboard shows the most recent
+1 MiB and says when it leaves earlier output out; **Download full log** has all of it.
 
 ## What the timeline says
 
@@ -54,7 +84,7 @@ browser, with whatever permissions it uses.
 | `created_by`, `params` | Who created it, and every input it was created with |
 | `events` | The complete timeline, oldest first |
 | `usage` | Every hourly usage record: seconds, GPU-seconds, the class that actually ran, and region (usage accounting; never money) |
-| `output_logs` | Workload output once the pipeline exists. Until then, `available: false` with a note saying so. |
+| `output_logs` | All of the workload's kept output: `items` (id, stream, time received, text, and redactions), each stream's `stored_bytes`, `lost_bytes`, `trimmed_bytes`, and `expired_bytes`, `available` (whether its output is collected), and `notes` saying what isn't collected or was removed |
 | `redactions` | Every value that was removed, and why. Empty when nothing was redacted. |
 
 ## What's redacted, and only that
@@ -72,7 +102,7 @@ For privacy, some things are never collected, so they can't be in any log. The p
 
 - **The inside of your VMs.** You have root, so read their logs over SSH. The timeline still shows every step the platform took.
 - **Guest workloads on community hosts:** only the driver's own status lines ([observability](observability.md#user-data-in-logs)).
-- **Until output capture lands**, the export's `output_logs` says it isn't captured yet.
+- **Output from runtimes that don't send it yet** (Kubernetes, and for now Linux docker): the export's `output_logs` says so.
 
 ## Examples
 
@@ -108,7 +138,7 @@ your own `X-Request-ID`, it's logged as `client_request_id` for correlation and 
 | Stream | Solo and Lab | Datacenter |
 |---|---|---|
 | Timeline, usage | The store (SQLite or Postgres) | Postgres |
-| Workload output (planned) | Agents stream it to the control plane, which keeps it per workload | Loki (Alloy ships pod logs), read by the API through the log store |
+| Workload output | Agents send it to the control plane, which keeps it in the store (built for macos-native; docker next) | Loki (Alloy ships pod logs), read by the API through the log store (planned) |
 | System logs | stderr and `EINSORA_LOG_FILE` | stderr, collected by Loki |
 
 The API reads output logs from the log store, never from the runtime directly (rule 1).

@@ -69,6 +69,12 @@ type Agent struct {
 	// startFailed keeps why an attempt couldn't start, reported for as long as it's asked for.
 	started     map[uuid.UUID]int64
 	startFailed map[uuid.UUID]protocol.Status
+
+	// Output (ADR-0024): how far the control plane has each stream, sent one request at a time.
+	outMu      sync.Mutex
+	out        map[outputKey]*outputCursor
+	outFailing bool
+	clock      func() time.Time
 }
 
 const (
@@ -91,7 +97,8 @@ type desiredState struct {
 
 func New(conn protocol.Conn, drivers []Driver, inventory Inventory, version string, log *slog.Logger) *Agent {
 	return &Agent{conn: conn, drivers: drivers, inventory: inventory, version: version, log: log,
-		refused: map[uuid.UUID]protocol.Status{}, started: map[uuid.UUID]int64{}, startFailed: map[uuid.UUID]protocol.Status{}}
+		refused: map[uuid.UUID]protocol.Status{}, started: map[uuid.UUID]int64{}, startFailed: map[uuid.UUID]protocol.Status{},
+		out: map[outputKey]*outputCursor{}, clock: time.Now}
 }
 
 // Run syncs until ctx is cancelled, retrying with backoff when the control plane can't be reached.
@@ -126,6 +133,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 	})
 	workers.Go(func() { a.watch(ctx, report) })
+	workers.Go(func() { a.shipLoop(ctx) })
 	defer workers.Wait()
 	var gen uint64
 	sendInventory := true
@@ -519,6 +527,22 @@ func (a *Agent) removeOthers(ctx context.Context, h held, keep Driver, refuse fu
 }
 
 func (a *Agent) removeFrom(ctx context.Context, d Driver, id uuid.UUID, refuse func(uuid.UUID, protocol.State, protocol.Code)) bool {
+	if r, ok := d.(OutputReader); ok {
+		// Removing it deletes its output, so send the rest first, once it has stopped writing. If
+		// that can't all be sent now (the control plane is unreachable, or there's a lot), it's
+		// removed on a later try, rather than its output lost unsaid (ADR-0024). One that won't
+		// stop is removed regardless: its output would never end.
+		callCtx, cancel := context.WithTimeout(ctx, driverTimeout)
+		stopErr := d.Stop(callCtx, id)
+		cancel()
+		if stopErr != nil {
+			a.log.Warn("driver couldn't stop a workload before removing it", "workload", id, "driver", d.Name(), "err", redact.Secrets(stopErr.Error()))
+		}
+		if !a.shipOutput(ctx, []outputSource{{id, r}}, true, false) && stopErr == nil {
+			refuse(id, protocol.StateProgressing, protocol.CodeSendingOutput)
+			return false
+		}
+	}
 	callCtx, cancel := context.WithTimeout(ctx, driverTimeout)
 	err := d.Remove(callCtx, id)
 	cancel()

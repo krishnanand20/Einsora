@@ -29,4 +29,4 @@ Planned (ADR-0009, 0010, 0013, 0014):
 - a fallback badge on each workload (the placed class, and the machine it runs on, are shown today)
 - sharing settings and host disclosures
 - usage reports in hours (never money)
-- workload output logs, live (ADR-0015, Phase 1), and the team activity log (Phase 2)
+- the team activity log (Phase 2); workload output is on each workload's page (ADR-0024)

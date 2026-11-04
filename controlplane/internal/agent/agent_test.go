@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -18,13 +19,28 @@ import (
 
 // conn records what the agent sends and answers with resp.
 type conn struct {
-	sent []protocol.SyncRequest
-	resp protocol.SyncResponse
+	sent      []protocol.SyncRequest
+	resp      protocol.SyncResponse
+	output    []protocol.OutputChunk // every chunk it took
+	outputErr error                  // set: Output fails, as if the control plane were unreachable
 }
 
 func (c *conn) Sync(_ context.Context, req protocol.SyncRequest) (protocol.SyncResponse, error) {
 	c.sent = append(c.sent, req)
 	return c.resp, nil
+}
+
+// Output acknowledges everything it's sent, unless outputErr is set.
+func (c *conn) Output(_ context.Context, req protocol.OutputRequest) (protocol.OutputResponse, error) {
+	if c.outputErr != nil {
+		return protocol.OutputResponse{}, c.outputErr
+	}
+	c.output = append(c.output, req.Chunks...)
+	var resp protocol.OutputResponse
+	for _, ch := range req.Chunks {
+		resp.Streams = append(resp.Streams, protocol.OutputCursor{ID: ch.ID, Stream: ch.Stream, Source: ch.Source, Next: ch.Offset + int64(len(ch.Data))})
+	}
+	return resp, nil
 }
 
 func macInventory(context.Context) (protocol.Inventory, error) {
@@ -234,6 +250,10 @@ type counting struct {
 	mu      sync.Mutex
 	n       int
 	desired []protocol.Desired
+}
+
+func (c *counting) Output(context.Context, protocol.OutputRequest) (protocol.OutputResponse, error) {
+	return protocol.OutputResponse{}, nil
 }
 
 func (c *counting) Sync(ctx context.Context, _ protocol.SyncRequest) (protocol.SyncResponse, error) {
@@ -465,5 +485,38 @@ func TestNativeCPUAndMetalCannotOverlap(t *testing.T) {
 				t.Fatal("stopped workload did not release Metal reservation")
 			}
 		})
+	}
+}
+
+// Removing a workload deletes its output, so the agent removes it only once all of its output is
+// sent: while the control plane can't take it, the workload stays, and its status says why.
+func TestRemovalWaitsForItsOutput(t *testing.T) {
+	a, c, d := newAgent(t)
+	ctx := context.Background()
+	w := gpuWorkload(protocol.ModeRun)
+	a.Apply(ctx, []protocol.Desired{w})
+	d.Write(w.ID, domain.StreamStderr, "last words")
+	remove := w
+	remove.Mode = protocol.ModeRemove
+
+	c.outputErr = errors.New("the control plane can't be reached")
+	a.Apply(ctx, []protocol.Desired{remove})
+	if st, ok := statuses(t, a, c)[w.ID]; !ok || st.State != protocol.StateProgressing || st.Code != protocol.CodeSendingOutput {
+		t.Fatalf("while its output can't be sent: %+v (still there: %v); want it kept, sending its output", st, ok)
+	}
+
+	c.outputErr = nil
+	a.Apply(ctx, []protocol.Desired{remove})
+	if _, still := statuses(t, a, c)[w.ID]; still {
+		t.Fatal("not removed once its output was sent")
+	}
+	sent := map[domain.OutputStream]string{}
+	for _, ch := range c.output {
+		if ch.ID == w.ID {
+			sent[ch.Stream] += string(ch.Data)
+		}
+	}
+	if sent[domain.StreamStderr] != "last words" || !strings.HasSuffix(sent[domain.StreamStdout], "sim: stopped\n") {
+		t.Errorf("sent %q; want everything, including the partial line and what it wrote as it stopped", sent)
 	}
 }

@@ -6,20 +6,19 @@ import (
 	"mime"
 	"net/http"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/service"
 )
 
 // Logs and transparency (ADR-0015): the full timeline and a complete export of every workload,
 // plus a request ID on every response so any log line can be found.
 
 const exportFormat = "einsora.workload-export/v1"
-
-const outputLogsNote = "Workload output (stdout and stderr) isn't captured yet; it will be once the " +
-	"runtime log pipeline lands (ADR-0015). Everything else Einsora records about this workload is in this file."
 
 type eventView struct {
 	ID     int64        `json:"id"`
@@ -44,9 +43,119 @@ type redactionView struct {
 	Reason string `json:"reason"`
 }
 
+type outputChunkView struct {
+	ID         int64               `json:"id"`     // counts this workload's output from 1: read on with after=id
+	Stream     domain.OutputStream `json:"stream"` // stdout, stderr, or einsora (a note from Einsora)
+	At         time.Time           `json:"at"`     // when Einsora received it
+	Text       string              `json:"text"`
+	Redactions int                 `json:"redactions,omitempty"` // credentials replaced with REDACTED
+}
+
+type outputStreamView struct {
+	Stream       domain.OutputStream `json:"stream"`
+	StoredBytes  int64               `json:"stored_bytes"`
+	LostBytes    int64               `json:"lost_bytes"`
+	TrimmedBytes int64               `json:"trimmed_bytes"`
+	ExpiredBytes int64               `json:"expired_bytes"`
+}
+
+// outputPageView is a page of a workload's output (ADR-0024). Next is where to read on from
+// (after=next); notes say what isn't collected, or was lost or removed.
+type outputPageView struct {
+	Items     []outputChunkView `json:"items"`
+	Next      int64             `json:"next"`
+	Collected bool              `json:"collected"`
+	Notes     []string          `json:"notes"`
+}
+
+// outputLogsView is all of a workload's kept output, in its export.
 type outputLogsView struct {
-	Available bool   `json:"available"`
-	Note      string `json:"note"`
+	Available bool               `json:"available"` // its output is collected
+	Notes     []string           `json:"notes"`
+	Streams   []outputStreamView `json:"streams"`
+	Items     []outputChunkView  `json:"items"`
+}
+
+func toOutputChunkViews(chunks []domain.OutputChunk) []outputChunkView {
+	out := make([]outputChunkView, len(chunks))
+	for i, c := range chunks {
+		out[i] = outputChunkView{ID: c.Seq, Stream: c.Stream, At: c.At, Text: c.Text, Redactions: c.Redactions}
+	}
+	return out
+}
+
+func notesOrEmpty(notes []string) []string {
+	if notes == nil {
+		return []string{}
+	}
+	return notes
+}
+
+const (
+	// followFor is how long a follow=true read waits for new output before answering with none.
+	followFor = 20 * time.Second
+	// followEvery matches how often agents send output, so a waiting read costs the store little.
+	followEvery = time.Second
+	outputPage  = 500
+)
+
+// workloadOutput returns a page of a workload's output after the chunk ID after. With follow=true
+// and nothing new, it waits up to followFor for more, reading the store (rule 1: never the
+// runtime). Another tenant's workload is 404.
+func (s *Server) workloadOutput(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+	id, err := pathID(r, "workload")
+	if err != nil {
+		return err
+	}
+	q := r.URL.Query()
+	after, limit, follow := int64(0), outputPage, false
+	if v := q.Get("after"); v != "" {
+		if after, err = strconv.ParseInt(v, 10, 64); err != nil || after < 0 {
+			return domain.Errorf(domain.CodeInvalid, "after must be a chunk ID: a whole number, 0 or more")
+		}
+	}
+	if v := q.Get("limit"); v != "" {
+		if limit, err = strconv.Atoi(v); err != nil || limit < 1 || limit > service.MaxOutputPage {
+			return domain.Errorf(domain.CodeInvalid, "limit must be between 1 and %d", service.MaxOutputPage)
+		}
+	}
+	if v := q.Get("follow"); v != "" {
+		if follow, err = strconv.ParseBool(v); err != nil {
+			return domain.Errorf(domain.CodeInvalid, "follow must be true or false")
+		}
+	}
+	deadline := time.Now().Add(followFor)
+	for {
+		out, err := s.svc.WorkloadOutput(r.Context(), p, id, after, limit)
+		if err != nil {
+			return err
+		}
+		if len(out.Chunks) > 0 || !follow || !out.Collected || !time.Now().Before(deadline) {
+			next := after
+			if len(out.Chunks) > 0 {
+				next = out.Chunks[len(out.Chunks)-1].Seq
+			}
+			writeJSON(w, http.StatusOK, outputPageView{Items: toOutputChunkViews(out.Chunks), Next: next,
+				Collected: out.Collected, Notes: notesOrEmpty(out.Notes)})
+			return nil
+		}
+		select {
+		case <-r.Context().Done():
+			return nil // the client went away
+		case <-time.After(followEvery):
+		}
+	}
+}
+
+// toOutputLogsView is a workload's kept output, for its export.
+func toOutputLogsView(out service.WorkloadOutput) outputLogsView {
+	v := outputLogsView{Available: out.Collected, Notes: notesOrEmpty(out.Notes), Streams: make([]outputStreamView, len(out.States)),
+		Items: toOutputChunkViews(out.Chunks)}
+	for i, st := range out.States {
+		v.Streams[i] = outputStreamView{Stream: st.Stream, StoredBytes: st.StoredBytes, LostBytes: st.LostBytes,
+			TrimmedBytes: st.TrimmedBytes, ExpiredBytes: st.ExpiredBytes}
+	}
+	return v
 }
 
 type exportView struct {
@@ -110,7 +219,7 @@ func (s *Server) exportWorkload(w http.ResponseWriter, r *http.Request, p domain
 		Params:          exp.Workload.Params,
 		Events:          toEventViews(exp.Events),
 		Usage:           make([]usageView, len(exp.Usage)),
-		OutputLogs:      outputLogsView{Available: false, Note: outputLogsNote},
+		OutputLogs:      toOutputLogsView(exp.Output),
 		Redactions:      make([]redactionView, len(exp.Redactions)),
 	}
 	for i, u := range exp.Usage {

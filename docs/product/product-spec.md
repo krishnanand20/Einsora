@@ -68,7 +68,7 @@ lend idle machines to its users.
 | **Machines** | The local machine | Agents join over LAN, WireGuard, or the internet (outbound only) | Node pools, regions | Idle detection, schedules, caps, preemption | Auto-discovery on LAN |
 | **Users and access** | One local account, API tokens | Users, invites, teams, quotas | SSO (OIDC/SAML), RBAC | Community accounts, fair share, reports and bans | SCIM |
 | **Inference** | Endpoints from Hugging Face (safetensors, GGUF) | API keys, request failover | Autoscaling, regional inference gateway | Managed inference on shared hosts | Serverless model API across a pool; model registry; LoRA adapters |
-| **Logs** ([details](../architecture/logs-and-transparency.md)) | Workload timeline with reasons, complete export, request IDs (built); workload output and `einsora logs --follow` | Activity log per team (who did what); output from remote machines | Output logs through Loki; activity log (audit log) retention | Hosts see their machine's activity, never guests' output | — |
+| **Logs** ([details](../architecture/logs-and-transparency.md)) | Workload timeline with reasons, complete export, request IDs, workload output and `einsora logs -f` (built; docker output next) | Activity log per team (who did what); output from remote machines | Output logs through Loki; activity log (audit log) retention | Hosts see their machine's activity, never guests' output | — |
 | **Reliability and ops** | `einsora backup` | Machine health, alerts in the dashboard | HA control plane, Prometheus, backups | Host reputation | Upgrades without downtime |
 | **Developer tools** | REST API, dashboard, `einsora` CLI | Python SDK | Verified Datacenter install docs and charts | Pool directory | Terraform provider, templates gallery |
 

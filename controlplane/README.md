@@ -26,6 +26,7 @@ The same binary is a **CLI client** for a running API ([logs and transparency](.
 | `einsora stop <workload> [-json]`, `start <workload> [-json]` | Releases its GPUs (a notebook or VM keeps its disk), or queues a stopped or failed workload again |
 | `einsora delete <workload> [-y] [-json]` | Removes it with its disk and data, after asking on the terminal; without a terminal it needs `-y`. Its timeline and export stay. |
 | `einsora events <workload> [-json]` | Prints the full timeline: every state change and note, when, why, and by whom |
+| `einsora logs <workload> [-f] [-json]` | Prints its output (stdout and stderr), with terminal escape sequences removed; `-f` keeps printing new output until Ctrl+C. Notes about output that isn't collected, or was removed, go to stderr. |
 | `einsora export <workload> [-o file] [-f]` | Saves everything recorded about the workload to a JSON file, owner-only (`0600`). It never replaces an existing file without `-f`; `-o -` writes to stdout. Works for deleted workloads too. |
 
 `<workload>` is a workload's ID, or its name when only one of your workloads has it (`events` and
@@ -108,6 +109,7 @@ your laptop, use `EINSORA_CLUSTER_BACKEND=kubernetes`. It reads `KUBECONFIG`. Ne
 | POST | `/v1/workloads/{id}/access` | 201 `{url, expires_at}` for a notebook's one-time browser link (60 seconds), or `{url}` for an endpoint's `/v1` API base URL, requiring an API token per request ([ADR-0017](../docs/adr/0017-local-workload-access-and-native-drivers.md)). Agent backend only. |
 | DELETE | `/v1/workloads/{id}` | 202; idempotent |
 | GET | `/v1/workloads/{id}/events` | `{"items": [{id, from?, to, reason, at}]}`, the full timeline, oldest first. A note has `from` equal to `to`. Works after deletion. |
+| GET | `/v1/workloads/{id}/logs` | `?after=<id>&limit=<n>&follow=true`: `{items: [{id, stream, at, text, redactions?}], next, collected, notes}`, the workload's output after the chunk `after`, oldest first (`id` counts this workload's output from 1) ([ADR-0024](../docs/adr/0024-workload-output.md)). `follow=true` waits up to 20 seconds for new output. `notes` say what isn't collected, or was lost or removed. Works after deletion, until it expires. |
 | GET | `/v1/workloads/{id}/export` | The complete log as a JSON attachment (`einsora.workload-export/v1`): workload, inputs, timeline, usage (with its machine), `output_logs`, and `redactions`, plus the last placement (`last_placed_class`, `last_machine_id`, `last_driver`). Works after deletion. |
 | GET | `/v1/auth/me` | Who's calling: `{subject, email, tenant, auth_mode}` |
 | POST | `/v1/auth/login` | Local mode. `{email, password}` → sets the session cookie (HttpOnly, SameSite=Strict, 7 days; over HTTPS, `Secure` and named `__Host-einsora_session`). Needs the `X-Einsora-CSRF` header, and HTTPS or this machine (see below). Repeated failures are slowed down (429 with `Retry-After`). |

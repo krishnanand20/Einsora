@@ -137,6 +137,26 @@ type Queries interface {
 	Usage(ctx context.Context, tenantID uuid.UUID, from, to time.Time) ([]domain.UsageRecord, error)
 	// UsageForWorkload returns one workload's usage records, oldest first (tenant-scoped).
 	UsageForWorkload(ctx context.Context, tenantID, workloadID uuid.UUID) ([]domain.UsageRecord, error)
+
+	// Workload output (ADR-0024), system-wide: for the agent backend, which stores what agents
+	// ship, and the controller, which removes expired output. OutputState is where one of a
+	// workload's streams stands, or not found before its first output; PutOutputState records it.
+	OutputState(ctx context.Context, workloadID uuid.UUID, stream domain.OutputStream) (domain.OutputState, error)
+	PutOutputState(ctx context.Context, s domain.OutputState) error
+	// AppendOutput stores a chunk with the workload's next Seq, which is higher than every Seq the
+	// workload had before, even after its output is removed, and returns that Seq.
+	AppendOutput(ctx context.Context, c domain.OutputChunk) (int64, error)
+	// OldestOutput returns up to limit of a workload's chunks, oldest first.
+	OldestOutput(ctx context.Context, workloadID uuid.UUID, limit int) ([]domain.OutputChunk, error)
+	// ExpiredOutput returns up to limit chunks received before before, of workloads in region,
+	// oldest first.
+	ExpiredOutput(ctx context.Context, region domain.Region, before time.Time, limit int) ([]domain.OutputChunk, error)
+	DeleteOutput(ctx context.Context, ids []int64) error
+	// Workload output, tenant-scoped: up to limit of a workload's chunks with Seq above after,
+	// oldest first, and its streams' states. Another tenant's workload yields none; callers check
+	// the workload exists first, so they can return 404.
+	OutputForWorkload(ctx context.Context, tenantID, workloadID uuid.UUID, after int64, limit int) ([]domain.OutputChunk, error)
+	OutputStatesForWorkload(ctx context.Context, tenantID, workloadID uuid.UUID) ([]domain.OutputState, error)
 }
 
 func NotFound(what string) error { return domain.Errorf(domain.CodeNotFound, "%s not found", what) }

@@ -62,7 +62,7 @@ Moving up a profile is a backup and restore (`einsora backup`, `einsora restore`
 | Storage | Local disk on each machine | Longhorn, then Ceph ([ADR-0005](../adr/0005-storage-longhorn-then-ceph.md)) | [storage.md](storage.md) |
 | Identity | Local accounts and API tokens | Keycloak, or the company's IdP (OIDC/SAML) | `controlplane/internal/auth` |
 | Observability | Built into the dashboard | Prometheus, DCGM, Loki, Grafana | [observability.md](observability.md) |
-| Logs and transparency | Workload timeline, complete export, request IDs; CLI and dashboard (built). Output logs from agents (planned). | Same, with output logs through Loki (planned) | [logs-and-transparency.md](logs-and-transparency.md) |
+| Logs and transparency | Workload timeline, complete export, request IDs, and workload output from agents ([ADR-0024](../adr/0024-workload-output.md)); CLI and dashboard (built; docker output next). | Same, with output logs through Loki (planned) | [logs-and-transparency.md](logs-and-transparency.md) |
 | Admission and placement | Quotas, capacity, region, and opt-in fallbacks ([ADR-0010](../adr/0010-fallbacks-cpu-placement-and-inference-failover.md)); sharing rules ([ADR-0014](../adr/0014-sharing-idle-compute.md)) | Same | [control-plane.md](control-plane.md) |
 | Inference gateway | Built into the control plane (planned) | Regional gateway (planned) | [ADR-0010](../adr/0010-fallbacks-cpu-placement-and-inference-failover.md) |
 | Our code | `einsora` (Go): API, controller, agent, usage accounting, dashboard. `einsora-ml` (Python). | Same | `controlplane/`, `ml/`, `web/` |

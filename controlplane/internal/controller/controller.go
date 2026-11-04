@@ -17,6 +17,7 @@ import (
 	"github.com/krishnanand20/einsora/controlplane/internal/catalog"
 	"github.com/krishnanand20/einsora/controlplane/internal/cluster"
 	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/output"
 	"github.com/krishnanand20/einsora/controlplane/internal/service"
 	"github.com/krishnanand20/einsora/controlplane/internal/store"
 )
@@ -33,7 +34,16 @@ type Options struct {
 	// LeaseTTL is how long the region's lease lasts between renewals; zero means three intervals,
 	// at least 30 seconds.
 	LeaseTTL time.Duration
+	// OutputRetention is how long workloads' output is kept (ADR-0024); zero means 14 days.
+	OutputRetention time.Duration
 }
+
+// DefaultOutputRetention is how long workloads' output is kept unless EINSORA_OUTPUT_RETENTION
+// says otherwise.
+const DefaultOutputRetention = 14 * 24 * time.Hour
+
+// expireEvery is how often the leader removes output older than the retention period.
+const expireEvery = time.Hour
 
 type Controller struct {
 	store   store.Store
@@ -46,6 +56,8 @@ type Controller struct {
 	holder  string        // this process, in the region's lease
 	leading chan struct{} // closed once this controller holds the lease
 	lead    sync.Once
+
+	expired time.Time // when output was last expired
 }
 
 func New(st store.Store, b cluster.Backend, cat *catalog.Catalog, opts Options, log *slog.Logger, now func() time.Time) *Controller {
@@ -54,6 +66,9 @@ func New(st store.Store, b cluster.Backend, cat *catalog.Catalog, opts Options, 
 	}
 	if opts.Region == "" {
 		opts.Region = domain.RegionLocal
+	}
+	if opts.OutputRetention <= 0 {
+		opts.OutputRetention = DefaultOutputRetention
 	}
 	return &Controller{store: st, backend: b, catalog: cat, opts: opts, log: log, now: now,
 		holder: uuid.NewString(), leading: make(chan struct{})}
@@ -94,6 +109,9 @@ func (c *Controller) Run(ctx context.Context, interval time.Duration) error {
 		if err := c.ReconcileOnce(leading); err != nil && leading.Err() == nil {
 			c.log.Error("reconcile pass failed", "err", service.RedactSecrets(err.Error()))
 		}
+		if c.now().Sub(c.expired) >= expireEvery {
+			c.ExpireOutput(leading)
+		}
 		select {
 		case <-leading.Done():
 			if cause := context.Cause(leading); errors.Is(cause, errLostLease) {
@@ -102,6 +120,19 @@ func (c *Controller) Run(ctx context.Context, interval time.Duration) error {
 			return nil
 		case <-ticker.C:
 		}
+	}
+}
+
+// ExpireOutput removes the region's workloads' output older than the retention period. Readers
+// are told how much went (ADR-0024).
+func (c *Controller) ExpireOutput(ctx context.Context) {
+	c.expired = c.now()
+	removed, err := output.Expire(ctx, c.store, c.opts.Region, c.expired.Add(-c.opts.OutputRetention))
+	switch {
+	case err != nil && ctx.Err() == nil:
+		c.log.Error("couldn't remove expired workload output", "err", service.RedactSecrets(err.Error()))
+	case removed > 0:
+		c.log.Info("removed workload output older than the retention period", "bytes", removed, "retention", c.opts.OutputRetention)
 	}
 }
 

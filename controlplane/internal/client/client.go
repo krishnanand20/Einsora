@@ -468,3 +468,46 @@ func (c *Client) Catalog(ctx context.Context) (Catalog, error) {
 	cat.JSON = raw
 	return cat, nil
 }
+
+// OutputChunk is a piece of a workload's output: from its stdout or stderr, or a note from
+// Einsora (stream "einsora"), such as output that was lost.
+type OutputChunk struct {
+	ID         int64     `json:"id"`
+	Stream     string    `json:"stream"`
+	At         time.Time `json:"at"`
+	Text       string    `json:"text"`
+	Redactions int       `json:"redactions"`
+	// JSON is the chunk exactly as the server sent it, for -json output.
+	JSON json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON keeps the server's JSON beside the fields this client knows.
+func (o *OutputChunk) UnmarshalJSON(b []byte) error {
+	type fields OutputChunk
+	if err := json.Unmarshal(b, (*fields)(o)); err != nil {
+		return err
+	}
+	o.JSON = append(json.RawMessage(nil), b...)
+	return nil
+}
+
+// OutputPage is a page of a workload's output. Next is where to read on from; Notes say what
+// isn't collected, or was lost or removed.
+type OutputPage struct {
+	Items     []OutputChunk `json:"items"`
+	Next      int64         `json:"next"`
+	Collected bool          `json:"collected"`
+	Notes     []string      `json:"notes"`
+}
+
+// Output returns a page of a workload's output after the chunk ID after. With follow, the server
+// waits a while for new output when there's none yet.
+func (c *Client) Output(ctx context.Context, id string, after int64, follow bool) (OutputPage, error) {
+	path, err := workloadPath(id, fmt.Sprintf("/logs?after=%d&follow=%t", after, follow))
+	if err != nil {
+		return OutputPage{}, err
+	}
+	var page OutputPage
+	err = c.getJSON(ctx, path, &page)
+	return page, err
+}

@@ -63,6 +63,11 @@ type Config struct {
 	MeteringInterval   time.Duration
 	ProvisionTimeout   time.Duration
 
+	// Workload output (ADR-0024): how long it's kept (EINSORA_OUTPUT_RETENTION), and how much each
+	// workload keeps before its oldest is removed (EINSORA_OUTPUT_MAX_MIB).
+	OutputRetention time.Duration
+	OutputMaxMiB    int
+
 	// Region is the one region this process's controller reconciles (ADR-0009); local by default.
 	Region domain.Region
 
@@ -132,10 +137,18 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		{"CONTROLLER_INTERVAL", "5s", &c.ControllerInterval},
 		{"METERING_INTERVAL", "5m", &c.MeteringInterval},
 		{"PROVISION_TIMEOUT", "30m", &c.ProvisionTimeout},
+		{"OUTPUT_RETENTION", "336h", &c.OutputRetention},
 	} {
 		if *d.dst, err = time.ParseDuration(get(d.key, d.def)); err != nil {
 			errs = append(errs, fmt.Errorf("EINSORA_%s: %w", d.key, err))
 		}
+	}
+	if c.OutputMaxMiB, err = strconv.Atoi(get("OUTPUT_MAX_MIB", "64")); err != nil || c.OutputMaxMiB < 1 || c.OutputMaxMiB > 256 {
+		// At most 256: a workload's export holds all of it, and einsora export takes up to 256 MiB.
+		errs = append(errs, errors.New("EINSORA_OUTPUT_MAX_MIB must be a whole number of MiB from 1 to 256"))
+	}
+	if c.OutputRetention < time.Hour {
+		errs = append(errs, errors.New("EINSORA_OUTPUT_RETENTION must be at least 1h"))
 	}
 	errs = append(errs, c.validate())
 	return c, errors.Join(errs...)

@@ -21,6 +21,49 @@ const Version = 1
 // Conn is an agent's connection to the control plane.
 type Conn interface {
 	Sync(ctx context.Context, req SyncRequest) (SyncResponse, error)
+	// Output sends workloads' output to be kept (ADR-0024). Unlike Sync, it answers at once.
+	Output(ctx context.Context, req OutputRequest) (OutputResponse, error)
+}
+
+// What one Output request may carry.
+const (
+	MaxOutputChunk   = 256 << 10
+	MaxOutputRequest = 1 << 20
+	MaxOutputChunks  = 64
+)
+
+// OutputRequest carries output from the machine's workloads.
+type OutputRequest struct {
+	Version int           `json:"version"`
+	Chunks  []OutputChunk `json:"chunks"`
+}
+
+// OutputChunk is a workload's stdout or stderr from Offset on. One without data asks where the
+// control plane has the stream up to, such as when the agent starts.
+type OutputChunk struct {
+	ID     uuid.UUID           `json:"id"`
+	Stream domain.OutputStream `json:"stream"` // stdout or stderr
+	// Source is the driver's identity for the stream's file. The control plane starts the stream
+	// over at 0 when it changes, or when Restart says the file started over by itself.
+	Source  string `json:"source"`
+	Restart bool   `json:"restart,omitempty"`
+	Offset  int64  `json:"offset"`
+	Data    []byte `json:"data,omitempty"`
+}
+
+// OutputResponse says, for each stream in the request, where to send from next.
+type OutputResponse struct {
+	Streams []OutputCursor `json:"streams"`
+}
+
+// OutputCursor is how far the control plane has a stream. An ignored one belongs to a workload this
+// machine doesn't run: its agent stops sending it.
+type OutputCursor struct {
+	ID      uuid.UUID           `json:"id"`
+	Stream  domain.OutputStream `json:"stream"`
+	Source  string              `json:"source"`
+	Next    int64               `json:"next"`
+	Ignored bool                `json:"ignored,omitempty"`
 }
 
 // SyncRequest is an agent's report.
@@ -174,6 +217,7 @@ const (
 	CodeModelNotFound   Code = "model-not-found" // its source has no model, or a GGUF tag matches none or several
 	CodePullingImage    Code = "pulling-image"
 	CodeRuntimeChanged  Code = "runtime-changed"
+	CodeSendingOutput   Code = "sending-output" // removing it waits until its output is with the control plane
 )
 
 // Reason is the text an owner reads for code. Unknown codes, which a newer or hostile agent could
@@ -220,6 +264,8 @@ func Reason(code Code) string {
 		return "preparing its container image on its machine; the first time, this downloads the image"
 	case CodeRuntimeChanged:
 		return "its container runtime policy changed; restart the workload to use the updated protections"
+	case CodeSendingOutput:
+		return "sending its last output to Einsora before removing it"
 	}
 	return "its machine reported a problem"
 }

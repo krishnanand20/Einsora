@@ -105,7 +105,7 @@ map to fixed reasons in the control plane, and unknown codes read "its machine r
 - Phase 2 must add: the HTTPS transport, a certificate authority on the control plane, enrolment tokens
   from the dashboard (which fix the machine's owner and region), per-machine certificates and revocation,
   and machine health on the dashboard.
-- Revisit if agents need to stream large data (output logs, roadmap step 14) through the same channel:
+- Revisit if agents need to stream large data (output logs, roadmap step 14; [ADR-0024](0024-workload-output.md) added a separate `Output` call for them) through the same channel:
   that may justify a separate upload endpoint, not a new protocol.
 
 ## Alternatives considered

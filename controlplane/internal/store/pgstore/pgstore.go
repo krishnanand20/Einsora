@@ -650,3 +650,95 @@ func (q *queries) UsageForWorkload(ctx context.Context, tenantID, workloadID uui
 	return q.collectUsage(ctx, `SELECT `+usageSelect+` FROM usage_records
 		WHERE tenant_id = $1 AND workload_id = $2 ORDER BY period_start`, tenantID, workloadID)
 }
+
+// ---- workload output (ADR-0024)
+
+const outputStateCols = `workload_id, stream, source, next_offset, stored_bytes, lost_bytes, trimmed_bytes, expired_bytes`
+
+func scanOutputState(row pgx.Row) (domain.OutputState, error) {
+	var s domain.OutputState
+	var stream string
+	err := row.Scan(&s.WorkloadID, &stream, &s.Source, &s.Next, &s.StoredBytes, &s.LostBytes, &s.TrimmedBytes, &s.ExpiredBytes)
+	s.Stream = domain.OutputStream(stream)
+	return s, err
+}
+
+func (q *queries) OutputState(ctx context.Context, workloadID uuid.UUID, stream domain.OutputStream) (domain.OutputState, error) {
+	s, err := scanOutputState(q.db.QueryRow(ctx, `SELECT `+outputStateCols+` FROM workload_output_state
+		WHERE workload_id = $1 AND stream = $2`, workloadID, string(stream)))
+	return s, mapErr(err, "output stream")
+}
+
+func (q *queries) PutOutputState(ctx context.Context, s domain.OutputState) error {
+	_, err := q.db.Exec(ctx, `INSERT INTO workload_output_state (`+outputStateCols+`)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (workload_id, stream) DO UPDATE SET source = excluded.source, next_offset = excluded.next_offset,
+			stored_bytes = excluded.stored_bytes, lost_bytes = excluded.lost_bytes,
+			trimmed_bytes = excluded.trimmed_bytes, expired_bytes = excluded.expired_bytes`,
+		s.WorkloadID, string(s.Stream), s.Source, s.Next, s.StoredBytes, s.LostBytes, s.TrimmedBytes, s.ExpiredBytes)
+	return mapErr(err, "workload")
+}
+
+func (q *queries) AppendOutput(ctx context.Context, c domain.OutputChunk) (int64, error) {
+	var seq int64
+	err := q.db.QueryRow(ctx, `INSERT INTO workload_output_seq (workload_id, last_seq) VALUES ($1, 1)
+		ON CONFLICT (workload_id) DO UPDATE SET last_seq = workload_output_seq.last_seq + 1 RETURNING last_seq`, c.WorkloadID).Scan(&seq)
+	if err != nil {
+		return 0, mapErr(err, "workload")
+	}
+	_, err = q.db.Exec(ctx, `INSERT INTO workload_output (workload_id, seq, stream, at, content, redactions)
+		VALUES ($1, $2, $3, $4, $5, $6)`, c.WorkloadID, seq, string(c.Stream), c.At, c.Text, c.Redactions)
+	return seq, mapErr(err, "workload")
+}
+
+const outputCols = `o.id, o.seq, o.workload_id, o.stream, o.at, o.content, o.redactions`
+
+func (q *queries) collectOutput(ctx context.Context, sql string, args ...any) ([]domain.OutputChunk, error) {
+	rows, err := q.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (domain.OutputChunk, error) {
+		var c domain.OutputChunk
+		var stream string
+		err := r.Scan(&c.ID, &c.Seq, &c.WorkloadID, &stream, &c.At, &c.Text, &c.Redactions)
+		c.Stream, c.At = domain.OutputStream(stream), c.At.UTC()
+		return c, err
+	})
+}
+
+func (q *queries) OldestOutput(ctx context.Context, workloadID uuid.UUID, limit int) ([]domain.OutputChunk, error) {
+	return q.collectOutput(ctx, `SELECT `+outputCols+` FROM workload_output o
+		WHERE o.workload_id = $1 ORDER BY o.seq LIMIT $2`, workloadID, limit)
+}
+
+func (q *queries) ExpiredOutput(ctx context.Context, region domain.Region, before time.Time, limit int) ([]domain.OutputChunk, error) {
+	return q.collectOutput(ctx, `SELECT `+outputCols+` FROM workload_output o
+		JOIN workloads w ON w.id = o.workload_id AND w.region = $1
+		WHERE o.at < $2 ORDER BY o.id LIMIT $3`, string(region), before, limit)
+}
+
+func (q *queries) DeleteOutput(ctx context.Context, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := q.db.Exec(ctx, `DELETE FROM workload_output WHERE id = ANY($1)`, ids)
+	return err
+}
+
+func (q *queries) OutputForWorkload(ctx context.Context, tenantID, workloadID uuid.UUID, after int64, limit int) ([]domain.OutputChunk, error) {
+	return q.collectOutput(ctx, `SELECT `+outputCols+` FROM workload_output o
+		JOIN workloads w ON w.id = o.workload_id AND w.tenant_id = $1
+		WHERE o.workload_id = $2 AND o.seq > $3 ORDER BY o.seq LIMIT $4`, tenantID, workloadID, after, limit)
+}
+
+func (q *queries) OutputStatesForWorkload(ctx context.Context, tenantID, workloadID uuid.UUID) ([]domain.OutputState, error) {
+	rows, err := q.db.Query(ctx, `SELECT s.workload_id, s.stream, s.source, s.next_offset, s.stored_bytes,
+			s.lost_bytes, s.trimmed_bytes, s.expired_bytes
+		FROM workload_output_state s JOIN workloads w ON w.id = s.workload_id AND w.tenant_id = $1
+		WHERE s.workload_id = $2 ORDER BY s.stream`, tenantID, workloadID)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(r pgx.CollectableRow) (domain.OutputState, error) { return scanOutputState(r) })
+}

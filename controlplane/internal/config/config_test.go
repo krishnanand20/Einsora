@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func env(kv map[string]string) func(string) string {
@@ -180,6 +181,26 @@ func TestLoopbackAccessAddresses(t *testing.T) {
 	for _, addr := range []string{"127.0.0.1:8090", "[::1]:9000", "localhost:8090"} {
 		if _, err := FromEnv(env(map[string]string{"EINSORA_CLUSTER_BACKEND": "agent", "EINSORA_ACCESS_ADDR": addr})); err != nil {
 			t.Errorf("%s: %v", addr, err)
+		}
+	}
+}
+
+// Workload output is kept 14 days and 64 MiB per workload unless set otherwise, within bounds.
+func TestOutputLimits(t *testing.T) {
+	c, err := FromEnv(env(nil))
+	if err != nil || c.OutputRetention != 14*24*time.Hour || c.OutputMaxMiB != 64 {
+		t.Fatalf("defaults: %v, %v, %v", c.OutputRetention, c.OutputMaxMiB, err)
+	}
+	c, err = FromEnv(env(map[string]string{"EINSORA_OUTPUT_RETENTION": "720h", "EINSORA_OUTPUT_MAX_MIB": "256"}))
+	if err != nil || c.OutputRetention != 720*time.Hour || c.OutputMaxMiB != 256 {
+		t.Fatalf("set: %v, %v, %v", c.OutputRetention, c.OutputMaxMiB, err)
+	}
+	for _, bad := range []map[string]string{
+		{"EINSORA_OUTPUT_RETENTION": "30m"}, {"EINSORA_OUTPUT_RETENTION": "a week"},
+		{"EINSORA_OUTPUT_MAX_MIB": "0"}, {"EINSORA_OUTPUT_MAX_MIB": "257"}, {"EINSORA_OUTPUT_MAX_MIB": "64MiB"},
+	} {
+		if _, err := FromEnv(env(bad)); err == nil || !strings.Contains(err.Error(), "EINSORA_OUTPUT_") {
+			t.Errorf("%v: err = %v", bad, err)
 		}
 	}
 }

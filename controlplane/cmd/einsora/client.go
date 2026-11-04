@@ -11,16 +11,18 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/tabwriter"
 	"time"
+	"unicode"
 
 	"github.com/krishnanand20/einsora/controlplane/internal/client"
 )
 
 func isClientCommand(cmd string) bool {
 	switch cmd {
-	case "workloads", "machines", "catalog", "launch", "stop", "start", "delete", "events", "export":
+	case "workloads", "machines", "catalog", "launch", "stop", "start", "delete", "events", "logs", "export":
 		return true
 	}
 	return false
@@ -208,6 +210,20 @@ func runClient(ctx context.Context, cmd string, args []string, term cli) error {
 			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", e.At.UTC().Format(time.RFC3339), change, printable(e.Reason))
 		}
 		return tw.Flush()
+
+	case "logs":
+		fs := flag.NewFlagSet("logs", flag.ContinueOnError)
+		follow := fs.Bool("f", false, "keep printing new output until interrupted")
+		asJSON := fs.Bool("json", false, "print each piece of output as a line of JSON")
+		ref, err := parseWithID(fs, args, "einsora logs <workload> [-f] [-json]")
+		if err != nil {
+			return err
+		}
+		id, err := c.WorkloadID(ctx, ref, true)
+		if err != nil {
+			return err
+		}
+		return printOutput(ctx, c, id, *follow, *asJSON, term)
 
 	case "export":
 		fs := flag.NewFlagSet("export", flag.ContinueOnError)
@@ -460,4 +476,70 @@ func printCatalog(out io.Writer, cat client.Catalog) error {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", printable(img.ID), printable(img.Kind), printable(strings.Join(runs, "; ")))
 	}
 	return tw.Flush()
+}
+
+// printOutput prints a workload's kept output, and with follow, what comes after, until
+// interrupted. Notes, such as output that isn't collected or was removed, go to errOut once each.
+func printOutput(ctx context.Context, c *client.Client, id string, follow, asJSON bool, term cli) error {
+	noted := map[string]bool{}
+	var after int64
+	waiting := false
+	for {
+		page, err := c.Output(ctx, id, after, waiting)
+		select {
+		case <-ctx.Done():
+			return nil // interrupted: Ctrl+C ends -f
+		default:
+		}
+		if err != nil {
+			return err
+		}
+		for _, note := range page.Notes {
+			if !noted[note] {
+				noted[note] = true
+				_, _ = fmt.Fprintln(term.errOut, "einsora: "+printable(note))
+			}
+		}
+		for _, chunk := range page.Items {
+			var line string
+			switch {
+			case asJSON:
+				line = string(chunk.JSON) + "\n"
+			case chunk.Stream == "einsora":
+				line = "[einsora] " + terminalText(chunk.Text)
+			default:
+				line = terminalText(chunk.Text)
+			}
+			if _, err := io.WriteString(term.out, line); err != nil {
+				return err
+			}
+		}
+		after = page.Next
+		switch {
+		case len(page.Items) > 0:
+			waiting = false // there may be more already: read on without waiting
+		case !follow || !page.Collected:
+			return nil
+		default:
+			waiting = true
+		}
+	}
+}
+
+// terminalEscape matches the escape sequences programs print for colours, cursor movement, and
+// window titles, which output shouldn't get to send to the terminal reading it.
+var terminalEscape = regexp.MustCompile(`\x1b(\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\)|[@-Z\\-_])`)
+
+// terminalText makes a workload's output safe to print: escape sequences are removed, carriage
+// returns (progress bars redrawing a line) become newlines, and other control characters go.
+// Newlines and tabs stay.
+func terminalText(s string) string {
+	s = terminalEscape.ReplaceAllString(s, "")
+	s = strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
+	return strings.Map(func(r rune) rune {
+		if r != '\n' && r != '\t' && unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
 }

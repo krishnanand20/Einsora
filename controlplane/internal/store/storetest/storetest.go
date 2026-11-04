@@ -28,6 +28,7 @@ func Run(t *testing.T, newStore func(t *testing.T) store.Store) {
 	t.Run("LocalAccounts", func(t *testing.T) { testLocalAccounts(t, newStore(t)) })
 	t.Run("Leases", func(t *testing.T) { testLeases(t, newStore(t)) })
 	t.Run("AccessTickets", func(t *testing.T) { testAccessTickets(t, newStore(t)) })
+	t.Run("WorkloadOutput", func(t *testing.T) { testWorkloadOutput(t, newStore(t)) })
 }
 
 // A ticket opens its workload once, before it expires; a ticket for another tenant's workload is
@@ -139,19 +140,25 @@ var (
 			"attempt", "created_at", "created_by", "driver", "fallback", "fallback_after_s", "gpu_class", "gpu_count", "id",
 			"image_id", "kind", "machine_id", "name", "params", "placed_class", "region", "state", "tenant_id", "updated_at",
 		},
-		"workload_events":  {"at", "from_state", "id", "reason", "to_state", "workload_id"},
-		"usage_records":    {"created_at", "gpu_class", "gpu_count", "machine_id", "period_start", "region", "seconds", "tenant_id", "workload_id"},
-		"idempotency_keys": {"created_at", "idempotency_key", "request_hash", "response_body", "response_status", "subject", "tenant_id"},
-		"leases":           {"expires_at", "holder", "name"},
-		"access_tickets":   {"expires_at", "subject", "tenant_id", "ticket_hash", "used_at", "workload_id"},
-		"users":            {"created_at", "disabled_at", "email", "id", "password_hash", "tenant_id"},
-		"sessions":         {"created_at", "expires_at", "token_hash", "user_id"},
-		"api_tokens":       {"created_at", "expires_at", "id", "last_used_at", "name", "prefix", "revoked_at", "token_hash", "user_id"},
+		"workload_events":     {"at", "from_state", "id", "reason", "to_state", "workload_id"},
+		"usage_records":       {"created_at", "gpu_class", "gpu_count", "machine_id", "period_start", "region", "seconds", "tenant_id", "workload_id"},
+		"idempotency_keys":    {"created_at", "idempotency_key", "request_hash", "response_body", "response_status", "subject", "tenant_id"},
+		"leases":              {"expires_at", "holder", "name"},
+		"workload_output":     {"at", "content", "id", "redactions", "seq", "stream", "workload_id"},
+		"workload_output_seq": {"last_seq", "workload_id"},
+		"workload_output_state": {
+			"expired_bytes", "lost_bytes", "next_offset", "source", "stored_bytes", "stream", "trimmed_bytes", "workload_id",
+		},
+		"access_tickets": {"expires_at", "subject", "tenant_id", "ticket_hash", "used_at", "workload_id"},
+		"users":          {"created_at", "disabled_at", "email", "id", "password_hash", "tenant_id"},
+		"sessions":       {"created_at", "expires_at", "token_hash", "user_id"},
+		"api_tokens":     {"created_at", "expires_at", "id", "last_used_at", "name", "prefix", "revoked_at", "token_hash", "user_id"},
 	}
 	SchemaIndexes = []string{
 		"access_tickets_expires_idx", "api_tokens_active_name_idx", "idempotency_keys_created_idx", "machines_region_idx",
 		"sessions_expires_idx", "sessions_user_idx", "users_tenant_idx",
 		"usage_records_tenant_idx", "workload_events_at_idx", "workload_events_workload_idx",
+		"workload_output_at_idx", "workload_output_workload_idx",
 		"workloads_active_state_idx", "workloads_machine_idx", "workloads_region_state_idx", "workloads_tenant_idx",
 	}
 )
@@ -878,5 +885,120 @@ func testLocalAccounts(t *testing.T, st store.Store) {
 			t.Errorf("revoked token = %+v, %v; want the first revocation time kept", got, err)
 		}
 		return q.CreateAPIToken(ctx, dupName) // the name is free again
+	})
+}
+
+// testWorkloadOutput: each workload's output is numbered from 1 on its own, never reusing a number;
+// it's read tenant-scoped after a place, and expires by region; stream states are upserted.
+func testWorkloadOutput(t *testing.T, st store.Store) {
+	ctx := context.Background()
+	a := tenant(t, st, "alpha")
+	other := tenant(t, st, "bravo")
+	w := workload(t, st, a, domain.StateRunning, 1)
+	away := domain.Workload{
+		ID: uuid.New(), TenantID: a.ID, Name: "away", Kind: domain.KindNotebook, State: domain.StatePending,
+		ImageID: "img", GPUClass: "l40s-48gb", GPUCount: 1, Params: map[string]string{},
+		CreatedBy: "test", CreatedAt: t0, UpdatedAt: t0, Region: "eu-west",
+	}
+	tx(t, st, func(q store.Queries) error { return q.CreateWorkload(ctx, away) })
+
+	var seqs []int64
+	tx(t, st, func(q store.Queries) error {
+		for _, c := range []domain.OutputChunk{
+			{WorkloadID: w.ID, Stream: domain.StreamStdout, At: t0, Text: "starting\n"},
+			{WorkloadID: w.ID, Stream: domain.StreamStderr, At: t0.Add(time.Minute), Text: "warning: ünïcode\n", Redactions: 2},
+			{WorkloadID: away.ID, Stream: domain.StreamStdout, At: t0, Text: "elsewhere\n"},
+			{WorkloadID: w.ID, Stream: domain.StreamEinsora, At: t0.Add(2 * time.Hour), Text: "10 bytes were lost"},
+		} {
+			seq, err := q.AppendOutput(ctx, c)
+			if err != nil {
+				return err
+			}
+			seqs = append(seqs, seq)
+		}
+		return nil
+	})
+	if want := []int64{1, 2, 1, 3}; !slices.Equal(seqs, want) {
+		t.Errorf("seqs = %v, want %v: each workload counts its own output from 1", seqs, want)
+	}
+	// A refused chunk fails its transaction (in Postgres, the rest of it too), so each gets its own.
+	for name, c := range map[string]domain.OutputChunk{
+		"an unknown stream":      {WorkloadID: w.ID, Stream: "bogus", At: t0, Text: "x"},
+		"for a missing workload": {WorkloadID: uuid.New(), Stream: domain.StreamStdout, At: t0, Text: "x"},
+	} {
+		if err := st.InTx(ctx, func(q store.Queries) error { _, err := q.AppendOutput(ctx, c); return err }); err == nil {
+			t.Errorf("output %s was stored", name)
+		}
+	}
+
+	tx(t, st, func(q store.Queries) error {
+		got, err := q.OutputForWorkload(ctx, a.ID, w.ID, 0, 10)
+		if err != nil || len(got) != 3 || got[0].Text != "starting\n" || got[1].Stream != domain.StreamStderr ||
+			got[1].Text != "warning: ünïcode\n" || got[1].Redactions != 2 || !got[1].At.Equal(t0.Add(time.Minute)) || got[2].Seq != 3 {
+			t.Errorf("OutputForWorkload = %+v, %v", got, err)
+		}
+		if got, err := q.OutputForWorkload(ctx, a.ID, w.ID, 1, 1); err != nil || len(got) != 1 || got[0].Seq != 2 {
+			t.Errorf("OutputForWorkload after 1, limit 1 = %+v, %v", got, err)
+		}
+		if got, err := q.OutputForWorkload(ctx, other.ID, w.ID, 0, 10); err != nil || len(got) != 0 {
+			t.Errorf("OutputForWorkload(other tenant) = %+v, %v; want none", got, err)
+		}
+		if got, err := q.OldestOutput(ctx, w.ID, 1); err != nil || len(got) != 1 || got[0].Seq != 1 {
+			t.Errorf("OldestOutput = %+v, %v", got, err)
+		}
+		got, err = q.ExpiredOutput(ctx, domain.RegionLocal, t0.Add(time.Hour), 10)
+		if err != nil || len(got) != 2 || got[0].Seq != 1 || got[1].Seq != 2 || got[0].WorkloadID != w.ID {
+			t.Errorf("ExpiredOutput(local) = %+v, %v; want the two old chunks of the local workload", got, err)
+		}
+		return nil
+	})
+
+	tx(t, st, func(q store.Queries) error {
+		if _, err := q.OutputState(ctx, w.ID, domain.StreamStdout); !domain.IsNotFound(err) {
+			t.Errorf("OutputState before any = %v, want not found", err)
+		}
+		s := domain.OutputState{WorkloadID: w.ID, Stream: domain.StreamStdout, Source: "inode-1", Next: 9, StoredBytes: 9}
+		if err := q.PutOutputState(ctx, s); err != nil {
+			return err
+		}
+		s.Next, s.LostBytes, s.TrimmedBytes, s.ExpiredBytes = 40, 3, 4, 5
+		if err := q.PutOutputState(ctx, s); err != nil {
+			return err
+		}
+		if got, err := q.OutputState(ctx, w.ID, domain.StreamStdout); err != nil || got != s {
+			t.Errorf("OutputState = %+v, %v; want %+v", got, err, s)
+		}
+		if got, err := q.OutputStatesForWorkload(ctx, a.ID, w.ID); err != nil || len(got) != 1 || got[0] != s {
+			t.Errorf("OutputStatesForWorkload = %+v, %v", got, err)
+		}
+		if got, err := q.OutputStatesForWorkload(ctx, other.ID, w.ID); err != nil || len(got) != 0 {
+			t.Errorf("OutputStatesForWorkload(other tenant) = %+v, %v; want none", got, err)
+		}
+		return nil
+	})
+
+	// Removing all of a workload's output never frees its numbers: a reader that saw one would miss
+	// the next.
+	tx(t, st, func(q store.Queries) error {
+		all, err := q.OldestOutput(ctx, w.ID, 10)
+		if err != nil {
+			return err
+		}
+		ids := make([]int64, len(all))
+		for i, c := range all {
+			ids[i] = c.ID
+		}
+		if err := q.DeleteOutput(ctx, ids); err != nil {
+			return err
+		}
+		seq, err := q.AppendOutput(ctx, domain.OutputChunk{WorkloadID: w.ID, Stream: domain.StreamStdout, At: t0, Text: "after\n"})
+		if err != nil || seq != 4 {
+			t.Errorf("Seq after removing all = %d, %v; want 4", seq, err)
+		}
+		got, err := q.OutputForWorkload(ctx, a.ID, w.ID, 0, 10)
+		if err != nil || len(got) != 1 || got[0].Text != "after\n" {
+			t.Errorf("after DeleteOutput = %+v, %v", got, err)
+		}
+		return q.DeleteOutput(ctx, nil)
 	})
 }

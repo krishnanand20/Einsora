@@ -97,6 +97,9 @@ what the API returned):
                         timeline and export stay
   events <workload> [-json]
                         show a workload's complete timeline: every state change and note, when, and why
+  logs <workload> [-f] [-json]
+                        print its output (stdout and stderr, kept 14 days by default); -f keeps
+                        printing new output until Ctrl+C. Output from inside VMs isn't collected
   export <workload> [-o file] [-f]
                         save everything recorded about a workload as one JSON file, readable by
                         you only (default einsora-<name>-<id>.json; -o - writes to stdout;
@@ -315,7 +318,8 @@ func newController(cfg config.Config, log *slog.Logger, st store.Store, cat *cat
 	var hub *agents.Hub
 	switch cfg.ClusterBackend {
 	case "agent":
-		hub = agents.New(st, cat, agents.Options{Region: cfg.Region, AllowSim: cfg.Env == "dev"}, log.With("component", "agents"), nil)
+		hub = agents.New(st, cat, agents.Options{Region: cfg.Region, AllowSim: cfg.Env == "dev", OutputMaxBytes: int64(cfg.OutputMaxMiB) << 20},
+			log.With("component", "agents"), nil)
 		backend = hub
 	case "kubernetes":
 		b, err := kube.New(cat, kube.Options{
@@ -333,6 +337,7 @@ func newController(cfg config.Config, log *slog.Logger, st store.Store, cat *cat
 	ctrl := controller.New(st, backend, cat, controller.Options{
 		Region:           cfg.Region,
 		ProvisionTimeout: cfg.ProvisionTimeout,
+		OutputRetention:  cfg.OutputRetention,
 	}, log.With("component", "controller"), nil)
 	run := func(ctx context.Context) error { return ctrl.Run(ctx, cfg.ControllerInterval) }
 	if hub == nil {

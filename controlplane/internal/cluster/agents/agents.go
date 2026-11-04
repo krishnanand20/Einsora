@@ -23,6 +23,7 @@ import (
 	"github.com/krishnanand20/einsora/controlplane/internal/catalog"
 	"github.com/krishnanand20/einsora/controlplane/internal/cluster"
 	"github.com/krishnanand20/einsora/controlplane/internal/domain"
+	"github.com/krishnanand20/einsora/controlplane/internal/output"
 	"github.com/krishnanand20/einsora/controlplane/internal/store"
 )
 
@@ -39,12 +40,17 @@ type Options struct {
 	LostAfter time.Duration
 	// AllowSim accepts agents' sim driver, which runs nothing (development only).
 	AllowSim bool
+	// OutputMaxBytes is how much output each workload keeps; beyond it, its oldest output is
+	// removed, and readers are told (ADR-0024).
+	OutputMaxBytes int64
 }
 
 const (
 	defaultPollTimeout  = 20 * time.Second
 	defaultOfflineAfter = 45 * time.Second
 	defaultLostAfter    = 10 * time.Minute
+	// DefaultOutputMaxBytes is the output each workload keeps unless EINSORA_OUTPUT_MAX_MIB says otherwise.
+	DefaultOutputMaxBytes = 64 << 20
 	// heartbeatEvery limits how often a machine's last-seen time is written, so syncs stay reads.
 	heartbeatEvery = time.Minute
 	maxStatuses    = 1000
@@ -132,6 +138,9 @@ func New(st store.Store, cat *catalog.Catalog, opts Options, log *slog.Logger, n
 	if opts.LostAfter <= 0 {
 		opts.LostAfter = defaultLostAfter
 	}
+	if opts.OutputMaxBytes <= 0 {
+		opts.OutputMaxBytes = DefaultOutputMaxBytes
+	}
 	return &Hub{store: st, catalog: cat, opts: opts, log: log, now: now, started: now(), sessions: map[uuid.UUID]*session{}}
 }
 
@@ -168,6 +177,76 @@ type localConn struct {
 
 func (c localConn) Sync(ctx context.Context, req protocol.SyncRequest) (protocol.SyncResponse, error) {
 	return c.h.sync(ctx, c.id, req, true)
+}
+
+func (c localConn) Output(ctx context.Context, req protocol.OutputRequest) (protocol.OutputResponse, error) {
+	return c.h.Output(ctx, c.id, req)
+}
+
+// Output keeps what machine id's agent sends of its workloads' output (ADR-0024). Output is
+// accepted only for workloads placed on the machine, and stored under the workload's tenant from
+// the store, never anything the agent says; it's the workload's own output, shown only to that
+// tenant, and never reaches a timeline.
+func (h *Hub) Output(ctx context.Context, id uuid.UUID, req protocol.OutputRequest) (protocol.OutputResponse, error) {
+	if req.Version != protocol.Version {
+		return protocol.OutputResponse{}, domain.Errorf(domain.CodeInvalid, "protocol version %d isn't supported; this control plane speaks %d", req.Version, protocol.Version)
+	}
+	if len(req.Chunks) > protocol.MaxOutputChunks {
+		return protocol.OutputResponse{}, domain.Errorf(domain.CodeInvalid, "too many output chunks")
+	}
+	total := 0
+	for _, c := range req.Chunks {
+		total += len(c.Data)
+		switch {
+		case c.Stream != domain.StreamStdout && c.Stream != domain.StreamStderr:
+			return protocol.OutputResponse{}, domain.Errorf(domain.CodeInvalid, "unknown output stream %q", c.Stream)
+		case len(c.Data) > protocol.MaxOutputChunk || c.Offset < 0:
+			return protocol.OutputResponse{}, domain.Errorf(domain.CodeInvalid, "output chunk too large, or at a negative offset")
+		case c.Source == "" || len(c.Source) > 256 || !printable(c.Source):
+			return protocol.OutputResponse{}, domain.Errorf(domain.CodeInvalid, "an output chunk needs a short, printable source")
+		}
+	}
+	if total > protocol.MaxOutputRequest {
+		return protocol.OutputResponse{}, domain.Errorf(domain.CodeInvalid, "output request too large")
+	}
+	now := h.now()
+	var resp protocol.OutputResponse
+	err := h.store.InTx(ctx, func(q store.Queries) error {
+		m, err := q.MachineByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if m.Region != h.opts.Region {
+			return domain.Errorf(domain.CodeForbidden, "machine %s is in region %s, not this control plane's %s", m.Name, m.Region, h.opts.Region)
+		}
+		ws, err := q.WorkloadsOnMachine(ctx, id)
+		if err != nil {
+			return err
+		}
+		mine := make(map[uuid.UUID]domain.Workload, len(ws))
+		for _, w := range ws {
+			mine[w.ID] = w
+		}
+		resp.Streams = make([]protocol.OutputCursor, 0, len(req.Chunks))
+		for _, c := range req.Chunks {
+			w, ok := mine[c.ID]
+			if !ok {
+				resp.Streams = append(resp.Streams, protocol.OutputCursor{ID: c.ID, Stream: c.Stream, Ignored: true})
+				continue
+			}
+			next, err := output.Append(ctx, q, w, output.Piece{Stream: c.Stream, Source: c.Source, Restart: c.Restart,
+				Offset: c.Offset, Data: c.Data}, h.opts.OutputMaxBytes, now)
+			if err != nil {
+				return err
+			}
+			resp.Streams = append(resp.Streams, protocol.OutputCursor{ID: c.ID, Stream: c.Stream, Source: c.Source, Next: next})
+		}
+		return nil
+	})
+	if err != nil {
+		return protocol.OutputResponse{}, err
+	}
+	return resp, nil
 }
 
 func (h *Hub) session(id uuid.UUID) *session {

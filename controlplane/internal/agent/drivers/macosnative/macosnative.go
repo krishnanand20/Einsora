@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -885,4 +886,37 @@ func tail(out []byte) string {
 		out = out[len(out)-2000:]
 	}
 	return string(out)
+}
+
+// ReadOutput implements agent.OutputReader (ADR-0024): a workload's logs/stdout.log and
+// logs/stderr.log, which the agent writes and its sandbox can't touch, opened without following a
+// symlink all the same. The source is the file's inode, so a replaced file starts over.
+func (d *Driver) ReadOutput(_ context.Context, id uuid.UUID, stream domain.OutputStream, offset int64, limit int) ([]byte, string, int64, error) {
+	name := map[domain.OutputStream]string{domain.StreamStdout: "stdout.log", domain.StreamStderr: "stderr.log"}[stream]
+	if name == "" {
+		return nil, "", 0, fs.ErrNotExist
+	}
+	f, err := os.OpenFile(filepath.Join(d.dir(id), "logs", name), os.O_RDONLY|syscall.O_NOFOLLOW, 0) //nolint:gosec // the driver's own log file, never through a symlink
+	if err != nil {
+		return nil, "", 0, err
+	}
+	defer func() { _ = f.Close() }()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, "", 0, err
+	}
+	sys, ok := fi.Sys().(*syscall.Stat_t)
+	if !fi.Mode().IsRegular() || !ok {
+		return nil, "", 0, fmt.Errorf("%s isn't a regular file", name)
+	}
+	source, size := fmt.Sprintf("inode-%d", sys.Ino), fi.Size()
+	if limit <= 0 || offset < 0 || offset >= size {
+		return nil, source, size, nil
+	}
+	buf := make([]byte, min(int64(limit), size-offset))
+	n, err := f.ReadAt(buf, offset)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, "", 0, err
+	}
+	return buf[:n], source, size, nil
 }

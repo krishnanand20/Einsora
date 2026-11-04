@@ -167,6 +167,8 @@ type DriverSpec struct {
 	Accelerators []AcceleratorKind
 	// MaxPerMachine limits how many of its workloads one machine runs at once; 0 means no limit.
 	MaxPerMachine int
+	// CapturesOutput says its agent sends its workloads' stdout and stderr to be kept (ADR-0024).
+	CapturesOutput bool
 }
 
 // LookupDriver returns driver's spec, or false for a driver the control plane doesn't know.
@@ -175,10 +177,10 @@ func LookupDriver(driver string) (DriverSpec, bool) {
 	switch driver {
 	case DriverSim:
 		return DriverSpec{Isolation: IsolationWeak, Kinds: []WorkloadKind{KindVM, KindNotebook, KindEndpoint},
-			Accelerators: []AcceleratorKind{AcceleratorNVIDIA, AcceleratorApple, AcceleratorAMD, AcceleratorCPU}}, true
+			Accelerators: []AcceleratorKind{AcceleratorNVIDIA, AcceleratorApple, AcceleratorAMD, AcceleratorCPU}, CapturesOutput: true}, true
 	case DriverMacOSNative:
 		return DriverSpec{Isolation: IsolationWeak, OS: "darwin", Kinds: notebooksAndEndpoints,
-			Accelerators: []AcceleratorKind{AcceleratorApple, AcceleratorCPU}}, true
+			Accelerators: []AcceleratorKind{AcceleratorApple, AcceleratorCPU}, CapturesOutput: true}, true
 	case DriverMacOSVZ:
 		// macOS guests get the Mac's GPU through paravirtualized Metal, so a VM is always the GPU's
 		// whole unit: no CPU-only VMs that would share it. The macOS licence allows two per Mac.

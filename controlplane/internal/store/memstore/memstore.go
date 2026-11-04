@@ -31,19 +31,28 @@ type usageKey struct {
 	period   time.Time
 }
 
+type outputKey struct {
+	workload uuid.UUID
+	stream   domain.OutputStream
+}
+
 type data struct {
-	tenants     map[uuid.UUID]domain.Tenant
-	users       map[uuid.UUID]domain.User
-	sessions    map[string]domain.Session
-	tokens      map[uuid.UUID]domain.APIToken
-	machines    map[uuid.UUID]domain.Machine
-	leases      map[string]lease
-	tickets     map[string]domain.AccessTicket
-	quotas      map[quotaKey]domain.Quota
-	workloads   map[uuid.UUID]domain.Workload
-	events      []domain.Event
-	usage       map[usageKey]domain.UsageRecord
-	nextEventID int64
+	tenants      map[uuid.UUID]domain.Tenant
+	users        map[uuid.UUID]domain.User
+	sessions     map[string]domain.Session
+	tokens       map[uuid.UUID]domain.APIToken
+	machines     map[uuid.UUID]domain.Machine
+	leases       map[string]lease
+	tickets      map[string]domain.AccessTicket
+	quotas       map[quotaKey]domain.Quota
+	workloads    map[uuid.UUID]domain.Workload
+	events       []domain.Event
+	usage        map[usageKey]domain.UsageRecord
+	nextEventID  int64
+	output       []domain.OutputChunk // in ID order
+	outputState  map[outputKey]domain.OutputState
+	outputSeq    map[uuid.UUID]int64 // each workload's last Seq: never goes back
+	nextOutputID int64
 }
 
 func New() *Store {
@@ -58,6 +67,9 @@ func New() *Store {
 		quotas:    map[quotaKey]domain.Quota{},
 		workloads: map[uuid.UUID]domain.Workload{},
 		usage:     map[usageKey]domain.UsageRecord{},
+
+		outputState: map[outputKey]domain.OutputState{},
+		outputSeq:   map[uuid.UUID]int64{},
 	}}
 }
 
@@ -94,6 +106,9 @@ func (d *data) clone() data {
 	}
 	c.events = slices.Clone(d.events)
 	c.usage = maps.Clone(d.usage)
+	c.output = slices.Clone(d.output)
+	c.outputState = maps.Clone(d.outputState)
+	c.outputSeq = maps.Clone(d.outputSeq)
 	return c
 }
 
@@ -642,5 +657,88 @@ func (q *queries) Usage(_ context.Context, tenantID uuid.UUID, from, to time.Tim
 	slices.SortFunc(out, func(a, b domain.UsageRecord) int {
 		return cmp.Or(a.PeriodStart.Compare(b.PeriodStart), cmp.Compare(a.WorkloadID.String(), b.WorkloadID.String()))
 	})
+	return out, nil
+}
+
+func (q *queries) OutputState(_ context.Context, workloadID uuid.UUID, stream domain.OutputStream) (domain.OutputState, error) {
+	st, ok := q.d.outputState[outputKey{workloadID, stream}]
+	if !ok {
+		return domain.OutputState{}, store.NotFound("output stream")
+	}
+	return st, nil
+}
+
+func (q *queries) PutOutputState(_ context.Context, st domain.OutputState) error {
+	if _, ok := q.d.workloads[st.WorkloadID]; !ok {
+		return store.NotFound("workload")
+	}
+	if !st.Stream.Valid() {
+		return domain.Errorf(domain.CodeInvalid, "invalid output stream %q", st.Stream)
+	}
+	q.d.outputState[outputKey{st.WorkloadID, st.Stream}] = st
+	return nil
+}
+
+func (q *queries) AppendOutput(_ context.Context, c domain.OutputChunk) (int64, error) {
+	if _, ok := q.d.workloads[c.WorkloadID]; !ok {
+		return 0, store.NotFound("workload")
+	}
+	if !c.Stream.Valid() {
+		return 0, domain.Errorf(domain.CodeInvalid, "invalid output stream %q", c.Stream)
+	}
+	q.d.nextOutputID++
+	q.d.outputSeq[c.WorkloadID]++
+	c.ID, c.Seq, c.At = q.d.nextOutputID, q.d.outputSeq[c.WorkloadID], c.At.UTC()
+	q.d.output = append(q.d.output, c)
+	return c.Seq, nil
+}
+
+// outputWhere returns up to limit chunks that keep says to, oldest first.
+func (q *queries) outputWhere(limit int, keep func(domain.OutputChunk) bool) []domain.OutputChunk {
+	var out []domain.OutputChunk
+	for _, c := range q.d.output {
+		if len(out) == limit {
+			break
+		}
+		if keep(c) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func (q *queries) OldestOutput(_ context.Context, workloadID uuid.UUID, limit int) ([]domain.OutputChunk, error) {
+	return q.outputWhere(limit, func(c domain.OutputChunk) bool { return c.WorkloadID == workloadID }), nil
+}
+
+func (q *queries) ExpiredOutput(_ context.Context, region domain.Region, before time.Time, limit int) ([]domain.OutputChunk, error) {
+	return q.outputWhere(limit, func(c domain.OutputChunk) bool {
+		return c.At.Before(before) && q.d.workloads[c.WorkloadID].Region == region
+	}), nil
+}
+
+func (q *queries) DeleteOutput(_ context.Context, ids []int64) error {
+	q.d.output = slices.DeleteFunc(q.d.output, func(c domain.OutputChunk) bool { return slices.Contains(ids, c.ID) })
+	return nil
+}
+
+func (q *queries) OutputForWorkload(_ context.Context, tenantID, workloadID uuid.UUID, after int64, limit int) ([]domain.OutputChunk, error) {
+	if w, ok := q.d.workloads[workloadID]; !ok || w.TenantID != tenantID {
+		return nil, nil
+	}
+	return q.outputWhere(limit, func(c domain.OutputChunk) bool { return c.WorkloadID == workloadID && c.Seq > after }), nil
+}
+
+func (q *queries) OutputStatesForWorkload(_ context.Context, tenantID, workloadID uuid.UUID) ([]domain.OutputState, error) {
+	if w, ok := q.d.workloads[workloadID]; !ok || w.TenantID != tenantID {
+		return nil, nil
+	}
+	var out []domain.OutputState
+	for k, st := range q.d.outputState {
+		if k.workload == workloadID {
+			out = append(out, st)
+		}
+	}
+	slices.SortFunc(out, func(a, b domain.OutputState) int { return cmp.Compare(a.Stream, b.Stream) })
 	return out, nil
 }

@@ -128,11 +128,13 @@ returned, for scripts.
 
 ## See what happened
 
-Every workload keeps a full timeline: each state change, when, why, and by whom. Open the workload in
-the dashboard and click **Download full log** to save everything about it, or use the CLI:
+Every workload keeps a full timeline: each state change, when, why, and by whom. Its page also shows
+its **Output**, what it printed, kept for 14 days. Open the workload in the dashboard and click
+**Download full log** to save everything about it, or use the CLI:
 
 ```bash
 einsora events lab       # the timeline
+einsora logs lab -f      # its output, and new output as it comes (Ctrl+C stops)
 einsora export lab       # a complete copy, as JSON
 einsora workloads -all   # deleted workloads too: their history stays available
 ```

@@ -42,6 +42,7 @@
 | **MLX** | Apple's array framework for machine learning on Apple Silicon. Uses safetensors weights. |
 | **Notarization** | Apple's check of a macOS program before Gatekeeper lets it run when it arrives with the quarantine flag (from a browser or a Homebrew cask). It needs a paid Apple Developer Program membership, so Einsora's builds aren't notarized: install them with the script or the Homebrew formula (ADR-0023). |
 | **Operator** | Whoever runs an Einsora control plane: an individual, a team, a company, or a pool operator |
+| **Output (workload output)** | What a notebook or model server prints, its stdout and stderr, kept by the control plane for its owner: 14 days and up to 64 MiB per workload, with credentials in URLs removed. `einsora logs <workload> -f`, or the workload page's **Output** (ADR-0024). Never collected from inside VMs. |
 | **Park** | Release a workload's GPUs while keeping its disks (VM halted, notebook scaled to 0) |
 | **Passthrough** | Giving a VM exclusive, direct access to a whole PCI device through VFIO |
 | **Placement** | Where a workload actually runs: region, machine, and `placed_class` |
